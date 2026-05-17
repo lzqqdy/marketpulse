@@ -36,9 +36,20 @@ curl -s http://127.0.0.1:8080/api/v1/snapshot | jq .
 
 ## 部署（HK VPS）
 
-默认 **nginx 分离静态与 API**，改前端可只执行 `make deploy-web`。
+推荐 **`make ship`**：单端口（默认 `:8080`）对外，源码同步到服务器 Git 仓库目录。
 
-详见 [docs/RFC-003-deployment.md](./docs/RFC-003-deployment.md)。
+```bash
+cp deploy/deploy.local.yaml.example deploy/deploy.local.yaml
+# 配置 ssh_host、remote_dir: /home/lzqqdy/github/marketpulse
+
+make ship                 # 构建 + 同步 + 重启
+make ship-commit          # 同上，并在服务器 git commit
+make ship SHIP_GIT_COMMIT=1   # 单次自动提交
+```
+
+- 部署详解：[docs/RFC-003-deployment.md](./docs/RFC-003-deployment.md)
+- 模板说明：[deploy/README.md](./deploy/README.md)
+- 使用 **Nginx + 域名** 时：`make deploy DEPLOY_HOST=user@host`
 
 ## Vibe Coding
 

@@ -347,19 +347,25 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 ## Phase E — 部署
 
-### Step 18：HK 部署（nginx 模式）
+### Step 18：HK 部署
 
-**做什么**
+**推荐：ship（IP + 端口 + Git 仓库）**
 
-- [ ] VPS 安装 Go、Nginx
-- [ ] `make deploy-api DEPLOY_HOST=...`
-- [ ] `make deploy-web DEPLOY_HOST=...`
-- [ ] 按 `deploy/nginx.conf.example` 配置 TLS
-- [ ] systemd 启用 `marketpulse.service`
+- [ ] `cp deploy/deploy.local.yaml.example deploy/deploy.local.yaml`
+- [ ] `remote_dir` 指向服务器仓库，如 `/home/lzqqdy/github/marketpulse`
+- [ ] 安全组放行 `8080`
+- [ ] `make ship` 或 `make ship-commit`
+- [ ] 详见 `docs/RFC-003-deployment.md`
+
+**可选：nginx + 域名**
+
+- [ ] `make deploy-api` / `make deploy-web` + `deploy/nginx.conf.example`
+- [ ] systemd `marketpulse.service`
 
 **验收**
 
-- 手机浏览器 HTTPS 打开，币价实时
+- `curl http://<IP>:8080/healthz` → `binance_ws: connected`
+- 手机浏览器打开，币价与指数正常更新
 
 ---
 
