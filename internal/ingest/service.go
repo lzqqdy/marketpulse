@@ -17,6 +17,8 @@ type Service struct {
 	store *store.MarketStore
 
 	dayOpen       *dayOpenCache
+	equityCache   *equityCache
+	equityBreaker *equityBreakers
 	ingestStatus  *statusTracker
 	liquidations  *liquidationWindow
 	binanceStatus atomic.Value // string
@@ -26,11 +28,13 @@ type Service struct {
 // New creates an ingest service.
 func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s := &Service{
-		cfg:          cfg,
-		store:        st,
-		dayOpen:      newDayOpenCache(),
-		ingestStatus: newStatusTracker(),
-		liquidations: newLiquidationWindow(time.Hour),
+		cfg:           cfg,
+		store:         st,
+		dayOpen:       newDayOpenCache(),
+		equityCache:   newEquityCache(),
+		equityBreaker: newEquityBreakers(),
+		ingestStatus:  newStatusTracker(),
+		liquidations:  newLiquidationWindow(time.Hour),
 	}
 	s.binanceStatus.Store("starting")
 	s.ingestStatus.set("otc", "starting")

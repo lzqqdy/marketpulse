@@ -29,6 +29,9 @@ type IndexQuote struct {
 	Name      string    `json:"name"`
 	Price     float64   `json:"price"`
 	ChangePct float64   `json:"changePct"`
+	Source    string    `json:"source,omitempty"`
+	Stale     bool      `json:"stale"`
+	FetchedAt time.Time `json:"fetchedAt,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 

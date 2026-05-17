@@ -2,7 +2,7 @@ package binance
 
 import "time"
 
-// Shanghai is the market day boundary for "today" change (UTC+8).
+// Shanghai is used for UI-facing local time calculations and tests.
 var Shanghai *time.Location
 
 func init() {
@@ -13,19 +13,20 @@ func init() {
 	}
 }
 
-// DayStartShanghai returns today 00:00:00 in Asia/Shanghai for the given instant.
-func DayStartShanghai(now time.Time) time.Time {
-	t := now.In(Shanghai)
+// ExchangeDayStartUTC returns the Binance spot daily candle boundary.
+// Binance daily candles open at 00:00 UTC, which is 08:00 in Asia/Shanghai.
+func ExchangeDayStartUTC(now time.Time) time.Time {
+	t := now.UTC()
 	y, m, d := t.Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, Shanghai)
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
-// DayKeyShanghai is YYYY-MM-DD for the Shanghai calendar day of now.
-func DayKeyShanghai(now time.Time) string {
-	return DayStartShanghai(now).Format("2006-01-02")
+// ExchangeDayKeyUTC is YYYY-MM-DD for the Binance exchange day of now.
+func ExchangeDayKeyUTC(now time.Time) string {
+	return ExchangeDayStartUTC(now).Format("2006-01-02")
 }
 
-// NextDayStartShanghai is the next midnight after now in Shanghai.
-func NextDayStartShanghai(now time.Time) time.Time {
-	return DayStartShanghai(now).Add(24 * time.Hour)
+// NextExchangeDayStartUTC is the next Binance daily candle boundary.
+func NextExchangeDayStartUTC(now time.Time) time.Time {
+	return ExchangeDayStartUTC(now).Add(24 * time.Hour)
 }

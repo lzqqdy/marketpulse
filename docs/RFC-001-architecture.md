@@ -336,7 +336,7 @@ ingest:
   forex:
     usd_cny_interval: 1h
   equity:
-  interval: 90s
+  interval: 60s
   macro:
     interval: 5m
 ```

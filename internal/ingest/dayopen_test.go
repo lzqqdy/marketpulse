@@ -9,7 +9,7 @@ import (
 
 func Test_dayOpenCache_changePct(t *testing.T) {
 	c := newDayOpenCache()
-	date := binance.DayKeyShanghai(time.Now())
+	date := binance.ExchangeDayKeyUTC(time.Now())
 	c.replace(date, map[string]float64{"BTC": 100})
 
 	pct, ok := c.changePct("BTC", 101, time.Now())

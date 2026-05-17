@@ -15,37 +15,38 @@ import (
 
 // IndexDef maps internal id to Yahoo symbol and display name.
 type IndexDef struct {
-	ID     string
-	Name   string
-	Symbol string
+	ID          string
+	Name        string
+	Symbol      string
+	StooqSymbol string
 }
 
 // DefaultIndices is the global index watchlist plus international gold.
 var DefaultIndices = []IndexDef{
 	{ID: "sh000001", Name: "上证", Symbol: "000001.SS"},
 	{ID: "sz399001", Name: "深证", Symbol: "399001.SZ"},
-	{ID: "hsi", Name: "恒生", Symbol: "^HSI"},
-	{ID: "dji", Name: "道琼斯", Symbol: "^DJI"},
-	{ID: "ixic", Name: "纳斯达克", Symbol: "^IXIC"},
-	{ID: "gspc", Name: "标普500", Symbol: "^GSPC"},
-	{ID: "n225", Name: "日经225", Symbol: "^N225"},
-	{ID: "ftse", Name: "富时100", Symbol: "^FTSE"},
-	{ID: "gdaxi", Name: "DAX", Symbol: "^GDAXI"},
-	{ID: "fchi", Name: "CAC40", Symbol: "^FCHI"},
+	{ID: "hsi", Name: "恒生", Symbol: "^HSI", StooqSymbol: "^hsi"},
+	{ID: "dji", Name: "道琼斯", Symbol: "^DJI", StooqSymbol: "^dji"},
+	{ID: "ixic", Name: "纳斯达克", Symbol: "^IXIC", StooqSymbol: "^ndq"},
+	{ID: "gspc", Name: "标普500", Symbol: "^GSPC", StooqSymbol: "^spx"},
+	{ID: "n225", Name: "日经225", Symbol: "^N225", StooqSymbol: "^nkx"},
+	{ID: "ftse", Name: "富时100", Symbol: "^FTSE", StooqSymbol: "^ukx"},
+	{ID: "gdaxi", Name: "DAX", Symbol: "^GDAXI", StooqSymbol: "^dax"},
+	{ID: "fchi", Name: "CAC40", Symbol: "^FCHI", StooqSymbol: "^cac"},
 	{ID: "ks11", Name: "KOSPI", Symbol: "^KS11"},
 	{ID: "twii", Name: "台湾加权", Symbol: "^TWII"},
 	{ID: "nsei", Name: "Nifty 50", Symbol: "^NSEI"},
 	{ID: "axjo", Name: "ASX 200", Symbol: "^AXJO"},
-	{ID: "gold", Name: "国际黄金", Symbol: "GC=F"},
+	{ID: "gold", Name: "国际黄金", Symbol: "GC=F", StooqSymbol: "gc.f"},
 }
 
 const chartBase = "https://query2.finance.yahoo.com/v8/finance/chart/"
 
 const (
-	yahooRequestGap        = 600 * time.Millisecond
-	yahooMaxRetries        = 2
-	yahooRetryBackoff      = 3 * time.Second
-	yahooAbortAfter429     = 3 // 连续 429 则中止本轮剩余标的
+	yahooRequestGap    = 600 * time.Millisecond
+	yahooMaxRetries    = 2
+	yahooRetryBackoff  = 3 * time.Second
+	yahooAbortAfter429 = 3 // 连续 429 则中止本轮剩余标的
 )
 
 // DefaultIndexByID finds a configured index definition by internal id.
@@ -98,7 +99,7 @@ func FetchAll(client *http.Client, defs []IndexDef) ([]store.IndexQuote, error) 
 			if firstErr == nil {
 				firstErr = err
 			}
-			if isRateLimitErr(err) {
+			if IsRateLimitErr(err) {
 				consecutive429++
 			} else {
 				consecutive429 = 0
@@ -114,7 +115,7 @@ func FetchAll(client *http.Client, defs []IndexDef) ([]store.IndexQuote, error) 
 	return out, firstErr
 }
 
-func isRateLimitErr(err error) bool {
+func IsRateLimitErr(err error) bool {
 	if err == nil {
 		return false
 	}

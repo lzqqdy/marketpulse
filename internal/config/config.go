@@ -12,16 +12,16 @@ import (
 
 // Config is the root configuration for marketd.
 type Config struct {
-	App     AppConfig     `yaml:"app"`
-	CORS    CORSConfig    `yaml:"cors"`
-	Symbols []string      `yaml:"symbols"`
-	Ingest  IngestConfig  `yaml:"ingest"`
+	App     AppConfig    `yaml:"app"`
+	CORS    CORSConfig   `yaml:"cors"`
+	Symbols []string     `yaml:"symbols"`
+	Ingest  IngestConfig `yaml:"ingest"`
 }
 
 // AppConfig holds HTTP server settings.
 type AppConfig struct {
 	Addr      string `yaml:"addr"`
-	Mode      string `yaml:"mode"` // debug | release
+	Mode      string `yaml:"mode"`       // debug | release
 	StaticDir string `yaml:"static_dir"` // optional: Vite dist for IP:port single-port deploy
 }
 
@@ -56,8 +56,8 @@ type ForexConfig struct {
 
 // EquityConfig configures stock index polling.
 type EquityConfig struct {
-	Interval  time.Duration `yaml:"interval"`
-	IndexIDs  []string      `yaml:"index_ids"`
+	Interval time.Duration `yaml:"interval"`
+	IndexIDs []string      `yaml:"index_ids"`
 }
 
 // DefaultEquityIndexIDs is the production watchlist (中国2 + 日韩2 + 美国3 + 黄金1).
@@ -110,7 +110,7 @@ func (c *Config) applyDefaults() {
 		c.Ingest.Forex.USDCNYInterval = time.Hour
 	}
 	if c.Ingest.Equity.Interval == 0 {
-		c.Ingest.Equity.Interval = 2 * time.Minute
+		c.Ingest.Equity.Interval = time.Minute
 	}
 	if len(c.Ingest.Equity.IndexIDs) == 0 {
 		c.Ingest.Equity.IndexIDs = append([]string(nil), DefaultEquityIndexIDs...)

@@ -47,7 +47,7 @@ func FetchKlines(baseSymbol, interval string, limit int) ([]Candle, error) {
 }
 
 // FetchKlineOpenAt returns the open of the 1m candle whose open time is start (inclusive).
-// Used for Beijing-midnight day open: start = DayStartShanghai(now).
+// Used for the Binance daily open: start = ExchangeDayStartUTC(now).
 func FetchKlineOpenAt(baseSymbol string, start time.Time) (float64, error) {
 	candles, err := fetchKlines(baseSymbol, "1m", 1, start.UnixMilli())
 	if err != nil {

@@ -62,16 +62,61 @@ func (s *Service) pollEquity(ctx context.Context) error {
 		return ctx.Err()
 	}
 	defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
-	indices, err := equity.FetchAll(httpClient, defs)
-	if len(indices) == 0 {
-		s.ingestStatus.set("equity", "error")
+	now := time.Now()
+	ttl := equity.CacheTTL(now)
+	if rows, ok := s.equityCache.fresh(defs, now, ttl); ok {
+		s.store.SetIndices(rows)
+		s.ingestStatus.set("equity", "ok")
+		return nil
+	}
+
+	expired := s.equityCache.expiredDefs(defs, now, ttl)
+	if len(expired) == 0 {
+		rows := s.equityCache.snapshot(defs, false)
+		s.store.SetIndices(rows)
+		s.ingestStatus.set("equity", "ok")
+		return nil
+	}
+
+	var firstErr error
+	if !s.equityBreaker.isOpen("yahoo", now) {
+		rows, err := equity.FetchYahooQuotes(httpClient, expired)
+		if len(rows) > 0 {
+			s.equityCache.merge(rows, time.Now())
+			s.equityBreaker.success("yahoo")
+		}
 		if err != nil {
-			return err
+			firstErr = err
+			s.equityBreaker.failure("yahoo", now, equity.IsRateLimitErr(err))
+		}
+	}
+
+	missing := s.equityCache.expiredDefs(defs, time.Now(), ttl)
+	if len(missing) > 0 && !s.equityBreaker.isOpen("stooq", now) {
+		rows, err := equity.FetchStooqQuotes(httpClient, missing)
+		if len(rows) > 0 {
+			s.equityCache.merge(rows, time.Now())
+			s.equityBreaker.success("stooq")
+		}
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			s.equityBreaker.failure("stooq", now, equity.IsRateLimitErr(err))
+		}
+	}
+
+	finalMissing := s.equityCache.expiredDefs(defs, time.Now(), ttl)
+	rows := s.equityCache.snapshot(defs, len(finalMissing) > 0)
+	if len(rows) == 0 {
+		s.ingestStatus.set("equity", "error")
+		if firstErr != nil {
+			return firstErr
 		}
 		return nil
 	}
-	s.store.SetIndices(indices)
-	if err != nil {
+	s.store.SetIndices(rows)
+	if firstErr != nil || len(rows) < len(defs) || len(finalMissing) > 0 {
 		s.ingestStatus.set("equity", "degraded")
 		return nil
 	}
