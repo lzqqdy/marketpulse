@@ -69,8 +69,8 @@ func Test_yahooKlineChart_candles(t *testing.T) {
 }
 
 func TestResolveDefs_defaultWatchlist(t *testing.T) {
-	defs := ResolveDefs([]string{"sh000001", "sz399001", "n225", "ks11", "dji", "ixic", "gspc", "gold"})
-	if len(defs) != 8 {
+	defs := ResolveDefs([]string{"sh000001", "sz399001", "hsi", "n225", "ks11", "dji", "ixic", "gspc", "gold"})
+	if len(defs) != 9 {
 		t.Fatalf("len %d", len(defs))
 	}
 }

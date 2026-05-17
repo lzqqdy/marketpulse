@@ -36,6 +36,7 @@ ingest:
     index_ids:
       - sh000001
       - sz399001
+      - hsi
       - n225
       - ks11
       - dji

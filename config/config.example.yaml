@@ -29,6 +29,7 @@ ingest:
     interval: 60s
     providers:
       - yahoo
+      - finnhub
       - twelvedata
       - stooq
     # 也可以用环境变量：
@@ -39,6 +40,7 @@ ingest:
     index_ids:
       - sh000001
       - sz399001
+      - hsi
       - n225
       - ks11
       - dji

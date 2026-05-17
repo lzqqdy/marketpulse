@@ -63,9 +63,10 @@ type EquityConfig struct {
 	TwelveDataAPIKey string        `yaml:"twelvedata_api_key"`
 }
 
-// DefaultEquityIndexIDs is the production watchlist (中国2 + 日韩2 + 美国3 + 黄金1).
+// DefaultEquityIndexIDs is the production watchlist (中国2 + 香港1 + 日韩2 + 美国3 + 黄金1).
 var DefaultEquityIndexIDs = []string{
 	"sh000001", "sz399001",
+	"hsi",
 	"n225", "ks11",
 	"dji", "ixic", "gspc",
 	"gold",
