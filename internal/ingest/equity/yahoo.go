@@ -214,7 +214,7 @@ func FetchKlines(client *http.Client, def IndexDef, interval string, limit int) 
 		return nil, err
 	}
 	if limit <= 0 {
-		limit = 300
+		limit = binance.DefaultKlineLimit
 	}
 	if limit > 1000 {
 		limit = 1000

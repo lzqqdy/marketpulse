@@ -20,7 +20,8 @@ var binancePremiumIndexURL = "https://fapi.binance.com/fapi/v1/premiumIndex"
 var binanceOpenInterestHistURL = "https://fapi.binance.com/futures/data/openInterestHist"
 var binanceTakerBuySellURL = "https://fapi.binance.com/futures/data/takerlongshortRatio"
 
-const AllLiquidationsStreamURL = "wss://fstream.binance.com/ws/!forceOrder@arr"
+// AllLiquidationsStreamURL uses the /market entry (legacy /ws/ path connects but sends no data).
+const AllLiquidationsStreamURL = "wss://fstream.binance.com/market/ws/!forceOrder@arr"
 
 // FetchGlobalLongShort loads the latest Binance futures global long/short account ratio.
 func FetchGlobalLongShort(client *http.Client, symbol string) (store.LongShortRatio, error) {
@@ -146,6 +147,12 @@ func FetchFunding(client *http.Client, symbol string) (store.FundingRate, error)
 	if err != nil {
 		return store.FundingRate{}, fmt.Errorf("binance funding rate: %w", err)
 	}
+	mark, _ := strconv.ParseFloat(row.MarkPrice, 64)
+	index, _ := strconv.ParseFloat(row.IndexPrice, 64)
+	premiumPct := 0.0
+	if index > 0 && mark > 0 {
+		premiumPct = (mark - index) / index * 100
+	}
 	updatedAt := time.Now().UTC()
 	if row.Time > 0 {
 		updatedAt = time.UnixMilli(row.Time).UTC()
@@ -157,6 +164,9 @@ func FetchFunding(client *http.Client, symbol string) (store.FundingRate, error)
 	return store.FundingRate{
 		Symbol:          symbol,
 		Rate:            rate,
+		MarkPrice:       mark,
+		IndexPrice:      index,
+		PremiumPct:      premiumPct,
 		NextFundingTime: nextFunding,
 		UpdatedAt:       updatedAt,
 	}, nil
@@ -372,6 +382,8 @@ func ParseLiquidationMessage(data []byte) (LiquidationOrder, bool) {
 
 type premiumIndexRow struct {
 	Symbol          string `json:"symbol"`
+	MarkPrice       string `json:"markPrice"`
+	IndexPrice      string `json:"indexPrice"`
 	LastFundingRate string `json:"lastFundingRate"`
 	NextFundingTime int64  `json:"nextFundingTime"`
 	Time            int64  `json:"time"`

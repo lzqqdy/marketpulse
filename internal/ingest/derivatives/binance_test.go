@@ -73,6 +73,8 @@ func TestFetchFunding(t *testing.T) {
 		}
 		return jsonResponse(`{
 			"symbol":"BTCUSDT",
+			"markPrice":"70100",
+			"indexPrice":"70000",
 			"lastFundingRate":"0.00012600",
 			"nextFundingTime":1710028800000,
 			"time":1710000000000
@@ -92,6 +94,9 @@ func TestFetchFunding(t *testing.T) {
 	}
 	if got.NextFundingTime.IsZero() {
 		t.Fatalf("next funding is zero")
+	}
+	if got.PremiumPct <= 0 || got.PremiumPct >= 0.2 {
+		t.Fatalf("premiumPct = %v", got.PremiumPct)
 	}
 }
 

@@ -13,6 +13,9 @@ import (
 
 var restBase = "https://api.binance.com"
 
+// DefaultKlineLimit is the history bar count for REST and WS kline snapshots.
+const DefaultKlineLimit = 300
+
 // Candle is one OHLCV bar for charting.
 type Candle struct {
 	Time   int64   `json:"time"` // unix seconds (UTC)

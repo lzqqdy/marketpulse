@@ -42,7 +42,9 @@ type MacroSnapshot struct {
 	TotalMarketCapChange24hPct float64        `json:"totalMarketCapChange24hPct"`
 	FearGreed                  FearGreed      `json:"fearGreed"`
 	BTCDominancePct            float64        `json:"btcDominancePct"`
-	ETHDominancePct            float64        `json:"ethDominancePct"`
+	ETHDominancePct               float64        `json:"ethDominancePct"`
+	StablecoinMarketCapUsd        float64        `json:"stablecoinMarketCapUsd"`
+	StablecoinMarketCapChange24hPct float64      `json:"stablecoinMarketCapChange24hPct"`
 	LongShort                  LongShortRatio `json:"longShort"`
 	TopLongShort               LongShortRatio `json:"topLongShort"`
 	Funding                    FundingRate    `json:"funding"`
@@ -70,6 +72,9 @@ type LongShortRatio struct {
 type FundingRate struct {
 	Symbol          string    `json:"symbol"`
 	Rate            float64   `json:"rate"`
+	MarkPrice       float64   `json:"markPrice,omitempty"`
+	IndexPrice      float64   `json:"indexPrice,omitempty"`
+	PremiumPct      float64   `json:"premiumPct,omitempty"`
 	NextFundingTime time.Time `json:"nextFundingTime"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }

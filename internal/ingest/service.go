@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,6 +24,10 @@ type Service struct {
 	liquidations  *liquidationWindow
 	binanceStatus atomic.Value // string
 	lastQuoteAt   atomic.Int64 // unix ms
+
+	sgeGoldMu sync.RWMutex
+	sgeGold   store.IndexQuote
+	sgeGoldOK bool
 }
 
 // New creates an ingest service.
@@ -53,8 +58,25 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s.ingestStatus.set("taker_buy_sell", "starting")
 	s.ingestStatus.set("liquidations", "starting")
 	s.ingestStatus.set("liquidations_ws", "starting")
-	s.ingestStatus.set("sge_gold", "disabled")
+	s.ingestStatus.set("sge_gold", "starting")
 	return s
+}
+
+func (s *Service) indicesWithSGE(rows []store.IndexQuote) []store.IndexQuote {
+	s.sgeGoldMu.RLock()
+	defer s.sgeGoldMu.RUnlock()
+	if !s.sgeGoldOK {
+		return rows
+	}
+	out := make([]store.IndexQuote, 0, len(rows)+1)
+	for _, r := range rows {
+		if r.ID != "sge-au9999" {
+			out = append(out, r)
+		}
+	}
+	q := s.sgeGold
+	out = append(out, q)
+	return out
 }
 
 // Start launches ingest goroutines until ctx is cancelled.

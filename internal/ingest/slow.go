@@ -10,6 +10,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/ingest/equity"
 	"github.com/lzqqdy/marketpulse/internal/ingest/forex"
 	"github.com/lzqqdy/marketpulse/internal/ingest/macro"
+	"github.com/lzqqdy/marketpulse/internal/ingest/metals"
 	"github.com/lzqqdy/marketpulse/internal/ingest/otc"
 	"github.com/lzqqdy/marketpulse/internal/store"
 )
@@ -18,6 +19,7 @@ func (s *Service) startSlowIngest(ctx context.Context) {
 	go runPoller(ctx, s.cfg.Ingest.OTC.USDTCNYInterval, "otc", s.pollOTC)
 	go runPoller(ctx, s.cfg.Ingest.Forex.USDCNYInterval, "forex", s.pollForex)
 	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "equity", s.pollEquity)
+	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "sge_gold", s.pollSGE)
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "macro", s.pollMacro)
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "crypto_meta", s.pollCryptoMeta)
 	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "long_short", s.pollLongShort)
@@ -66,7 +68,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	now := time.Now()
 	ttl := equity.CacheTTL(now)
 	if rows, ok := s.equityCache.fresh(defs, now, ttl); ok {
-		s.store.SetIndices(rows)
+		s.store.SetIndices(s.indicesWithSGE(rows))
 		s.ingestStatus.set("equity", "ok")
 		return nil
 	}
@@ -74,7 +76,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	expired := s.equityCache.expiredDefs(defs, now, ttl)
 	if len(expired) == 0 {
 		rows := s.equityCache.snapshot(defs, false)
-		s.store.SetIndices(rows)
+		s.store.SetIndices(s.indicesWithSGE(rows))
 		s.ingestStatus.set("equity", "ok")
 		return nil
 	}
@@ -143,12 +145,37 @@ func (s *Service) pollEquity(ctx context.Context) error {
 		}
 		return nil
 	}
-	s.store.SetIndices(rows)
+	s.store.SetIndices(s.indicesWithSGE(rows))
 	if firstErr != nil || len(rows) < len(defs) || len(finalMissing) > 0 {
 		s.ingestStatus.set("equity", "degraded")
 		return nil
 	}
 	s.ingestStatus.set("equity", "ok")
+	return nil
+}
+
+func (s *Service) pollSGE(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	q, err := metals.FetchAu9999(httpClient)
+	if err != nil {
+		s.ingestStatus.set("sge_gold", "error")
+		slog.Warn("sge gold fetch failed", "err", err)
+		return nil
+	}
+	q.Source = "sge"
+	s.sgeGoldMu.Lock()
+	s.sgeGold = q
+	s.sgeGoldOK = true
+	s.sgeGoldMu.Unlock()
+	s.ingestStatus.set("sge_gold", "ok")
+
+	defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
+	rows := s.equityCache.snapshot(defs, false)
+	if len(rows) > 0 {
+		s.store.SetIndices(s.indicesWithSGE(rows))
+	}
 	return nil
 }
 

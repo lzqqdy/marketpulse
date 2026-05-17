@@ -31,9 +31,9 @@ func (h *Handler) Klines(c *gin.Context) {
 	}
 
 	interval := c.DefaultQuery("interval", "1h")
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "300"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(binance.DefaultKlineLimit)))
 	if limit <= 0 {
-		limit = 300
+		limit = binance.DefaultKlineLimit
 	}
 
 	candles, err := binance.FetchKlines(symbol, interval, limit)
@@ -66,9 +66,9 @@ func (h *Handler) IndexKlines(c *gin.Context) {
 	}
 
 	interval := c.DefaultQuery("interval", "1d")
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "300"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(binance.DefaultKlineLimit)))
 	if limit <= 0 {
-		limit = 300
+		limit = binance.DefaultKlineLimit
 	}
 
 	candles, err := equity.FetchKlines(http.DefaultClient, def, interval, limit)

@@ -138,7 +138,7 @@ func (h *KlineHub) runSubscription(key string, sub *klineSub) {
 	sub.cancel = cancel
 	h.mu.Unlock()
 
-	candles, err := binance.FetchKlines(sub.symbol, sub.interval, 300)
+	candles, err := binance.FetchKlines(sub.symbol, sub.interval, binance.DefaultKlineLimit)
 	if err != nil {
 		slog.Error("kline history", "symbol", sub.symbol, "interval", sub.interval, "err", err)
 		h.broadcastError(sub, "UPSTREAM_ERROR", err.Error())
