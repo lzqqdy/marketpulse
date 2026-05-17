@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -80,6 +81,21 @@ func ResolveDefs(ids []string) []IndexDef {
 
 // FetchAll loads index quotes via Yahoo chart API (2d range for change%).
 func FetchAll(client *http.Client, defs []IndexDef) ([]store.IndexQuote, error) {
+	rows, err := FetchYahooChartQuotes(client, defs)
+	out := make([]store.IndexQuote, 0, len(rows))
+	for _, def := range defs {
+		if row, ok := rows[def.ID]; ok {
+			out = append(out, row)
+		}
+	}
+	if len(out) == 0 && err != nil {
+		return nil, err
+	}
+	return out, err
+}
+
+// FetchYahooChartQuotes loads index quotes via Yahoo chart API (2d range for change%).
+func FetchYahooChartQuotes(client *http.Client, defs []IndexDef) (map[string]store.IndexQuote, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -87,7 +103,7 @@ func FetchAll(client *http.Client, defs []IndexDef) ([]store.IndexQuote, error) 
 		defs = DefaultIndices
 	}
 	now := time.Now().UTC()
-	out := make([]store.IndexQuote, 0, len(defs))
+	out := make(map[string]store.IndexQuote, len(defs))
 	var firstErr error
 	consecutive429 := 0
 
@@ -111,7 +127,7 @@ func FetchAll(client *http.Client, defs []IndexDef) ([]store.IndexQuote, error) 
 			continue
 		}
 		consecutive429 = 0
-		out = append(out, q)
+		out[def.ID] = q
 	}
 	if len(out) == 0 && firstErr != nil {
 		return nil, firstErr
@@ -143,9 +159,11 @@ func fetchOne(client *http.Client, def IndexDef, now time.Time) (store.IndexQuot
 
 		resp, err := client.Do(req)
 		if err != nil {
+			slog.Warn("equity http request failed", "provider", "yahoo", "endpoint", "chart", "id", def.ID, "symbol", def.Symbol, "err", err)
 			lastErr = fmt.Errorf("%s request: %w", def.ID, err)
 			continue
 		}
+		slog.Info("equity http response", "provider", "yahoo", "endpoint", "chart", "id", def.ID, "symbol", def.Symbol, "status", resp.StatusCode)
 		body, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if readErr != nil {

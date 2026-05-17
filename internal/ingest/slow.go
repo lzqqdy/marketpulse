@@ -155,7 +155,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 func (s *Service) fetchEquityProvider(provider string, defs []equity.IndexDef) (map[string]store.IndexQuote, error, bool) {
 	switch provider {
 	case "yahoo":
-		rows, err := equity.FetchYahooQuotes(httpClient, defs)
+		rows, err := equity.FetchYahooChartQuotes(httpClient, defs)
 		return rows, err, false
 	case "finnhub":
 		if s.cfg.Ingest.Equity.FinnhubAPIKey == "" {
