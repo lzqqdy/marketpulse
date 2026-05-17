@@ -1,0 +1,27 @@
+# 复制为 deploy/deploy.local.yaml（已 gitignore），填写后执行: make ship
+#
+# remote_dir 建议指向服务器上的 git 仓库根目录，例如:
+#   /home/lzqqdy/github/marketpulse
+
+ssh_host: "1.2.3.4"
+ssh_port: 22
+ssh_user: "root"
+ssh_key: ""
+
+# 服务器上的 git 仓库路径（部署会 rsync 源码到此目录，不覆盖 .git）
+remote_dir: "/home/lzqqdy/github/marketpulse"
+
+app_addr: "0.0.0.0:8080"
+app_port: 8080
+
+goos: "linux"
+goarch: "amd64"
+
+# 是否每次部署同步完整源码（默认 true）
+sync_source: true
+
+# 是否在部署结束后于服务器自动 git commit（也可用 make ship SHIP_GIT_COMMIT=1）
+git_auto_commit: false
+
+# 自动提交说明（留空则用 deploy: 时间戳）
+git_commit_message: ""

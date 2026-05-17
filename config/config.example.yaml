@@ -1,0 +1,40 @@
+# MarketPulse 配置模板 — 复制为 config/config.yaml（已 gitignore）
+
+app:
+  addr: ":8080"
+  mode: "debug" # debug | release
+  # 生产 IP+端口 单进程部署时设为 web/dist 目录（见 make ship）
+  # static_dir: "web/dist"
+
+cors:
+  allowed_origins:
+    - "http://localhost:5173"
+
+symbols:
+  - BTC
+  - ETH
+  - BNB
+  - LTC
+  - FIL
+
+ingest:
+  binance:
+    # 合并流示例，实现时按 symbols 生成
+    ws_base: "wss://stream.binance.com:9443/stream"
+  otc:
+    usdt_cny_interval: 30s
+  forex:
+    usd_cny_interval: 1h
+  equity:
+    interval: 2m
+    index_ids:
+      - sh000001
+      - sz399001
+      - n225
+      - ks11
+      - dji
+      - ixic
+      - gspc
+      - gold
+  macro:
+    interval: 5m

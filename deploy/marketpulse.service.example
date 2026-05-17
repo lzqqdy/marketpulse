@@ -1,0 +1,15 @@
+[Unit]
+Description=MarketPulse marketd
+After=network.target
+
+[Service]
+Type=simple
+User=marketpulse
+WorkingDirectory=/opt/marketpulse
+ExecStart=/opt/marketpulse/bin/marketd -config /opt/marketpulse/config/config.yaml
+Restart=always
+RestartSec=3
+Environment=MARKETPULSE_APP_ADDR=127.0.0.1:8080
+
+[Install]
+WantedBy=multi-user.target

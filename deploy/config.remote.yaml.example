@@ -1,0 +1,40 @@
+# 远程生产配置模板 — 由 deploy-remote.sh 根据 deploy.local.yaml 生成并上传
+
+app:
+  addr: "0.0.0.0:8080"
+  mode: "release"
+  # 相对 remote_dir，与 web/dist 同步目录对应
+  static_dir: "web"
+
+cors:
+  allowed_origins: []
+
+symbols:
+  - BTC
+  - ETH
+  - BNB
+  - LTC
+  - FIL
+
+ingest:
+  binance:
+    # 国内云主机若 stream.binance.com 连不上，可改用仅行情镜像：
+    # ws_base: "wss://data-stream.binance.vision/stream"
+    ws_base: "wss://stream.binance.com:9443/stream"
+  otc:
+    usdt_cny_interval: 30s
+  forex:
+    usd_cny_interval: 1h
+  equity:
+    interval: 2m
+    index_ids:
+      - sh000001
+      - sz399001
+      - n225
+      - ks11
+      - dji
+      - ixic
+      - gspc
+      - gold
+  macro:
+    interval: 5m

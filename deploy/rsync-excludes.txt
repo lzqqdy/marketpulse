@@ -1,0 +1,25 @@
+# 同步源码到服务器时排除（保留服务器 .git 与本地 deploy 密钥）
+.git/
+.cursor/
+.idea/
+.vscode/
+.DS_Store
+
+bin/
+log/
+*.log
+
+web/node_modules/
+web/dist/
+
+config/config.yaml
+deploy/deploy.local.yaml
+.env
+.env.*
+
+*.exe
+*.test
+vendor/
+*.pem
+server.crt
+server.key
