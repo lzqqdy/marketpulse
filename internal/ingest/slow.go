@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/lzqqdy/marketpulse/internal/ingest/crypto"
@@ -79,30 +80,57 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	}
 
 	var firstErr error
-	if !s.equityBreaker.isOpen("yahoo", now) {
-		rows, err := equity.FetchYahooQuotes(httpClient, expired)
+	for _, provider := range s.cfg.Ingest.Equity.Providers {
+		missing := s.equityCache.expiredDefs(defs, time.Now(), ttl)
+		if len(missing) == 0 {
+			break
+		}
+		if s.equityBreaker.isOpen(provider, now) {
+			s.ingestStatus.set("equity_"+provider, "circuit_open")
+			slog.Info("equity provider skipped",
+				"provider", provider,
+				"reason", "circuit_open",
+				"symbols", len(missing),
+			)
+			continue
+		}
+		start := time.Now()
+		rows, err, skipped := s.fetchEquityProvider(provider, missing)
+		elapsed := time.Since(start)
+		if skipped {
+			s.ingestStatus.set("equity_"+provider, "disabled")
+			slog.Info("equity provider skipped",
+				"provider", provider,
+				"reason", "disabled",
+				"symbols", len(missing),
+			)
+			continue
+		}
 		if len(rows) > 0 {
 			s.equityCache.merge(rows, time.Now())
-			s.equityBreaker.success("yahoo")
-		}
-		if err != nil {
-			firstErr = err
-			s.equityBreaker.failure("yahoo", now, equity.IsRateLimitErr(err))
-		}
-	}
-
-	missing := s.equityCache.expiredDefs(defs, time.Now(), ttl)
-	if len(missing) > 0 && !s.equityBreaker.isOpen("stooq", now) {
-		rows, err := equity.FetchStooqQuotes(httpClient, missing)
-		if len(rows) > 0 {
-			s.equityCache.merge(rows, time.Now())
-			s.equityBreaker.success("stooq")
+			s.equityBreaker.success(provider)
+			s.ingestStatus.set("equity_"+provider, "ok")
+			slog.Info("equity provider fetched",
+				"provider", provider,
+				"requested", len(missing),
+				"succeeded", len(rows),
+				"duration_ms", elapsed.Milliseconds(),
+			)
 		}
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
-			s.equityBreaker.failure("stooq", now, equity.IsRateLimitErr(err))
+			s.equityBreaker.failure(provider, now, equity.IsRateLimitErr(err))
+			s.ingestStatus.set("equity_"+provider, "error")
+			slog.Warn("equity provider failed",
+				"provider", provider,
+				"requested", len(missing),
+				"succeeded", len(rows),
+				"duration_ms", elapsed.Milliseconds(),
+				"rate_limited", equity.IsRateLimitErr(err),
+				"err", err,
+			)
 		}
 	}
 
@@ -122,6 +150,31 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	}
 	s.ingestStatus.set("equity", "ok")
 	return nil
+}
+
+func (s *Service) fetchEquityProvider(provider string, defs []equity.IndexDef) (map[string]store.IndexQuote, error, bool) {
+	switch provider {
+	case "yahoo":
+		rows, err := equity.FetchYahooQuotes(httpClient, defs)
+		return rows, err, false
+	case "finnhub":
+		if s.cfg.Ingest.Equity.FinnhubAPIKey == "" {
+			return nil, nil, true
+		}
+		rows, err := equity.FetchFinnhubQuotes(httpClient, defs, s.cfg.Ingest.Equity.FinnhubAPIKey)
+		return rows, err, false
+	case "twelvedata":
+		if s.cfg.Ingest.Equity.TwelveDataAPIKey == "" {
+			return nil, nil, true
+		}
+		rows, err := equity.FetchTwelveDataQuotes(httpClient, defs, s.cfg.Ingest.Equity.TwelveDataAPIKey)
+		return rows, err, false
+	case "stooq":
+		rows, err := equity.FetchStooqQuotes(httpClient, defs)
+		return rows, err, false
+	default:
+		return nil, nil, true
+	}
 }
 
 func (s *Service) pollMacro(ctx context.Context) error {

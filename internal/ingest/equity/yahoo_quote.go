@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -59,9 +60,11 @@ func FetchYahooQuotes(client *http.Client, defs []IndexDef) (map[string]store.In
 
 	resp, err := client.Do(req)
 	if err != nil {
+		slog.Warn("equity http request failed", "provider", "yahoo", "endpoint", "quote", "symbols", len(symbols), "err", err)
 		return nil, fmt.Errorf("yahoo quote request: %w", err)
 	}
 	defer resp.Body.Close()
+	slog.Info("equity http response", "provider", "yahoo", "endpoint", "quote", "symbols", len(symbols), "status", resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -82,7 +85,7 @@ func FetchYahooQuotes(client *http.Client, defs []IndexDef) (map[string]store.In
 	out := make(map[string]store.IndexQuote, len(parsed.QuoteResponse.Result))
 	for _, row := range parsed.QuoteResponse.Result {
 		def, ok := bySymbol[strings.ToUpper(row.Symbol)]
-		if !ok || row.RegularMarketPrice <= 0 {
+		if !ok || validatePrice(def, row.RegularMarketPrice) != nil {
 			continue
 		}
 		updatedAt := now
@@ -106,6 +109,7 @@ func FetchYahooQuotes(client *http.Client, defs []IndexDef) (map[string]store.In
 	if len(out) == 0 {
 		return nil, fmt.Errorf("yahoo quote: empty result")
 	}
+	slog.Info("equity quote parsed", "provider", "yahoo", "requested", len(defs), "parsed", len(out))
 	if len(out) < len(defs) {
 		return out, fmt.Errorf("yahoo quote: partial result %d/%d", len(out), len(defs))
 	}

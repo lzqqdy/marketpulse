@@ -20,6 +20,10 @@ goarch: "amd64"
 # 是否每次部署同步完整源码（默认 true）
 sync_source: true
 
+# 是否每次部署覆盖服务器 config/config.yaml（默认 false，避免覆盖线上 API key）
+# 首次部署远程不存在 config 时仍会自动初始化。
+sync_config: false
+
 # 是否在部署结束后于服务器自动 git commit（也可用 make ship SHIP_GIT_COMMIT=1）
 git_auto_commit: false
 

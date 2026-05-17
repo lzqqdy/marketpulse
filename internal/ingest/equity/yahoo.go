@@ -15,29 +15,33 @@ import (
 
 // IndexDef maps internal id to Yahoo symbol and display name.
 type IndexDef struct {
-	ID          string
-	Name        string
-	Symbol      string
-	StooqSymbol string
+	ID            string
+	Name          string
+	Symbol        string
+	FinnhubSymbol string
+	TwelveSymbol  string
+	StooqSymbol   string
+	MinPrice      float64
+	MaxPrice      float64
 }
 
 // DefaultIndices is the global index watchlist plus international gold.
 var DefaultIndices = []IndexDef{
-	{ID: "sh000001", Name: "上证", Symbol: "000001.SS"},
-	{ID: "sz399001", Name: "深证", Symbol: "399001.SZ"},
-	{ID: "hsi", Name: "恒生", Symbol: "^HSI", StooqSymbol: "^hsi"},
-	{ID: "dji", Name: "道琼斯", Symbol: "^DJI", StooqSymbol: "^dji"},
-	{ID: "ixic", Name: "纳斯达克", Symbol: "^IXIC", StooqSymbol: "^ndq"},
-	{ID: "gspc", Name: "标普500", Symbol: "^GSPC", StooqSymbol: "^spx"},
-	{ID: "n225", Name: "日经225", Symbol: "^N225", StooqSymbol: "^nkx"},
-	{ID: "ftse", Name: "富时100", Symbol: "^FTSE", StooqSymbol: "^ukx"},
-	{ID: "gdaxi", Name: "DAX", Symbol: "^GDAXI", StooqSymbol: "^dax"},
-	{ID: "fchi", Name: "CAC40", Symbol: "^FCHI", StooqSymbol: "^cac"},
-	{ID: "ks11", Name: "KOSPI", Symbol: "^KS11"},
-	{ID: "twii", Name: "台湾加权", Symbol: "^TWII"},
-	{ID: "nsei", Name: "Nifty 50", Symbol: "^NSEI"},
-	{ID: "axjo", Name: "ASX 200", Symbol: "^AXJO"},
-	{ID: "gold", Name: "国际黄金", Symbol: "GC=F", StooqSymbol: "gc.f"},
+	{ID: "sh000001", Name: "上证", Symbol: "000001.SS", FinnhubSymbol: "000001.SS", StooqSymbol: "^shc", MinPrice: 1000, MaxPrice: 10000},
+	{ID: "sz399001", Name: "深证", Symbol: "399001.SZ", FinnhubSymbol: "399001.SZ", MinPrice: 5000, MaxPrice: 30000},
+	{ID: "hsi", Name: "恒生", Symbol: "^HSI", FinnhubSymbol: "^HSI", TwelveSymbol: "HSI", StooqSymbol: "^hsi", MinPrice: 5000, MaxPrice: 50000},
+	{ID: "dji", Name: "道琼斯", Symbol: "^DJI", FinnhubSymbol: "^DJI", TwelveSymbol: "DJI", StooqSymbol: "^dji", MinPrice: 10000, MaxPrice: 100000},
+	{ID: "ixic", Name: "纳斯达克", Symbol: "^IXIC", FinnhubSymbol: "^IXIC", TwelveSymbol: "IXIC", StooqSymbol: "^ndq", MinPrice: 5000, MaxPrice: 50000},
+	{ID: "gspc", Name: "标普500", Symbol: "^GSPC", FinnhubSymbol: "^GSPC", TwelveSymbol: "SPX", StooqSymbol: "^spx", MinPrice: 1000, MaxPrice: 15000},
+	{ID: "n225", Name: "日经225", Symbol: "^N225", FinnhubSymbol: "^N225", TwelveSymbol: "NI225", StooqSymbol: "^nkx", MinPrice: 10000, MaxPrice: 100000},
+	{ID: "ftse", Name: "富时100", Symbol: "^FTSE", FinnhubSymbol: "^FTSE", TwelveSymbol: "FTSE", StooqSymbol: "^ukx", MinPrice: 3000, MaxPrice: 20000},
+	{ID: "gdaxi", Name: "DAX", Symbol: "^GDAXI", FinnhubSymbol: "^GDAXI", TwelveSymbol: "DAX", StooqSymbol: "^dax", MinPrice: 5000, MaxPrice: 50000},
+	{ID: "fchi", Name: "CAC40", Symbol: "^FCHI", FinnhubSymbol: "^FCHI", TwelveSymbol: "CAC", StooqSymbol: "^cac", MinPrice: 3000, MaxPrice: 20000},
+	{ID: "ks11", Name: "KOSPI", Symbol: "^KS11", FinnhubSymbol: "^KS11", TwelveSymbol: "KOSPI", StooqSymbol: "^kospi", MinPrice: 1000, MaxPrice: 10000},
+	{ID: "twii", Name: "台湾加权", Symbol: "^TWII", FinnhubSymbol: "^TWII", TwelveSymbol: "TWII", MinPrice: 5000, MaxPrice: 50000},
+	{ID: "nsei", Name: "Nifty 50", Symbol: "^NSEI", FinnhubSymbol: "^NSEI", TwelveSymbol: "NIFTY", MinPrice: 5000, MaxPrice: 50000},
+	{ID: "axjo", Name: "ASX 200", Symbol: "^AXJO", FinnhubSymbol: "^AXJO", TwelveSymbol: "ASX200", MinPrice: 2000, MaxPrice: 20000},
+	{ID: "gold", Name: "国际黄金", Symbol: "GC=F", FinnhubSymbol: "OANDA:XAU_USD", TwelveSymbol: "XAU/USD", StooqSymbol: "gc.f", MinPrice: 500, MaxPrice: 10000},
 }
 
 const chartBase = "https://query2.finance.yahoo.com/v8/finance/chart/"
@@ -163,6 +167,9 @@ func fetchOne(client *http.Client, def IndexDef, now time.Time) (store.IndexQuot
 		price, chg, err := parsed.latestChange()
 		if err != nil {
 			return store.IndexQuote{}, fmt.Errorf("%s: %w", def.ID, err)
+		}
+		if err := validatePrice(def, price); err != nil {
+			return store.IndexQuote{}, err
 		}
 
 		return store.IndexQuote{

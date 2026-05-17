@@ -53,6 +53,7 @@ APP_ADDR="$(get_yaml app_addr "0.0.0.0:8080")"
 GOOS="$(get_yaml goos linux)"
 GOARCH="$(get_yaml goarch amd64)"
 SYNC_SOURCE_CFG="$(get_yaml sync_source true)"
+SYNC_CONFIG_CFG="$(get_yaml sync_config false)"
 GIT_AUTO_COMMIT_CFG="$(get_yaml git_auto_commit false)"
 GIT_COMMIT_MSG_CFG="$(get_yaml git_commit_message "")"
 
@@ -69,6 +70,11 @@ fi
 DO_SYNC_SOURCE=1
 if [[ "${SHIP_NO_SOURCE}" == "1" ]] || ! yaml_bool "${SYNC_SOURCE_CFG}"; then
   DO_SYNC_SOURCE=0
+fi
+
+DO_SYNC_CONFIG=0
+if [[ "${SHIP_SYNC_CONFIG:-}" == "1" ]] || yaml_bool "${SYNC_CONFIG_CFG}"; then
+  DO_SYNC_CONFIG=1
 fi
 
 GIT_MSG="${SHIP_GIT_MSG:-${GIT_COMMIT_MSG_CFG}}"
@@ -119,7 +125,13 @@ fi
 echo "==> 同步运行产物"
 rsync -avz -e "${RSYNC_SSH}" bin/marketd "${SSH_TARGET}:${REMOTE_DIR}/bin/"
 rsync -avz --delete -e "${RSYNC_SSH}" web/dist/ "${SSH_TARGET}:${REMOTE_DIR}/web/"
-rsync -avz -e "${RSYNC_SSH}" "${TMP_CFG}" "${SSH_TARGET}:${REMOTE_DIR}/config/config.yaml"
+if [[ "${DO_SYNC_CONFIG}" == "1" ]]; then
+  echo "==> 覆盖远程 config/config.yaml（SHIP_SYNC_CONFIG=1 或 sync_config: true）"
+  rsync -avz -e "${RSYNC_SSH}" "${TMP_CFG}" "${SSH_TARGET}:${REMOTE_DIR}/config/config.yaml"
+else
+  echo "==> 保留远程 config/config.yaml（不存在时初始化）"
+  rsync -avz -e "${RSYNC_SSH}" --ignore-existing "${TMP_CFG}" "${SSH_TARGET}:${REMOTE_DIR}/config/config.yaml"
+fi
 rsync -avz -e "${RSYNC_SSH}" deploy/remote-restart.sh "${SSH_TARGET}:${REMOTE_DIR}/scripts/restart.sh"
 rsync -avz -e "${RSYNC_SSH}" deploy/remote-git-commit.sh "${SSH_TARGET}:${REMOTE_DIR}/deploy/remote-git-commit.sh"
 

@@ -56,8 +56,11 @@ type ForexConfig struct {
 
 // EquityConfig configures stock index polling.
 type EquityConfig struct {
-	Interval time.Duration `yaml:"interval"`
-	IndexIDs []string      `yaml:"index_ids"`
+	Interval         time.Duration `yaml:"interval"`
+	IndexIDs         []string      `yaml:"index_ids"`
+	Providers        []string      `yaml:"providers"`
+	FinnhubAPIKey    string        `yaml:"finnhub_api_key"`
+	TwelveDataAPIKey string        `yaml:"twelvedata_api_key"`
 }
 
 // DefaultEquityIndexIDs is the production watchlist (中国2 + 日韩2 + 美国3 + 黄金1).
@@ -115,6 +118,9 @@ func (c *Config) applyDefaults() {
 	if len(c.Ingest.Equity.IndexIDs) == 0 {
 		c.Ingest.Equity.IndexIDs = append([]string(nil), DefaultEquityIndexIDs...)
 	}
+	if len(c.Ingest.Equity.Providers) == 0 {
+		c.Ingest.Equity.Providers = []string{"yahoo", "twelvedata", "stooq"}
+	}
 	normalizedIDs := make([]string, 0, len(c.Ingest.Equity.IndexIDs))
 	for _, id := range c.Ingest.Equity.IndexIDs {
 		id = strings.ToLower(strings.TrimSpace(id))
@@ -123,6 +129,18 @@ func (c *Config) applyDefaults() {
 		}
 	}
 	c.Ingest.Equity.IndexIDs = normalizedIDs
+	normalizedProviders := make([]string, 0, len(c.Ingest.Equity.Providers))
+	for _, name := range c.Ingest.Equity.Providers {
+		name = strings.ToLower(strings.TrimSpace(name))
+		switch name {
+		case "yahoo", "finnhub", "twelvedata", "stooq":
+			normalizedProviders = append(normalizedProviders, name)
+		}
+	}
+	if len(normalizedProviders) == 0 {
+		normalizedProviders = []string{"yahoo", "twelvedata", "stooq"}
+	}
+	c.Ingest.Equity.Providers = normalizedProviders
 	if c.Ingest.Macro.Interval == 0 {
 		c.Ingest.Macro.Interval = 5 * time.Minute
 	}
@@ -146,6 +164,12 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MARKETPULSE_BINANCE_WS_BASE"); v != "" {
 		c.Ingest.Binance.WSBase = v
+	}
+	if v := os.Getenv("MARKETPULSE_FINNHUB_API_KEY"); v != "" {
+		c.Ingest.Equity.FinnhubAPIKey = v
+	}
+	if v := os.Getenv("MARKETPULSE_TWELVEDATA_API_KEY"); v != "" {
+		c.Ingest.Equity.TwelveDataAPIKey = v
 	}
 }
 

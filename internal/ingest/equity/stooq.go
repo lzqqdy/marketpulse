@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sort"
@@ -15,6 +16,7 @@ import (
 )
 
 const stooqDailyBase = "https://stooq.com/q/d/l/"
+const stooqQuoteBase = "https://stooq.com/q/l/"
 
 type stooqRow struct {
 	date  time.Time
@@ -38,6 +40,7 @@ func FetchStooqQuotes(client *http.Client, defs []IndexDef) (map[string]store.In
 		}
 		q, err := fetchStooqOne(client, def, now)
 		if err != nil {
+			slog.Warn("equity symbol fetch failed", "provider", "stooq", "id", def.ID, "symbol", def.StooqSymbol, "err", err)
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -54,8 +57,10 @@ func FetchStooqQuotes(client *http.Client, defs []IndexDef) (map[string]store.In
 func fetchStooqOne(client *http.Client, def IndexDef, now time.Time) (store.IndexQuote, error) {
 	values := url.Values{}
 	values.Set("s", def.StooqSymbol)
-	values.Set("i", "d")
-	req, err := http.NewRequest(http.MethodGet, stooqDailyBase+"?"+values.Encode(), nil)
+	values.Set("f", "sd2t2ohlcv")
+	values.Set("h", "")
+	values.Set("e", "csv")
+	req, err := http.NewRequest(http.MethodGet, stooqQuoteBase+"?"+values.Encode(), nil)
 	if err != nil {
 		return store.IndexQuote{}, err
 	}
@@ -63,34 +68,72 @@ func fetchStooqOne(client *http.Client, def IndexDef, now time.Time) (store.Inde
 
 	resp, err := client.Do(req)
 	if err != nil {
+		slog.Warn("equity http request failed", "provider", "stooq", "id", def.ID, "symbol", def.StooqSymbol, "err", err)
 		return store.IndexQuote{}, fmt.Errorf("%s stooq request: %w", def.ID, err)
 	}
 	defer resp.Body.Close()
+	slog.Info("equity http response", "provider", "stooq", "id", def.ID, "symbol", def.StooqSymbol, "status", resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		return store.IndexQuote{}, fmt.Errorf("%s stooq http %d", def.ID, resp.StatusCode)
 	}
-	rows, err := parseStooqCSV(resp.Body)
+	q, err := parseStooqQuoteCSV(resp.Body)
 	if err != nil {
 		return store.IndexQuote{}, fmt.Errorf("%s stooq parse: %w", def.ID, err)
 	}
-	if len(rows) < 1 {
-		return store.IndexQuote{}, fmt.Errorf("%s stooq: empty result", def.ID)
+	if err := validatePrice(def, q.close); err != nil {
+		return store.IndexQuote{}, fmt.Errorf("%s stooq: %w", def.ID, err)
 	}
-	latest := rows[len(rows)-1]
 	changePct := 0.0
-	if len(rows) >= 2 && rows[len(rows)-2].close > 0 {
-		prev := rows[len(rows)-2].close
-		changePct = (latest.close - prev) / prev * 100
+	if q.open > 0 {
+		changePct = (q.close - q.open) / q.open * 100
 	}
 	return store.IndexQuote{
 		ID:        def.ID,
 		Name:      def.Name,
-		Price:     latest.close,
+		Price:     q.close,
 		ChangePct: changePct,
 		Source:    "stooq",
 		FetchedAt: now,
-		UpdatedAt: latest.date,
+		UpdatedAt: q.updatedAt,
 	}, nil
+}
+
+type stooqQuoteRow struct {
+	open      float64
+	close     float64
+	updatedAt time.Time
+}
+
+func parseStooqQuoteCSV(r io.Reader) (stooqQuoteRow, error) {
+	reader := csv.NewReader(r)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return stooqQuoteRow{}, err
+	}
+	if len(records) < 2 {
+		return stooqQuoteRow{}, fmt.Errorf("empty quote csv")
+	}
+	rec := records[1]
+	if len(rec) < 7 || strings.EqualFold(strings.TrimSpace(rec[1]), "N/D") {
+		return stooqQuoteRow{}, fmt.Errorf("no data")
+	}
+	open, err := strconv.ParseFloat(strings.TrimSpace(rec[3]), 64)
+	if err != nil {
+		open = 0
+	}
+	closePrice, err := strconv.ParseFloat(strings.TrimSpace(rec[6]), 64)
+	if err != nil || closePrice <= 0 {
+		return stooqQuoteRow{}, fmt.Errorf("empty close")
+	}
+	updatedAt := time.Now().UTC()
+	datePart := strings.TrimSpace(rec[1])
+	timePart := strings.TrimSpace(rec[2])
+	if datePart != "" && timePart != "" && !strings.EqualFold(timePart, "N/D") {
+		if t, err := time.Parse("2006-01-02 15:04:05", datePart+" "+timePart); err == nil {
+			updatedAt = t.UTC()
+		}
+	}
+	return stooqQuoteRow{open: open, close: closePrice, updatedAt: updatedAt}, nil
 }
 
 func parseStooqCSV(r io.Reader) ([]stooqRow, error) {

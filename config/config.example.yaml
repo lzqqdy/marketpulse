@@ -27,6 +27,15 @@ ingest:
     usd_cny_interval: 1h
   equity:
     interval: 60s
+    providers:
+      - yahoo
+      - twelvedata
+      - stooq
+    # 也可以用环境变量：
+    # MARKETPULSE_FINNHUB_API_KEY
+    # MARKETPULSE_TWELVEDATA_API_KEY
+    finnhub_api_key: ""
+    twelvedata_api_key: ""
     index_ids:
       - sh000001
       - sz399001

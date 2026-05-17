@@ -12,7 +12,7 @@ func TestCacheTTL(t *testing.T) {
 	}
 
 	weekend := time.Date(2026, 5, 17, 12, 0, 0, 0, time.UTC) // Sunday
-	if got := CacheTTL(weekend); got != time.Hour {
+	if got := CacheTTL(weekend); got != time.Minute {
 		t.Fatalf("weekend ttl=%v", got)
 	}
 }

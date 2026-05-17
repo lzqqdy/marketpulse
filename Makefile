@@ -1,5 +1,5 @@
 # MarketPulse — 统一构建入口（Vibe Coding 以 make help 为准）
-.PHONY: help dev-api dev-web web api build deploy deploy-web deploy-api ship ship-commit check check-binance check-binance-remote test setup-config setup-deploy
+.PHONY: help dev dev-api dev-api-log dev-web web api build deploy deploy-web deploy-api ship ship-commit restart-remote check check-binance check-binance-remote test setup-config setup-deploy setup-log
 
 DEPLOY_MODE ?= nginx
 DEPLOY_HOST ?=
@@ -12,7 +12,9 @@ help:
 	@echo "MarketPulse Makefile"
 	@echo ""
 	@echo "  开发"
+	@echo "    make dev              同时启动后端 (:8080) 和前端 (:5173)"
 	@echo "    make dev-api          启动后端 (:8080)"
+	@echo "    make dev-api-log      启动后端并写入 log/local-marketd.log"
 	@echo "    make dev-web          启动前端 Vite (:5173)"
 	@echo ""
 	@echo "  构建"
@@ -24,6 +26,7 @@ help:
 	@echo "    make setup-deploy     复制 deploy.local.yaml 模板"
 	@echo "    make ship             一键部署（同步源码到 remote_dir + 重启）"
 	@echo "    make ship-commit      同上，并在服务器 git commit"
+	@echo "    make restart-remote   只重启线上后端（不构建/不同步/不覆盖配置）"
 	@echo "      SHIP_GIT_COMMIT=1   可选：本次部署后自动提交"
 	@echo "      SHIP_GIT_MSG=...    可选：提交说明"
 	@echo "      SHIP_NO_SOURCE=1    可选：不同步源码，只更新 bin/web"
@@ -44,6 +47,9 @@ help:
 setup-config:
 	@test -f config/config.yaml || cp config/config.example.yaml config/config.yaml
 
+setup-log:
+	@mkdir -p log
+
 setup-deploy:
 	@test -f deploy/deploy.local.yaml || cp deploy/deploy.local.yaml.example deploy/deploy.local.yaml
 	@echo "已创建 deploy/deploy.local.yaml，请填写 ssh_host 后执行 make ship"
@@ -51,11 +57,17 @@ setup-deploy:
 dev-api: setup-config
 	$(GO) run -buildvcs=false ./cmd/marketd -config config/config.yaml
 
+dev-api-log: setup-config setup-log
+	$(GO) run -buildvcs=false ./cmd/marketd -config config/config.yaml 2>&1 | tee log/local-marketd.log
+
 test:
 	$(GO) test -buildvcs=false ./...
 
 dev-web:
 	cd web && npm run dev
+
+dev: setup-config
+	@GO="$(GO)" scripts/dev-local.sh
 
 # --- 构建 ---
 web:
@@ -78,9 +90,9 @@ deploy-api: api
 ifndef DEPLOY_HOST
 	$(error 请设置 DEPLOY_HOST)
 endif
-	ssh $(DEPLOY_HOST) 'mkdir -p $(DEPLOY_API_DIR)/bin'
+	ssh $(DEPLOY_HOST) 'mkdir -p $(DEPLOY_API_DIR)/bin $(DEPLOY_API_DIR)/config'
 	scp $(BIN) $(DEPLOY_HOST):$(DEPLOY_API_DIR)/bin/marketd
-	scp config/config.example.yaml $(DEPLOY_HOST):$(DEPLOY_API_DIR)/config/config.yaml
+	ssh $(DEPLOY_HOST) 'test -f $(DEPLOY_API_DIR)/config/config.yaml || cat > $(DEPLOY_API_DIR)/config/config.yaml' < config/config.example.yaml
 	ssh $(DEPLOY_HOST) 'sudo systemctl restart marketpulse || true'
 
 deploy: deploy-web deploy-api
@@ -92,6 +104,10 @@ ship: setup-deploy
 ship-commit: setup-deploy
 	@chmod +x scripts/deploy-remote.sh deploy/remote-restart.sh deploy/remote-git-commit.sh
 	@SHIP_GIT_COMMIT=1 ./scripts/deploy-remote.sh
+
+restart-remote: setup-deploy
+	@chmod +x scripts/restart-remote.sh
+	@./scripts/restart-remote.sh
 
 check:
 	@./scripts/check-connectivity.sh
