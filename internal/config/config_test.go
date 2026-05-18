@@ -26,7 +26,7 @@ func TestLoad_example(t *testing.T) {
 	if !strings.Contains(cfg.BinanceStreamURL(), "btcusdt@miniTicker") {
 		t.Fatalf("stream url: %s", cfg.BinanceStreamURL())
 	}
-	if strings.Join(cfg.Ingest.Equity.Providers, ",") != "yahoo,twelvedata,stooq" {
+	if strings.Join(cfg.Ingest.Equity.Providers, ",") != "sina,tencent,eastmoney" {
 		t.Fatalf("providers: %v", cfg.Ingest.Equity.Providers)
 	}
 }
@@ -48,8 +48,6 @@ ingest:
 		t.Fatal(err)
 	}
 	t.Setenv("MARKETPULSE_APP_ADDR", ":7777")
-	t.Setenv("MARKETPULSE_FINNHUB_API_KEY", "fh_test")
-	t.Setenv("MARKETPULSE_TWELVEDATA_API_KEY", "td_test")
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
@@ -59,12 +57,6 @@ ingest:
 	}
 	if cfg.App.Mode != "release" {
 		t.Fatalf("mode: %s", cfg.App.Mode)
-	}
-	if cfg.Ingest.Equity.FinnhubAPIKey != "fh_test" {
-		t.Fatalf("finnhub key: %s", cfg.Ingest.Equity.FinnhubAPIKey)
-	}
-	if cfg.Ingest.Equity.TwelveDataAPIKey != "td_test" {
-		t.Fatalf("twelve key: %s", cfg.Ingest.Equity.TwelveDataAPIKey)
 	}
 }
 

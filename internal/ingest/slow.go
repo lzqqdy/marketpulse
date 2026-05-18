@@ -181,23 +181,14 @@ func (s *Service) pollSGE(ctx context.Context) error {
 
 func (s *Service) fetchEquityProvider(provider string, defs []equity.IndexDef) (map[string]store.IndexQuote, error, bool) {
 	switch provider {
-	case "yahoo":
-		rows, err := equity.FetchYahooChartQuotes(httpClient, defs)
+	case "sina":
+		rows, err := equity.FetchSinaQuotes(httpClient, defs)
 		return rows, err, false
-	case "finnhub":
-		if s.cfg.Ingest.Equity.FinnhubAPIKey == "" {
-			return nil, nil, true
-		}
-		rows, err := equity.FetchFinnhubQuotes(httpClient, defs, s.cfg.Ingest.Equity.FinnhubAPIKey)
+	case "eastmoney":
+		rows, err := equity.FetchEastmoneyQuotes(httpClient, defs)
 		return rows, err, false
-	case "twelvedata":
-		if s.cfg.Ingest.Equity.TwelveDataAPIKey == "" {
-			return nil, nil, true
-		}
-		rows, err := equity.FetchTwelveDataQuotes(httpClient, defs, s.cfg.Ingest.Equity.TwelveDataAPIKey)
-		return rows, err, false
-	case "stooq":
-		rows, err := equity.FetchStooqQuotes(httpClient, defs)
+	case "tencent":
+		rows, err := equity.FetchTencentQuotes(httpClient, defs)
 		return rows, err, false
 	default:
 		return nil, nil, true

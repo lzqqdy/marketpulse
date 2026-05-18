@@ -71,7 +71,7 @@ func (h *Handler) IndexKlines(c *gin.Context) {
 		limit = binance.DefaultKlineLimit
 	}
 
-	candles, err := equity.FetchKlines(http.DefaultClient, def, interval, limit)
+	candles, err := equity.FetchEastmoneyKlines(http.DefaultClient, def, interval, limit)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error": gin.H{"code": "UPSTREAM_ERROR", "message": err.Error()},
@@ -81,10 +81,10 @@ func (h *Handler) IndexKlines(c *gin.Context) {
 
 	c.JSON(http.StatusOK, KlineResponse{
 		Symbol:   def.ID,
-		Pair:     def.Symbol,
+		Pair:     def.EastmoneySecID,
 		Interval: interval,
 		Candles:  candles,
-		Source:   "yahoo",
+		Source:   "eastmoney",
 	})
 }
 

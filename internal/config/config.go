@@ -56,11 +56,9 @@ type ForexConfig struct {
 
 // EquityConfig configures stock index polling.
 type EquityConfig struct {
-	Interval         time.Duration `yaml:"interval"`
-	IndexIDs         []string      `yaml:"index_ids"`
-	Providers        []string      `yaml:"providers"`
-	FinnhubAPIKey    string        `yaml:"finnhub_api_key"`
-	TwelveDataAPIKey string        `yaml:"twelvedata_api_key"`
+	Interval  time.Duration `yaml:"interval"`
+	IndexIDs  []string      `yaml:"index_ids"`
+	Providers []string      `yaml:"providers"`
 }
 
 // DefaultEquityIndexIDs is the production watchlist (中国2 + 香港1 + 日韩2 + 美国3 + 黄金1).
@@ -120,7 +118,7 @@ func (c *Config) applyDefaults() {
 		c.Ingest.Equity.IndexIDs = append([]string(nil), DefaultEquityIndexIDs...)
 	}
 	if len(c.Ingest.Equity.Providers) == 0 {
-		c.Ingest.Equity.Providers = []string{"yahoo", "twelvedata", "stooq"}
+		c.Ingest.Equity.Providers = []string{"sina", "tencent", "eastmoney"}
 	}
 	normalizedIDs := make([]string, 0, len(c.Ingest.Equity.IndexIDs))
 	for _, id := range c.Ingest.Equity.IndexIDs {
@@ -134,12 +132,12 @@ func (c *Config) applyDefaults() {
 	for _, name := range c.Ingest.Equity.Providers {
 		name = strings.ToLower(strings.TrimSpace(name))
 		switch name {
-		case "yahoo", "finnhub", "twelvedata", "stooq":
+		case "sina", "eastmoney", "tencent":
 			normalizedProviders = append(normalizedProviders, name)
 		}
 	}
 	if len(normalizedProviders) == 0 {
-		normalizedProviders = []string{"yahoo", "twelvedata", "stooq"}
+		normalizedProviders = []string{"sina", "tencent", "eastmoney"}
 	}
 	c.Ingest.Equity.Providers = normalizedProviders
 	if c.Ingest.Macro.Interval == 0 {
@@ -165,12 +163,6 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MARKETPULSE_BINANCE_WS_BASE"); v != "" {
 		c.Ingest.Binance.WSBase = v
-	}
-	if v := os.Getenv("MARKETPULSE_FINNHUB_API_KEY"); v != "" {
-		c.Ingest.Equity.FinnhubAPIKey = v
-	}
-	if v := os.Getenv("MARKETPULSE_TWELVEDATA_API_KEY"); v != "" {
-		c.Ingest.Equity.TwelveDataAPIKey = v
 	}
 }
 

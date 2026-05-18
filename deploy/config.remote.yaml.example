@@ -28,11 +28,9 @@ ingest:
   equity:
     interval: 60s
     providers:
-      - yahoo
-      - twelvedata
-      - stooq
-    finnhub_api_key: ""
-    twelvedata_api_key: ""
+      - sina
+      - tencent
+      - eastmoney
     index_ids:
       - sh000001
       - sz399001
