@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,6 +12,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/hub"
 	"github.com/lzqqdy/marketpulse/internal/ingest"
+	"github.com/lzqqdy/marketpulse/internal/logging"
 	"github.com/lzqqdy/marketpulse/internal/server"
 	"github.com/lzqqdy/marketpulse/internal/store"
 )
@@ -24,6 +24,10 @@ func main() {
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		slog.Error("load config", "path", *configPath, "err", err)
+		os.Exit(1)
+	}
+	if err := logging.Setup(cfg.App.LogDir); err != nil {
+		slog.Error("setup logging", "dir", cfg.App.LogDir, "err", err)
 		os.Exit(1)
 	}
 
@@ -44,7 +48,7 @@ func main() {
 		Ingest:    ingestSvc,
 	})
 
-	log.Printf("marketpulse marketd listening on %s", server.AddrLabel(cfg))
+	slog.Info("marketpulse marketd listening", "addr", server.AddrLabel(cfg))
 	go func() {
 		<-ctx.Done()
 		slog.Info("shutting down")

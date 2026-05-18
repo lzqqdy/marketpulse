@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lzqqdy/marketpulse/internal/api"
 	"github.com/lzqqdy/marketpulse/internal/config"
+	"github.com/lzqqdy/marketpulse/internal/logging"
 )
 
 // Server wraps the Gin engine and dependencies.
@@ -24,7 +25,7 @@ func New(deps Deps) *Server {
 	}
 
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(gin.RecoveryWithWriter(logging.ErrorWriter()))
 	r.Use(corsMiddleware(cfg))
 
 	h := &api.Handler{

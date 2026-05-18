@@ -3,6 +3,7 @@
 app:
   addr: "0.0.0.0:8080"
   mode: "release"
+  log_dir: "log"
   # 相对 remote_dir，与 web/dist 同步目录对应
   static_dir: "web"
 

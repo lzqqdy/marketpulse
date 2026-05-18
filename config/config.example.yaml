@@ -3,6 +3,7 @@
 app:
   addr: ":8080"
   mode: "debug" # debug | release
+  log_dir: "log"
   # 生产 IP+端口 单进程部署时设为 web/dist 目录（见 make ship）
   # static_dir: "web/dist"
 

@@ -23,6 +23,7 @@ type AppConfig struct {
 	Addr      string `yaml:"addr"`
 	Mode      string `yaml:"mode"`       // debug | release
 	StaticDir string `yaml:"static_dir"` // optional: Vite dist for IP:port single-port deploy
+	LogDir    string `yaml:"log_dir"`    // directory for daily level-separated logs
 }
 
 // CORSConfig lists allowed browser origins (dev).
@@ -101,6 +102,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.App.Mode == "" {
 		c.App.Mode = "debug"
+	}
+	if c.App.LogDir == "" {
+		c.App.LogDir = "log"
 	}
 	if c.Ingest.Binance.WSBase == "" {
 		c.Ingest.Binance.WSBase = "wss://stream.binance.com:9443/stream"
