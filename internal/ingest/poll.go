@@ -29,3 +29,29 @@ func runPoller(ctx context.Context, interval time.Duration, name string, fn func
 		}
 	}
 }
+
+// runDynamicPoller invokes fn immediately, then sleeps for the interval computed
+// after each run. It is useful when market state changes the desired cadence.
+func runDynamicPoller(ctx context.Context, name string, interval func() time.Duration, fn func(context.Context) error) {
+	run := func() {
+		if err := fn(ctx); err != nil {
+			slog.Warn("ingest poll failed", "name", name, "err", err)
+		}
+	}
+	run()
+
+	for {
+		next := interval()
+		if next <= 0 {
+			next = time.Minute
+		}
+		timer := time.NewTimer(next)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+			run()
+		}
+	}
+}

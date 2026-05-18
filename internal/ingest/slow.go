@@ -18,12 +18,23 @@ import (
 func (s *Service) startSlowIngest(ctx context.Context) {
 	go runPoller(ctx, s.cfg.Ingest.OTC.USDTCNYInterval, "otc", s.pollOTC)
 	go runPoller(ctx, s.cfg.Ingest.Forex.USDCNYInterval, "forex", s.pollForex)
-	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "equity", s.pollEquity)
-	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "sge_gold", s.pollSGE)
+	go runDynamicPoller(ctx, "equity", s.nextEquityPollInterval, s.pollEquity)
+	go runDynamicPoller(ctx, "sge_gold", s.nextGoldPollInterval, s.pollSGE)
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "macro", s.pollMacro)
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "crypto_meta", s.pollCryptoMeta)
 	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "long_short", s.pollLongShort)
 	go runPoller(ctx, time.Minute, "liquidations", s.pollLiquidations)
+}
+
+func (s *Service) nextEquityPollInterval() time.Duration {
+	return equity.NextPollInterval(equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs), time.Now())
+}
+
+func (s *Service) nextGoldPollInterval() time.Duration {
+	if equity.IsMarketActive("gold", time.Now()) {
+		return equity.ActiveTTL
+	}
+	return equity.InactiveTTL
 }
 
 func (s *Service) pollOTC(ctx context.Context) error {
@@ -66,14 +77,13 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	}
 	defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
 	now := time.Now()
-	ttl := equity.CacheTTL(now)
-	if rows, ok := s.equityCache.fresh(defs, now, ttl); ok {
+	if rows, ok := s.equityCache.fresh(defs, now, equity.CacheTTL); ok {
 		s.store.SetIndices(s.indicesWithSGE(rows))
 		s.ingestStatus.set("equity", "ok")
 		return nil
 	}
 
-	expired := s.equityCache.expiredDefs(defs, now, ttl)
+	expired := s.equityCache.expiredDefs(defs, now, equity.CacheTTL)
 	if len(expired) == 0 {
 		rows := s.equityCache.snapshot(defs, false)
 		s.store.SetIndices(s.indicesWithSGE(rows))
@@ -83,7 +93,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 
 	var firstErr error
 	for _, provider := range s.cfg.Ingest.Equity.Providers {
-		missing := s.equityCache.expiredDefs(defs, time.Now(), ttl)
+		missing := s.equityCache.expiredDefs(defs, time.Now(), equity.CacheTTL)
 		if len(missing) == 0 {
 			break
 		}
@@ -136,7 +146,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 		}
 	}
 
-	finalMissing := s.equityCache.expiredDefs(defs, time.Now(), ttl)
+	finalMissing := s.equityCache.expiredDefs(defs, time.Now(), equity.CacheTTL)
 	rows := s.equityCache.snapshot(defs, len(finalMissing) > 0)
 	if len(rows) == 0 {
 		s.ingestStatus.set("equity", "error")

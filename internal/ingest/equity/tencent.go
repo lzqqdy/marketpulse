@@ -19,6 +19,8 @@ const tencentQuoteBase = "https://qt.gtimg.cn/q="
 
 var tencentQuotePattern = regexp.MustCompile(`v_([^=]+)="([^"]*)";`)
 
+var tencentQuoteLocation = time.FixedZone("CST", 8*60*60)
+
 // FetchTencentQuotes loads index quotes from Tencent in one batched request.
 func FetchTencentQuotes(client *http.Client, defs []IndexDef) (map[string]store.IndexQuote, error) {
 	if client == nil {
@@ -121,7 +123,7 @@ func tencentRowToIndex(def IndexDef, raw string, now time.Time) (store.IndexQuot
 			return store.IndexQuote{}, fmt.Errorf("tencent %s price: %w", def.ID, err)
 		}
 		changePct, _ = parseTencentFloat(parts, 5)
-		updatedAt, _ = time.ParseInLocation("2006-01-02 15:04:05", strings.TrimSpace(parts[2]), time.UTC)
+		updatedAt, _ = time.ParseInLocation("2006-01-02 15:04:05", strings.TrimSpace(parts[2]), tencentQuoteLocation)
 	default:
 		parts := strings.Split(raw, "~")
 		if len(parts) < 6 {

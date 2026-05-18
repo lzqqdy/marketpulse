@@ -17,13 +17,13 @@ func newEquityCache() *equityCache {
 	return &equityCache{rows: make(map[string]store.IndexQuote)}
 }
 
-func (c *equityCache) fresh(defs []equity.IndexDef, now time.Time, ttl time.Duration) ([]store.IndexQuote, bool) {
+func (c *equityCache) fresh(defs []equity.IndexDef, now time.Time, ttlFor func(equity.IndexDef, time.Time) time.Duration) ([]store.IndexQuote, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	out := make([]store.IndexQuote, 0, len(defs))
 	for _, def := range defs {
-		row, ok := c.rows[def.ID]
-		if !ok || row.FetchedAt.IsZero() || now.Sub(row.FetchedAt) > ttl {
+		row := c.rows[def.ID]
+		if !freshEnough(row, def, now, ttlFor) {
 			return nil, false
 		}
 		row.Stale = false
@@ -32,17 +32,28 @@ func (c *equityCache) fresh(defs []equity.IndexDef, now time.Time, ttl time.Dura
 	return out, true
 }
 
-func (c *equityCache) expiredDefs(defs []equity.IndexDef, now time.Time, ttl time.Duration) []equity.IndexDef {
+func (c *equityCache) expiredDefs(defs []equity.IndexDef, now time.Time, ttlFor func(equity.IndexDef, time.Time) time.Duration) []equity.IndexDef {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	out := make([]equity.IndexDef, 0, len(defs))
 	for _, def := range defs {
 		row, ok := c.rows[def.ID]
-		if !ok || row.FetchedAt.IsZero() || now.Sub(row.FetchedAt) > ttl {
+		if !ok || !freshEnough(row, def, now, ttlFor) {
 			out = append(out, def)
 		}
 	}
 	return out
+}
+
+func freshEnough(row store.IndexQuote, def equity.IndexDef, now time.Time, ttlFor func(equity.IndexDef, time.Time) time.Duration) bool {
+	if row.FetchedAt.IsZero() {
+		return false
+	}
+	ttl := ttlFor(def, now)
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	return now.Sub(row.FetchedAt) <= ttl
 }
 
 func (c *equityCache) merge(rows map[string]store.IndexQuote, now time.Time) {

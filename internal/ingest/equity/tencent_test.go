@@ -28,4 +28,7 @@ v_hf_GC="4539.16,-0.50,4537.00,4537.50,4559.00,4483.50,11:24:07,4561.90,4547.60,
 	if rows["n225"].UpdatedAt.IsZero() {
 		t.Fatalf("expected parsed updatedAt, got %+v", rows["n225"])
 	}
+	if got := rows["n225"].UpdatedAt.In(tencentQuoteLocation).Format("2006-01-02 15:04:05"); got != "2026-05-18 10:35:03" {
+		t.Fatalf("n225 updatedAt = %s", got)
+	}
 }
