@@ -62,6 +62,18 @@ func FetchKlineOpenAt(baseSymbol string, start time.Time) (float64, error) {
 	return candles[0].Open, nil
 }
 
+// FetchExchangeDayOpen returns the open of the in-progress UTC daily candle (Binance exchange day).
+func FetchExchangeDayOpen(baseSymbol string) (float64, error) {
+	candles, err := fetchKlines(baseSymbol, "1d", 1, 0)
+	if err != nil {
+		return 0, err
+	}
+	if len(candles) == 0 || candles[len(candles)-1].Open <= 0 {
+		return 0, fmt.Errorf("binance exchange day open: no daily candle for %s", baseSymbol)
+	}
+	return candles[len(candles)-1].Open, nil
+}
+
 func fetchKlines(baseSymbol, interval string, limit int, startTimeMs int64) ([]Candle, error) {
 	interval, err := NormalizeInterval(interval)
 	if err != nil {

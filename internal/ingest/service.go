@@ -143,16 +143,16 @@ func (s *Service) onTicker(t binance.TickerUpdate) {
 	s.binanceStatus.Store("connected")
 
 	now := time.Now()
-	dayPct, ok := s.dayOpen.changePct(t.Symbol, t.PriceUsdt, now)
-	if !ok {
-		dayPct = 0
-	}
-
-	s.store.UpdateQuote(store.Quote{
+	q := store.Quote{
 		Symbol:       t.Symbol,
 		PriceUsdt:    t.PriceUsdt,
-		ChangeDayPct: dayPct,
 		Change24hPct: t.Change24hPct,
 		UpdatedAt:    t.EventTime,
-	})
+	}
+	if dayPct, ok := s.dayOpen.changePct(t.Symbol, t.PriceUsdt, now); ok {
+		q.ChangeDayPct = dayPct
+		s.store.UpdateQuote(q)
+	} else {
+		s.store.UpdateQuoteKeepDayPct(q)
+	}
 }

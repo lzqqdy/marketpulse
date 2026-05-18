@@ -29,7 +29,6 @@ ingest:
     interval: 60s
     providers:
       - yahoo
-      - finnhub
       - twelvedata
       - stooq
     # 也可以用环境变量：

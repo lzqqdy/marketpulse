@@ -48,33 +48,58 @@ func (c *dayOpenCache) changePct(symbol string, price float64, now time.Time) (f
 	return (price - open) / open * 100, true
 }
 
+// needsRefresh is true when the cache date does not match the current Binance exchange day.
+func (c *dayOpenCache) needsRefresh(now time.Time) bool {
+	want := binance.ExchangeDayKeyUTC(now)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.date != want || len(c.opens) == 0
+}
+
 func (s *Service) runDayOpenLoop(ctx context.Context) {
-	refresh := func() {
-		if err := s.refreshDayOpens(ctx); err != nil {
+	const staleRetry = 30 * time.Second
+
+	refresh := func() error {
+		err := s.refreshDayOpens(ctx)
+		if err != nil {
 			slog.Warn("exchange day open refresh failed", "err", err)
 		}
+		return err
 	}
-	refresh()
+
+	_ = refresh()
+
+	dayTimer := time.NewTimer(timeUntilNextExchangeDay())
+	defer dayTimer.Stop()
+
+	staleTicker := time.NewTicker(staleRetry)
+	defer staleTicker.Stop()
 
 	for {
-		wait := time.Until(binance.NextExchangeDayStartUTC(time.Now()))
-		if wait < time.Second {
-			wait = time.Second
-		}
-		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
-			timer.Stop()
 			return
-		case <-timer.C:
-			refresh()
+		case <-dayTimer.C:
+			_ = refresh()
+			dayTimer.Reset(timeUntilNextExchangeDay())
+		case <-staleTicker.C:
+			if s.dayOpen.needsRefresh(time.Now()) {
+				_ = refresh()
+			}
 		}
 	}
 }
 
+func timeUntilNextExchangeDay() time.Duration {
+	wait := time.Until(binance.NextExchangeDayStartUTC(time.Now()))
+	if wait < time.Second {
+		return time.Second
+	}
+	return wait
+}
+
 func (s *Service) refreshDayOpens(ctx context.Context) error {
 	now := time.Now()
-	dayStart := binance.ExchangeDayStartUTC(now)
 	dateKey := binance.ExchangeDayKeyUTC(now)
 
 	opens := make(map[string]float64, len(s.cfg.Symbols))
@@ -85,7 +110,7 @@ func (s *Service) refreshDayOpens(ctx context.Context) error {
 			return ctx.Err()
 		default:
 		}
-		open, err := binance.FetchKlineOpenAt(sym, dayStart)
+		open, err := binance.FetchExchangeDayOpen(sym)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("%s day open: %w", sym, err)

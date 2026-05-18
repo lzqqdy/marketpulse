@@ -22,4 +22,12 @@ func Test_dayOpenCache_changePct(t *testing.T) {
 	if ok {
 		t.Fatal("stale date should miss")
 	}
+
+	if !c.needsRefresh(time.Now()) {
+		t.Fatal("stale cache should need refresh")
+	}
+	c.replace(date, map[string]float64{"BTC": 100})
+	if c.needsRefresh(time.Now()) {
+		t.Fatal("current cache should not need refresh")
+	}
 }

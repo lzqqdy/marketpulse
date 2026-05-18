@@ -89,6 +89,45 @@ func (s *MarketStore) UpdateQuote(q Quote) uint64 {
 	return v
 }
 
+// UpdateQuoteKeepDayPct updates live ticker fields but preserves changeDayPct when the
+// exchange-day open cache is stale (e.g. right after UTC midnight before refresh).
+func (s *MarketStore) UpdateQuoteKeepDayPct(q Quote) uint64 {
+	sym := strings.ToUpper(strings.TrimSpace(q.Symbol))
+	if sym == "" {
+		return s.Version()
+	}
+	q.Symbol = sym
+	if q.UpdatedAt.IsZero() {
+		q.UpdatedAt = time.Now().UTC()
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if old, ok := s.quotes[sym]; ok {
+		q.ChangeDayPct = old.ChangeDayPct
+		if q.Rank == 0 {
+			q.Rank = old.Rank
+		}
+		if q.IconURL == "" {
+			q.IconURL = old.IconURL
+		}
+		if q.MarketCapUsd == 0 {
+			q.MarketCapUsd = old.MarketCapUsd
+		}
+		if q.Volume24hUsd == 0 {
+			q.Volume24hUsd = old.Volume24hUsd
+		}
+	}
+	if s.rates.USDTCNY > 0 {
+		q.PriceCny = q.PriceUsdt * s.rates.USDTCNY
+	}
+	s.quotes[sym] = q
+	v := s.bump()
+	s.notifyLocked(v)
+	return v
+}
+
 // UpdateQuoteMetadata merges slow market metadata into existing quotes.
 func (s *MarketStore) UpdateQuoteMetadata(rows []Quote) uint64 {
 	s.mu.Lock()
