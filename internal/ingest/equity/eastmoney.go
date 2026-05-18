@@ -18,7 +18,9 @@ import (
 const (
 	eastmoneyQuoteBase = "https://push2.eastmoney.com/api/qt/stock/get"
 	eastmoneyKlineBase = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+	eastmoneyUT        = "fa5fd1943c7b386f172d6893dbfba10b"
 	eastmoneyGap       = 250 * time.Millisecond
+	eastmoneyAttempts  = 3
 )
 
 type eastmoneyQuoteResponse struct {
@@ -144,12 +146,32 @@ func FetchEastmoneyKlines(client *http.Client, def IndexDef, interval string, li
 		limit = 1000
 	}
 
+	var lastErr error
+	for _, fetchLimit := range klineLimitAttempts(limit) {
+		for attempt := 1; attempt <= eastmoneyAttempts; attempt++ {
+			candles, err := fetchEastmoneyKlinesOnce(client, def, klt, fetchLimit)
+			if err == nil {
+				return candles, nil
+			}
+			lastErr = err
+			if attempt < eastmoneyAttempts {
+				time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
+			}
+		}
+	}
+	return nil, lastErr
+}
+
+func fetchEastmoneyKlinesOnce(client *http.Client, def IndexDef, klt string, limit int) ([]binance.Candle, error) {
 	q := url.Values{}
 	q.Set("secid", def.EastmoneySecID)
 	q.Set("klt", klt)
 	q.Set("fqt", "0")
 	q.Set("lmt", strconv.Itoa(limit))
+	q.Set("beg", "0")
 	q.Set("end", "20500101")
+	q.Set("ut", eastmoneyUT)
+	q.Set("rtntype", "6")
 	q.Set("fields1", "f1,f2,f3,f4,f5,f6")
 	q.Set("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61")
 	req, err := http.NewRequest(http.MethodGet, eastmoneyKlineBase+"?"+q.Encode(), nil)
@@ -157,6 +179,7 @@ func FetchEastmoneyKlines(client *http.Client, def IndexDef, interval string, li
 		return nil, err
 	}
 	setEastmoneyHeaders(req, def)
+	req.Close = true
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -185,6 +208,23 @@ func FetchEastmoneyKlines(client *http.Client, def IndexDef, interval string, li
 		candles = candles[len(candles)-limit:]
 	}
 	return candles, nil
+}
+
+func klineLimitAttempts(limit int) []int {
+	candidates := []int{limit, 120, 60, 30}
+	out := make([]int, 0, len(candidates))
+	seen := map[int]struct{}{}
+	for _, n := range candidates {
+		if n <= 0 || n > limit {
+			continue
+		}
+		if _, ok := seen[n]; ok {
+			continue
+		}
+		seen[n] = struct{}{}
+		out = append(out, n)
+	}
+	return out
 }
 
 type eastmoneyKlineResponse struct {
@@ -266,6 +306,8 @@ func parseEastmoneyKlineTime(raw string) (int64, error) {
 
 func setEastmoneyHeaders(req *http.Request, def IndexDef) {
 	req.Header.Set("Referer", "https://quote.eastmoney.com/unify/r/"+def.EastmoneySecID)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; MarketPulse/1.0)")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "application/json,text/plain,*/*")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Cache-Control", "no-cache")
 }

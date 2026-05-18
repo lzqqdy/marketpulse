@@ -30,3 +30,27 @@ func TestNormalizeEastmoneyKlineInterval(t *testing.T) {
 		t.Fatalf("klt=%s", klt)
 	}
 }
+
+func TestKlineLimitAttempts(t *testing.T) {
+	got := klineLimitAttempts(300)
+	want := []int{300, 120, 60, 30}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, got %+v", len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("attempts = %+v, want %+v", got, want)
+		}
+	}
+
+	got = klineLimitAttempts(60)
+	want = []int{60, 30}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, got %+v", len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("attempts = %+v, want %+v", got, want)
+		}
+	}
+}
