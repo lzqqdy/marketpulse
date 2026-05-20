@@ -124,6 +124,17 @@ func tencentRowToIndex(def IndexDef, raw string, now time.Time) (store.IndexQuot
 		}
 		changePct, _ = parseTencentFloat(parts, 5)
 		updatedAt, _ = time.ParseInLocation("2006-01-02 15:04:05", strings.TrimSpace(parts[2]), tencentQuoteLocation)
+	case isTencentStockStyleIndex(def.TencentSymbol):
+		parts := strings.Split(raw, "~")
+		if len(parts) < 33 {
+			return store.IndexQuote{}, fmt.Errorf("tencent %s: empty quote", def.ID)
+		}
+		price, err = parseTencentFloat(parts, 3)
+		if err != nil {
+			return store.IndexQuote{}, fmt.Errorf("tencent %s price: %w", def.ID, err)
+		}
+		changePct, _ = parseTencentFloat(parts, 32)
+		updatedAt, _ = time.ParseInLocation("20060102150405", strings.TrimSpace(parts[30]), tencentQuoteLocation)
 	default:
 		parts := strings.Split(raw, "~")
 		if len(parts) < 6 {
@@ -150,6 +161,11 @@ func tencentRowToIndex(def IndexDef, raw string, now time.Time) (store.IndexQuot
 		FetchedAt: now,
 		UpdatedAt: updatedAt,
 	}, nil
+}
+
+func isTencentStockStyleIndex(symbol string) bool {
+	symbol = strings.ToLower(strings.TrimSpace(symbol))
+	return (strings.HasPrefix(symbol, "sh") || strings.HasPrefix(symbol, "sz")) && !strings.HasPrefix(symbol, "s_")
 }
 
 func parseTencentFloat(parts []string, i int) (float64, error) {
