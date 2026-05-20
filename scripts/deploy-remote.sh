@@ -123,7 +123,7 @@ else
 fi
 
 echo "==> 同步运行产物"
-rsync -avz -e "${RSYNC_SSH}" bin/marketd "${SSH_TARGET}:${REMOTE_DIR}/bin/"
+rsync -azc --progress -e "${RSYNC_SSH}" bin/marketd "${SSH_TARGET}:${REMOTE_DIR}/bin/"
 rsync -avz --delete -e "${RSYNC_SSH}" web/dist/ "${SSH_TARGET}:${REMOTE_DIR}/web/"
 if [[ "${DO_SYNC_CONFIG}" == "1" ]]; then
   echo "==> 覆盖远程 config/config.yaml（SHIP_SYNC_CONFIG=1 或 sync_config: true）"

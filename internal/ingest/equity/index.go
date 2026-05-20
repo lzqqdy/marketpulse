@@ -26,6 +26,8 @@ var DefaultIndices = []IndexDef{
 	{ID: "n225", Name: "日经225", SinaSymbol: "int_nikkei", EastmoneySecID: "100.N225", TencentSymbol: "gzN225", MinPrice: 10000, MaxPrice: 100000},
 	{ID: "ks11", Name: "KOSPI", EastmoneySecID: "100.KS11", TencentSymbol: "gzKS11", MinPrice: 1000, MaxPrice: 10000},
 	{ID: "gold", Name: "国际黄金", SinaSymbol: "hf_GC", EastmoneySecID: "101.GC00Y", TencentSymbol: "hf_GC", MinPrice: 500, MaxPrice: 10000},
+	{ID: "silver", Name: "国际白银", SinaSymbol: "hf_SI", EastmoneySecID: "101.SI00Y", TencentSymbol: "hf_SI", MinPrice: 5, MaxPrice: 300},
+	{ID: "crude", Name: "WTI原油", SinaSymbol: "hf_CL", EastmoneySecID: "102.CL00Y", TencentSymbol: "hf_CL", MinPrice: 10, MaxPrice: 300},
 }
 
 // DefaultIndexByID finds a configured index definition by internal id.

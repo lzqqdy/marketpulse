@@ -80,5 +80,7 @@ ingest:
       - ixic
       - gspc
       - gold
+      - silver
+      - crude
   macro:
     interval: 5m

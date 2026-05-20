@@ -78,13 +78,13 @@ type EquityConfig struct {
 	Providers []string      `yaml:"providers"`
 }
 
-// DefaultEquityIndexIDs is the production watchlist (中国2 + 香港1 + 日韩2 + 美国3 + 黄金1).
+// DefaultEquityIndexIDs is the production watchlist (中国4 + 香港1 + 日韩2 + 美国3 + 商品3).
 var DefaultEquityIndexIDs = []string{
-	"sh000001", "sz399001",
+	"sh000001", "sz399001", "sz399006", "sh000688",
 	"hsi",
 	"n225", "ks11",
 	"dji", "ixic", "gspc",
-	"gold",
+	"gold", "silver", "crude",
 }
 
 var DefaultAlphaIndices = []AlphaItem{

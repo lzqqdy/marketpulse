@@ -26,6 +26,8 @@ var ActiveWindows = map[string]MarketWindow{
 	"ixic":     {"21:15", "05:15"},
 	"gspc":     {"21:15", "05:15"},
 	"gold":     {"05:45", "05:15"},
+	"silver":   {"05:45", "05:15"},
+	"crude":    {"05:45", "05:15"},
 }
 
 // CacheTTL keeps active markets fresh at 60s and lets closed markets cool down.
