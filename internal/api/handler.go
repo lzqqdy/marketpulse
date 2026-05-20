@@ -63,7 +63,9 @@ func (h *Handler) ingestStatus() map[string]string {
 	}
 	out := map[string]string{
 		"binance_ws":     h.Ingest.BinanceStatus(),
+		"alpha_ws":       h.Ingest.AlphaStatus(),
 		"last_quote_ms":  formatLastQuote(h.Ingest.LastQuoteMs()),
+		"last_alpha_ms":  formatLastQuote(h.Ingest.LastAlphaMs()),
 		"stream_clients": streamClientCount(h.StreamHub),
 	}
 	for k, v := range h.Ingest.IngestStatus() {

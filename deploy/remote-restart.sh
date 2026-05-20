@@ -52,12 +52,12 @@ if command -v ss >/dev/null 2>&1 && ss -ltn | grep -q ":${PORT} "; then
   exit 1
 fi
 
-nohup "${BIN}" -config "${CONFIG}" >>"${ROOT}/log/marketd.log" 2>&1 &
+nohup "${BIN}" -config "${CONFIG}" >/dev/null 2>&1 &
 echo $! >"${PIDFILE}"
 sleep 2
 if ! kill -0 "$(cat "${PIDFILE}")" 2>/dev/null; then
-  echo "ERROR: marketd exited immediately, see ${ROOT}/log/marketd.log"
-  tail -20 "${ROOT}/log/marketd.log" || true
+  echo "ERROR: marketd exited immediately, see ${ROOT}/log/YYYY-MM-DD/error.log"
+  find "${ROOT}/log" -maxdepth 2 -type f -name 'error.log' 2>/dev/null | sort | tail -1 | xargs -r tail -20 || true
   exit 1
 fi
 echo "marketd started pid=$(cat "${PIDFILE}") port=${PORT}"

@@ -7,6 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lzqqdy/marketpulse/internal/binance"
+	"github.com/lzqqdy/marketpulse/internal/config"
+	"github.com/lzqqdy/marketpulse/internal/ingest/alpha"
 	"github.com/lzqqdy/marketpulse/internal/ingest/equity"
 )
 
@@ -36,7 +38,26 @@ func (h *Handler) Klines(c *gin.Context) {
 		limit = binance.DefaultKlineLimit
 	}
 
-	candles, err := binance.FetchKlines(symbol, interval, limit)
+	pair := binance.SymbolUSDT(symbol)
+	source := "binance"
+	var candles []binance.Candle
+	var err error
+	if h.Config.Alpha.Enabled && h.Config.IsAlphaBaseSymbol(symbol) {
+		source = "binance-alpha"
+		if h.Ingest != nil {
+			if alphaSymbol, ok := h.Ingest.AlphaSymbolForBase(symbol); ok {
+				pair = alphaSymbol
+			}
+		}
+		if pair == binance.SymbolUSDT(symbol) {
+			if alphaSymbol, ok := resolveAlphaPair(h.Config, symbol); ok {
+				pair = alphaSymbol
+			}
+		}
+		candles, err = alpha.FetchKlines(http.DefaultClient, pair, interval, limit)
+	} else {
+		candles, err = binance.FetchKlines(symbol, interval, limit)
+	}
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error": gin.H{"code": "UPSTREAM_ERROR", "message": err.Error()},
@@ -46,10 +67,10 @@ func (h *Handler) Klines(c *gin.Context) {
 
 	c.JSON(http.StatusOK, KlineResponse{
 		Symbol:   symbol,
-		Pair:     binance.SymbolUSDT(symbol),
+		Pair:     pair,
 		Interval: interval,
 		Candles:  candles,
-		Source:   "binance",
+		Source:   source,
 	})
 }
 
@@ -94,5 +115,15 @@ func (h *Handler) symbolAllowed(symbol string) bool {
 			return true
 		}
 	}
-	return false
+	return h.Config.Alpha.Enabled && h.Config.IsAlphaBaseSymbol(symbol)
+}
+
+func resolveAlphaPair(cfg *config.Config, symbol string) (string, bool) {
+	resolved := alpha.ResolveItems(http.DefaultClient, cfg.Alpha.Indices, cfg.Alpha.Stocks, cfg.Alpha.QuoteAsset)
+	for _, item := range resolved {
+		if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
+			return item.AlphaSymbol, true
+		}
+	}
+	return "", false
 }

@@ -44,7 +44,7 @@
 ├── bin/marketd                     # 运行用二进制（.gitignore，不入库）
 ├── web/dist/                       # 构建产物（.gitignore，不入库）
 ├── config/config.yaml              # 生产配置（.gitignore，不入库）
-├── log/marketd.log
+├── log/YYYY-MM-DD/{info,warn,error}.log
 └── scripts/restart.sh
 ```
 

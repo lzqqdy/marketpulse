@@ -17,6 +17,42 @@ symbols:
   - LTC
   - FIL
 
+alpha:
+  enabled: true
+  quote_asset: USDT
+  indices:
+    - id: qqqon
+      name: QQQ
+      symbol: QQQONUSDT
+    - id: spyon
+      name: SPY
+      symbol: SPYONUSDT
+    - id: diaon
+      name: DIA
+      symbol: DIAONUSDT
+  stocks:
+    - id: aaplon
+      name: AAPL
+      symbol: AAPLONUSDT
+    - id: msfton
+      name: MSFT
+      symbol: MSFTONUSDT
+    - id: nvdaon
+      name: NVDA
+      symbol: NVDAONUSDT
+    - id: amznon
+      name: AMZN
+      symbol: AMZNONUSDT
+    - id: googlon
+      name: GOOGL
+      symbol: GOOGLONUSDT
+    - id: metaon
+      name: META
+      symbol: METAONUSDT
+    - id: tslaon
+      name: TSLA
+      symbol: TSLAONUSDT
+
 ingest:
   binance:
     # 国内云主机若 stream.binance.com 连不上，可改用仅行情镜像：

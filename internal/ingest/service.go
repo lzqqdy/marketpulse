@@ -3,11 +3,13 @@ package ingest
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/lzqqdy/marketpulse/internal/config"
+	"github.com/lzqqdy/marketpulse/internal/ingest/alpha"
 	"github.com/lzqqdy/marketpulse/internal/ingest/binance"
 	"github.com/lzqqdy/marketpulse/internal/store"
 )
@@ -23,7 +25,10 @@ type Service struct {
 	ingestStatus  *statusTracker
 	liquidations  *liquidationWindow
 	binanceStatus atomic.Value // string
+	alphaStatus   atomic.Value // string
 	lastQuoteAt   atomic.Int64 // unix ms
+	lastAlphaAt   atomic.Int64 // unix ms
+	alphaItems    atomic.Value // []alpha.ResolvedItem
 
 	sgeGoldMu sync.RWMutex
 	sgeGold   store.IndexQuote
@@ -42,6 +47,7 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 		liquidations:  newLiquidationWindow(time.Hour),
 	}
 	s.binanceStatus.Store("starting")
+	s.alphaStatus.Store("disabled")
 	s.ingestStatus.set("otc", "starting")
 	s.ingestStatus.set("forex", "starting")
 	s.ingestStatus.set("equity", "starting")
@@ -58,7 +64,30 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s.ingestStatus.set("liquidations", "starting")
 	s.ingestStatus.set("liquidations_ws", "starting")
 	s.ingestStatus.set("sge_gold", "starting")
+	if cfg.Alpha.Enabled {
+		s.ingestStatus.set("alpha_ws", "starting")
+		s.seedAlphaDefaults()
+	}
 	return s
+}
+
+func (s *Service) seedAlphaDefaults() {
+	now := time.Now().UTC()
+	toRows := func(items []config.AlphaItem, category string) []store.AlphaQuote {
+		rows := make([]store.AlphaQuote, 0, len(items))
+		for _, item := range items {
+			rows = append(rows, store.AlphaQuote{
+				ID:        item.ID,
+				Name:      item.Name,
+				Symbol:    strings.TrimSuffix(strings.ToUpper(item.Symbol), s.cfg.Alpha.QuoteAsset),
+				UpdatedAt: now,
+				Source:    "binance-alpha",
+				Category:  category,
+			})
+		}
+		return rows
+	}
+	s.store.SetAlphaDefaults(toRows(s.cfg.Alpha.Indices, "index"), toRows(s.cfg.Alpha.Stocks, "stock"))
 }
 
 func (s *Service) indicesWithSGE(rows []store.IndexQuote) []store.IndexQuote {
@@ -82,6 +111,7 @@ func (s *Service) indicesWithSGE(rows []store.IndexQuote) []store.IndexQuote {
 func (s *Service) Start(ctx context.Context) {
 	go s.runDayOpenLoop(ctx)
 	go s.runBinanceWithRetry(ctx)
+	go s.runAlphaWithRetry(ctx)
 	go s.runLiquidationsWithRetry(ctx)
 	s.startSlowIngest(ctx)
 }
@@ -97,6 +127,39 @@ func (s *Service) BinanceStatus() string {
 // LastQuoteMs is last ticker event time (0 if none).
 func (s *Service) LastQuoteMs() int64 {
 	return s.lastQuoteAt.Load()
+}
+
+func (s *Service) AlphaStatus() string {
+	if v := s.alphaStatus.Load(); v != nil {
+		return v.(string)
+	}
+	return "unknown"
+}
+
+func (s *Service) LastAlphaMs() int64 {
+	return s.lastAlphaAt.Load()
+}
+
+func (s *Service) AlphaSymbolForBase(symbol string) (string, bool) {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	if symbol == "" {
+		return "", false
+	}
+	if v := s.alphaItems.Load(); v != nil {
+		for _, item := range v.([]alpha.ResolvedItem) {
+			if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
+				return item.AlphaSymbol, true
+			}
+		}
+	}
+	resolved := alpha.ResolveItems(httpClient, s.cfg.Alpha.Indices, s.cfg.Alpha.Stocks, s.cfg.Alpha.QuoteAsset)
+	s.alphaItems.Store(resolved)
+	for _, item := range resolved {
+		if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
+			return item.AlphaSymbol, true
+		}
+	}
+	return "", false
 }
 
 func (s *Service) runBinanceWithRetry(ctx context.Context) {
@@ -137,6 +200,147 @@ func (s *Service) runBinanceWithRetry(ctx context.Context) {
 	}
 }
 
+func (s *Service) runAlphaWithRetry(ctx context.Context) {
+	if !s.cfg.Alpha.Enabled {
+		s.alphaStatus.Store("disabled")
+		s.ingestStatus.set("alpha_ws", "disabled")
+		return
+	}
+	items := s.cfg.AlphaItems()
+	if len(items) == 0 {
+		s.alphaStatus.Store("disabled")
+		s.ingestStatus.set("alpha_ws", "disabled")
+		return
+	}
+
+	backoff := time.Second
+	const maxBackoff = 30 * time.Second
+
+	for {
+		if ctx.Err() != nil {
+			s.alphaStatus.Store("disconnected")
+			s.ingestStatus.set("alpha_ws", "disconnected")
+			return
+		}
+
+		s.alphaStatus.Store("connecting")
+		s.ingestStatus.set("alpha_ws", "connecting")
+		resolved := s.resolveAlphaItems()
+		if len(resolved) == 0 {
+			s.alphaStatus.Store("reconnecting")
+			s.ingestStatus.set("alpha_ws", "reconnecting")
+			slog.Warn("alpha no supported symbols", "retry_in", backoff)
+			select {
+			case <-ctx.Done():
+				s.alphaStatus.Store("disconnected")
+				s.ingestStatus.set("alpha_ws", "disconnected")
+				return
+			case <-time.After(backoff):
+			}
+			backoff = growBackoff(backoff, maxBackoff)
+			continue
+		}
+
+		bySymbol := make(map[string]alpha.ResolvedItem, len(resolved))
+		streams := make([]string, 0, len(resolved))
+		for _, item := range resolved {
+			bySymbol[item.AlphaSymbol] = item
+			streams = append(streams, strings.ToLower(item.AlphaSymbol)+"@ticker")
+		}
+		slog.Info("alpha ws connect", "url", alpha.WSURL, "streams", streams)
+		err := alpha.RunTicker(ctx, resolved, func(t alpha.Ticker) {
+			item, ok := bySymbol[t.Symbol]
+			if !ok {
+				return
+			}
+			s.onAlphaTicker(item, t)
+		})
+		if ctx.Err() != nil {
+			s.alphaStatus.Store("disconnected")
+			s.ingestStatus.set("alpha_ws", "disconnected")
+			return
+		}
+
+		s.alphaStatus.Store("reconnecting")
+		s.ingestStatus.set("alpha_ws", "reconnecting")
+		slog.Warn("alpha ws reconnect", "err", err, "retry_in", backoff)
+		select {
+		case <-ctx.Done():
+			s.alphaStatus.Store("disconnected")
+			s.ingestStatus.set("alpha_ws", "disconnected")
+			return
+		case <-time.After(backoff):
+		}
+		backoff = growBackoff(backoff, maxBackoff)
+	}
+}
+
+func (s *Service) resolveAlphaItems() []alpha.ResolvedItem {
+	resolved := alpha.ResolveItems(httpClient, s.cfg.Alpha.Indices, s.cfg.Alpha.Stocks, s.cfg.Alpha.QuoteAsset)
+	s.alphaItems.Store(resolved)
+	out := make([]alpha.ResolvedItem, 0, len(resolved))
+	tickers := make(map[string]alpha.Ticker, len(resolved))
+	for _, item := range resolved {
+		if !strings.HasPrefix(item.AlphaSymbol, "ALPHA_") {
+			slog.Warn("alpha symbol unsupported", "symbol", item.Item.Symbol, "alpha_symbol", item.AlphaSymbol, "id", item.Item.ID)
+			continue
+		}
+		ticker, err := alpha.FetchTicker(httpClient, item.AlphaSymbol)
+		if err != nil {
+			slog.Warn("alpha symbol unsupported", "symbol", item.Item.Symbol, "alpha_symbol", item.AlphaSymbol, "id", item.Item.ID, "err", err)
+			continue
+		}
+		out = append(out, item)
+		tickers[item.AlphaSymbol] = ticker
+	}
+	for _, item := range out {
+		if ticker, ok := tickers[item.AlphaSymbol]; ok {
+			s.onAlphaTicker(item, ticker)
+		}
+	}
+	s.alphaItems.Store(out)
+	slog.Info("alpha enabled", "indices", len(s.cfg.Alpha.Indices), "stocks", len(s.cfg.Alpha.Stocks), "supported", len(out))
+	slog.Info("alpha subscribed symbols", "symbols", alphaItemSymbols(out), "transport", "ws")
+	return out
+}
+
+func (s *Service) onAlphaTicker(item alpha.ResolvedItem, t alpha.Ticker) {
+	s.lastAlphaAt.Store(time.Now().UnixMilli())
+	s.alphaStatus.Store("connected")
+	s.ingestStatus.set("alpha_ws", "connected")
+
+	s.store.UpdateAlphaQuote(store.AlphaQuote{
+		ID:           item.Item.ID,
+		Name:         item.Item.Name,
+		Symbol:       item.BaseSymbol,
+		Price:        t.Price,
+		Change24hPct: t.Change24hPct,
+		ChangeDayPct: t.Change24hPct,
+		Volume:       t.Volume,
+		UpdatedAt:    t.UpdatedAt,
+		Source:       "binance-alpha",
+		Category:     item.Category,
+	})
+}
+
+func growBackoff(current, max time.Duration) time.Duration {
+	if current < max {
+		current *= 2
+		if current > max {
+			return max
+		}
+	}
+	return current
+}
+
+func alphaItemSymbols(items []alpha.ResolvedItem) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.AlphaSymbol)
+	}
+	return out
+}
+
 func (s *Service) onTicker(t binance.TickerUpdate) {
 	s.lastQuoteAt.Store(time.Now().UnixMilli())
 	s.binanceStatus.Store("connected")
@@ -152,6 +356,12 @@ func (s *Service) onTicker(t binance.TickerUpdate) {
 		q.ChangeDayPct = dayPct
 		s.store.UpdateQuote(q)
 	} else {
+		s.dayOpen.setFallback(t.Symbol, t.PriceUsdt, now)
+		if dayPct, ok := s.dayOpen.changePct(t.Symbol, t.PriceUsdt, now); ok {
+			q.ChangeDayPct = dayPct
+			s.store.UpdateQuote(q)
+			return
+		}
 		s.store.UpdateQuoteKeepDayPct(q)
 	}
 }

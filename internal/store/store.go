@@ -14,9 +14,69 @@ type MarketStore struct {
 	quotes    map[string]Quote
 	rates     Rates
 	indices   []IndexQuote
+	alpha     AlphaSnapshot
 	macro     MacroSnapshot
 	symbols   []string // display order
 	listeners []ChangeListener
+}
+
+// UpdateAlphaQuote upserts a Binance Alpha quote without affecting crypto quotes.
+func (s *MarketStore) UpdateAlphaQuote(row AlphaQuote) uint64 {
+	row.Symbol = strings.ToUpper(strings.TrimSpace(row.Symbol))
+	row.ID = strings.ToLower(strings.TrimSpace(row.ID))
+	row.Category = strings.ToLower(strings.TrimSpace(row.Category))
+	if row.Symbol == "" || row.ID == "" {
+		return s.Version()
+	}
+	if row.UpdatedAt.IsZero() {
+		row.UpdatedAt = time.Now().UTC()
+	}
+	if row.Source == "" {
+		row.Source = "binance-alpha"
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch row.Category {
+	case "index":
+		s.alpha.Indices = upsertAlphaQuote(s.alpha.Indices, row)
+	case "stock":
+		s.alpha.Stocks = upsertAlphaQuote(s.alpha.Stocks, row)
+	default:
+		return s.version
+	}
+	if row.UpdatedAt.After(s.alpha.UpdatedAt) || s.alpha.UpdatedAt.IsZero() {
+		s.alpha.UpdatedAt = row.UpdatedAt
+	}
+	s.alpha.Source = "binance-alpha"
+	v := s.bump()
+	s.notifyLocked(v)
+	return v
+}
+
+func upsertAlphaQuote(rows []AlphaQuote, row AlphaQuote) []AlphaQuote {
+	for i := range rows {
+		if rows[i].ID == row.ID || rows[i].Symbol == row.Symbol {
+			rows[i] = row
+			return rows
+		}
+	}
+	return append(rows, row)
+}
+
+// SetAlphaDefaults seeds configured Alpha rows so the UI can render before ticks arrive.
+func (s *MarketStore) SetAlphaDefaults(indices []AlphaQuote, stocks []AlphaQuote) uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.alpha.Indices = append([]AlphaQuote(nil), indices...)
+	s.alpha.Stocks = append([]AlphaQuote(nil), stocks...)
+	if len(indices) > 0 || len(stocks) > 0 {
+		s.alpha.Source = "binance-alpha"
+	}
+	v := s.bump()
+	s.notifyLocked(v)
+	return v
 }
 
 // New creates a store with optional symbol order for snapshot listing.
@@ -89,8 +149,8 @@ func (s *MarketStore) UpdateQuote(q Quote) uint64 {
 	return v
 }
 
-// UpdateQuoteKeepDayPct updates live ticker fields but preserves changeDayPct when the
-// exchange-day open cache is stale (e.g. right after UTC midnight before refresh).
+// UpdateQuoteKeepDayPct updates live ticker fields but preserves changeDayPct
+// while the Asia/Shanghai day-open cache is not ready.
 func (s *MarketStore) UpdateQuoteKeepDayPct(q Quote) uint64 {
 	sym := strings.ToUpper(strings.TrimSpace(q.Symbol))
 	if sym == "" {
@@ -288,12 +348,19 @@ func (s *MarketStore) GetSnapshot() Snapshot {
 	}
 
 	indices := append([]IndexQuote(nil), s.indices...)
+	alpha := AlphaSnapshot{
+		Indices:   append([]AlphaQuote(nil), s.alpha.Indices...),
+		Stocks:    append([]AlphaQuote(nil), s.alpha.Stocks...),
+		UpdatedAt: s.alpha.UpdatedAt,
+		Source:    s.alpha.Source,
+	}
 	return Snapshot{
 		Version: s.version,
 		Ts:      time.Now().UnixMilli(),
 		Quotes:  quotes,
 		Rates:   s.rates,
 		Indices: indices,
+		Alpha:   alpha,
 		Macro:   s.macro,
 	}
 }

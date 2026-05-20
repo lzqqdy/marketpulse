@@ -87,10 +87,11 @@ PY
   fi
   echo ""
   echo "  最近 Binance 日志："
-  if [[ -f /opt/marketpulse/log/marketd.log ]]; then
-    grep -i binance /opt/marketpulse/log/marketd.log 2>/dev/null | tail -5 | sed 's/^/    /' || echo "    (无匹配)"
+  latest_logs="$(find /opt/marketpulse/log -maxdepth 2 -type f \( -name 'info.log' -o -name 'warn.log' -o -name 'error.log' \) 2>/dev/null | sort | tail -20 || true)"
+  if [[ -n "${latest_logs}" ]]; then
+    grep -ih binance ${latest_logs} 2>/dev/null | tail -5 | sed 's/^/    /' || echo "    (无匹配)"
   else
-    echo "    /opt/marketpulse/log/marketd.log 不存在"
+    echo "    /opt/marketpulse/log/YYYY-MM-DD/*.log 不存在"
   fi
 else
   echo "  SKIP  http://127.0.0.1:${APP_PORT}/healthz 不可达（进程未启动或端口不对）"

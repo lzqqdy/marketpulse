@@ -14,7 +14,7 @@ help:
 	@echo "  开发"
 	@echo "    make dev              同时启动后端 (:8080) 和前端 (:5173)"
 	@echo "    make dev-api          启动后端 (:8080)"
-	@echo "    make dev-api-log      启动后端并写入 log/local-marketd.log"
+	@echo "    make dev-api-log      启动后端并写入 log/local-api.log"
 	@echo "    make dev-web          启动前端 Vite (:5173)"
 	@echo ""
 	@echo "  构建"
@@ -58,7 +58,7 @@ dev-api: setup-config
 	$(GO) run -buildvcs=false ./cmd/marketd -config config/config.yaml
 
 dev-api-log: setup-config setup-log
-	$(GO) run -buildvcs=false ./cmd/marketd -config config/config.yaml 2>&1 | tee log/local-marketd.log
+	$(GO) run -buildvcs=false ./cmd/marketd -config config/config.yaml 2>&1 | tee log/local-api.log
 
 test:
 	$(GO) test -buildvcs=false ./...

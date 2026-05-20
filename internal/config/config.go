@@ -15,6 +15,7 @@ type Config struct {
 	App     AppConfig    `yaml:"app"`
 	CORS    CORSConfig   `yaml:"cors"`
 	Symbols []string     `yaml:"symbols"`
+	Alpha   AlphaConfig  `yaml:"alpha"`
 	Ingest  IngestConfig `yaml:"ingest"`
 }
 
@@ -45,6 +46,21 @@ type BinanceConfig struct {
 	WSBase string `yaml:"ws_base"`
 }
 
+// AlphaConfig configures Binance Alpha / tokenized stocks reference quotes.
+type AlphaConfig struct {
+	Enabled    bool        `yaml:"enabled"`
+	QuoteAsset string      `yaml:"quote_asset"`
+	Indices    []AlphaItem `yaml:"indices"`
+	Stocks     []AlphaItem `yaml:"stocks"`
+}
+
+// AlphaItem maps a display id/name to a Binance Alpha pair symbol.
+type AlphaItem struct {
+	ID     string `yaml:"id"`
+	Name   string `yaml:"name"`
+	Symbol string `yaml:"symbol"`
+}
+
 // OTCConfig configures USDT/CNY polling.
 type OTCConfig struct {
 	USDTCNYInterval time.Duration `yaml:"usdt_cny_interval"`
@@ -69,6 +85,21 @@ var DefaultEquityIndexIDs = []string{
 	"n225", "ks11",
 	"dji", "ixic", "gspc",
 	"gold",
+}
+
+var DefaultAlphaIndices = []AlphaItem{
+	{ID: "qqqon", Name: "QQQ", Symbol: "QQQONUSDT"},
+	{ID: "spyon", Name: "SPY", Symbol: "SPYONUSDT"},
+}
+
+var DefaultAlphaStocks = []AlphaItem{
+	{ID: "aaplon", Name: "AAPL", Symbol: "AAPLONUSDT"},
+	{ID: "msfton", Name: "MSFT", Symbol: "MSFTONUSDT"},
+	{ID: "nvdaon", Name: "NVDA", Symbol: "NVDAONUSDT"},
+	{ID: "amznon", Name: "AMZN", Symbol: "AMZNONUSDT"},
+	{ID: "googlon", Name: "GOOGL", Symbol: "GOOGLONUSDT"},
+	{ID: "metaon", Name: "META", Symbol: "METAONUSDT"},
+	{ID: "tslaon", Name: "TSLA", Symbol: "TSLAONUSDT"},
 }
 
 // MacroConfig configures macro indicator polling.
@@ -109,6 +140,18 @@ func (c *Config) applyDefaults() {
 	if c.Ingest.Binance.WSBase == "" {
 		c.Ingest.Binance.WSBase = "wss://stream.binance.com:9443/stream"
 	}
+	if c.Alpha.QuoteAsset == "" {
+		c.Alpha.QuoteAsset = "USDT"
+	}
+	if len(c.Alpha.Indices) == 0 {
+		c.Alpha.Indices = append([]AlphaItem(nil), DefaultAlphaIndices...)
+	}
+	if len(c.Alpha.Stocks) == 0 {
+		c.Alpha.Stocks = append([]AlphaItem(nil), DefaultAlphaStocks...)
+	}
+	c.Alpha.QuoteAsset = strings.ToUpper(strings.TrimSpace(c.Alpha.QuoteAsset))
+	c.Alpha.Indices = normalizeAlphaItems(c.Alpha.Indices, c.Alpha.QuoteAsset)
+	c.Alpha.Stocks = normalizeAlphaItems(c.Alpha.Stocks, c.Alpha.QuoteAsset)
 	if c.Ingest.OTC.USDTCNYInterval == 0 {
 		c.Ingest.OTC.USDTCNYInterval = 30 * time.Second
 	}
@@ -158,6 +201,34 @@ func (c *Config) applyDefaults() {
 	c.Symbols = normalized
 }
 
+func normalizeAlphaItems(items []AlphaItem, quoteAsset string) []AlphaItem {
+	out := make([]AlphaItem, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		item.ID = strings.ToLower(strings.TrimSpace(item.ID))
+		item.Name = strings.TrimSpace(item.Name)
+		item.Symbol = strings.ToUpper(strings.TrimSpace(item.Symbol))
+		if item.Symbol == "" && item.ID != "" {
+			item.Symbol = strings.ToUpper(item.ID) + quoteAsset
+		}
+		if item.ID == "" {
+			item.ID = strings.ToLower(strings.TrimSuffix(item.Symbol, quoteAsset))
+		}
+		if item.Name == "" {
+			item.Name = strings.ToUpper(strings.TrimSuffix(item.Symbol, quoteAsset))
+		}
+		if item.ID == "" || item.Symbol == "" {
+			continue
+		}
+		if _, ok := seen[item.Symbol]; ok {
+			continue
+		}
+		seen[item.Symbol] = struct{}{}
+		out = append(out, item)
+	}
+	return out
+}
+
 func (c *Config) applyEnv() {
 	if v := os.Getenv("MARKETPULSE_APP_ADDR"); v != "" {
 		c.App.Addr = v
@@ -189,4 +260,46 @@ func (c *Config) BinanceStreamURL() string {
 		parts = append(parts, strings.ToLower(sym)+"usdt@miniTicker")
 	}
 	return c.Ingest.Binance.WSBase + "?streams=" + strings.Join(parts, "/")
+}
+
+func (c *Config) AlphaItems() []AlphaItem {
+	out := make([]AlphaItem, 0, len(c.Alpha.Indices)+len(c.Alpha.Stocks))
+	out = append(out, c.Alpha.Indices...)
+	out = append(out, c.Alpha.Stocks...)
+	return out
+}
+
+func (c *Config) AlphaBaseSymbols() []string {
+	out := make([]string, 0, len(c.Alpha.Indices)+len(c.Alpha.Stocks))
+	for _, item := range c.AlphaItems() {
+		base := strings.TrimSuffix(strings.ToUpper(item.Symbol), c.Alpha.QuoteAsset)
+		if base != "" {
+			out = append(out, base)
+		}
+	}
+	return out
+}
+
+func (c *Config) AlphaByBaseSymbol(symbol string) (AlphaItem, string, bool) {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	for _, item := range c.Alpha.Indices {
+		if strings.TrimSuffix(item.Symbol, c.Alpha.QuoteAsset) == symbol {
+			return item, "index", true
+		}
+	}
+	for _, item := range c.Alpha.Stocks {
+		if strings.TrimSuffix(item.Symbol, c.Alpha.QuoteAsset) == symbol {
+			return item, "stock", true
+		}
+	}
+	return AlphaItem{}, "", false
+}
+
+func (c *Config) IsAlphaBaseSymbol(symbol string) bool {
+	_, _, ok := c.AlphaByBaseSymbol(symbol)
+	return ok
+}
+
+func (c *Config) DayOpenSymbols() []string {
+	return append([]string(nil), c.Symbols...)
 }

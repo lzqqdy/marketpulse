@@ -35,22 +35,44 @@ type IndexQuote struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// AlphaQuote is a Binance Alpha / tokenized stocks reference quote.
+type AlphaQuote struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Symbol       string    `json:"symbol"`
+	Price        float64   `json:"price"`
+	Change24hPct float64   `json:"change24hPct"`
+	ChangeDayPct float64   `json:"changeDayPct"`
+	Volume       float64   `json:"volume"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+	Source       string    `json:"source"`
+	Category     string    `json:"category"` // index | stock
+}
+
+// AlphaSnapshot groups Binance Alpha reference rows.
+type AlphaSnapshot struct {
+	Indices   []AlphaQuote `json:"indices"`
+	Stocks    []AlphaQuote `json:"stocks"`
+	UpdatedAt time.Time    `json:"updatedAt,omitempty"`
+	Source    string       `json:"source,omitempty"`
+}
+
 // MacroSnapshot holds slow macro indicators.
 type MacroSnapshot struct {
-	TotalMarketCapUsd          float64        `json:"totalMarketCapUsd"`
-	TotalVolume24hUsd          float64        `json:"totalVolume24hUsd"`
-	TotalMarketCapChange24hPct float64        `json:"totalMarketCapChange24hPct"`
-	FearGreed                  FearGreed      `json:"fearGreed"`
-	BTCDominancePct            float64        `json:"btcDominancePct"`
-	ETHDominancePct               float64        `json:"ethDominancePct"`
-	StablecoinMarketCapUsd        float64        `json:"stablecoinMarketCapUsd"`
-	StablecoinMarketCapChange24hPct float64      `json:"stablecoinMarketCapChange24hPct"`
-	LongShort                  LongShortRatio `json:"longShort"`
-	TopLongShort               LongShortRatio `json:"topLongShort"`
-	Funding                    FundingRate    `json:"funding"`
-	OpenInterest               OpenInterest   `json:"openInterest"`
-	TakerBuySell               TakerBuySell   `json:"takerBuySell"`
-	Liquidations               Liquidations   `json:"liquidations"`
+	TotalMarketCapUsd               float64        `json:"totalMarketCapUsd"`
+	TotalVolume24hUsd               float64        `json:"totalVolume24hUsd"`
+	TotalMarketCapChange24hPct      float64        `json:"totalMarketCapChange24hPct"`
+	FearGreed                       FearGreed      `json:"fearGreed"`
+	BTCDominancePct                 float64        `json:"btcDominancePct"`
+	ETHDominancePct                 float64        `json:"ethDominancePct"`
+	StablecoinMarketCapUsd          float64        `json:"stablecoinMarketCapUsd"`
+	StablecoinMarketCapChange24hPct float64        `json:"stablecoinMarketCapChange24hPct"`
+	LongShort                       LongShortRatio `json:"longShort"`
+	TopLongShort                    LongShortRatio `json:"topLongShort"`
+	Funding                         FundingRate    `json:"funding"`
+	OpenInterest                    OpenInterest   `json:"openInterest"`
+	TakerBuySell                    TakerBuySell   `json:"takerBuySell"`
+	Liquidations                    Liquidations   `json:"liquidations"`
 }
 
 // FearGreed is the alternative.me style sentiment bucket.
@@ -112,5 +134,6 @@ type Snapshot struct {
 	Quotes  []Quote       `json:"quotes"`
 	Rates   Rates         `json:"rates"`
 	Indices []IndexQuote  `json:"indices"`
+	Alpha   AlphaSnapshot `json:"alpha"`
 	Macro   MacroSnapshot `json:"macro"`
 }

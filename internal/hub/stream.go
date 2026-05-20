@@ -63,10 +63,18 @@ type MacroMsg struct {
 	Data    store.MacroSnapshot `json:"data"`
 }
 
+// AlphaMsg is pushed on alpha channel.
+type AlphaMsg struct {
+	Type    string              `json:"type"`
+	Version uint64              `json:"version"`
+	Ts      int64               `json:"ts"`
+	Data    store.AlphaSnapshot `json:"data"`
+}
+
 // SnapshotMsg is the initial full payload.
 type SnapshotMsg struct {
-	Type string          `json:"type"`
-	Data store.Snapshot  `json:"data"`
+	Type string         `json:"type"`
+	Data store.Snapshot `json:"data"`
 }
 
 // NewStreamHub creates a hub wired to store change notifications.
@@ -128,6 +136,12 @@ func (h *StreamHub) flush() {
 		Ts:      snap.Ts,
 		Data:    snap.Macro,
 	}
+	alpha := AlphaMsg{
+		Type:    "alpha",
+		Version: snap.Version,
+		Ts:      snap.Ts,
+		Data:    snap.Alpha,
+	}
 
 	for _, c := range clients {
 		if c.channels["quotes"] && len(snap.Quotes) > 0 {
@@ -147,6 +161,11 @@ func (h *StreamHub) flush() {
 		}
 		if c.channels["macro"] && snap.Macro.TotalMarketCapUsd > 0 {
 			if err := c.writeJSON(macro); err != nil {
+				h.removeClient(c)
+			}
+		}
+		if c.channels["alpha"] && (len(snap.Alpha.Indices) > 0 || len(snap.Alpha.Stocks) > 0) {
+			if err := c.writeJSON(alpha); err != nil {
 				h.removeClient(c)
 			}
 		}

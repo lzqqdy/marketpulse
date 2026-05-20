@@ -29,6 +29,15 @@ func TestLoad_example(t *testing.T) {
 	if strings.Join(cfg.Ingest.Equity.Providers, ",") != "sina,tencent,eastmoney" {
 		t.Fatalf("providers: %v", cfg.Ingest.Equity.Providers)
 	}
+	if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 7 {
+		t.Fatalf("alpha config: enabled=%v indices=%d stocks=%d", cfg.Alpha.Enabled, len(cfg.Alpha.Indices), len(cfg.Alpha.Stocks))
+	}
+	if strings.Join(cfg.AlphaBaseSymbols(), ",") != "QQQON,SPYON,AAPLON,MSFTON,NVDAON,AMZNON,GOOGLON,METAON,TSLAON" {
+		t.Fatalf("alpha base symbols: %v", cfg.AlphaBaseSymbols())
+	}
+	if strings.Join(cfg.DayOpenSymbols(), ",") != strings.Join(cfg.Symbols, ",") {
+		t.Fatalf("day open symbols should exclude alpha: %v", cfg.DayOpenSymbols())
+	}
 }
 
 func TestLoad_envOverride(t *testing.T) {

@@ -14,12 +14,13 @@ import (
 
 // TickerUpdate is a normalized miniTicker event.
 type TickerUpdate struct {
-	Symbol        string
-	PriceUsdt     float64
-	Open24h       float64
-	High24h       float64
-	Low24h        float64
+	Symbol       string
+	PriceUsdt    float64
+	Open24h      float64
+	High24h      float64
+	Low24h       float64
 	Change24hPct float64
+	Volume24h    float64
 	EventTime    time.Time
 }
 
@@ -36,6 +37,7 @@ type miniTickerEvent struct {
 	Open        string `json:"o"`
 	High        string `json:"h"`
 	Low         string `json:"l"`
+	Volume      string `json:"v"`
 }
 
 // RunMiniTicker connects to Binance combined miniTicker stream until ctx ends.
@@ -120,6 +122,7 @@ func normalizeMiniTicker(ev miniTickerEvent) (TickerUpdate, bool) {
 	open, _ := strconv.ParseFloat(ev.Open, 64)
 	high, _ := strconv.ParseFloat(ev.High, 64)
 	low, _ := strconv.ParseFloat(ev.Low, 64)
+	volume, _ := strconv.ParseFloat(ev.Volume, 64)
 
 	chg := 0.0
 	if open > 0 {
@@ -138,6 +141,7 @@ func normalizeMiniTicker(ev miniTickerEvent) (TickerUpdate, bool) {
 		High24h:      high,
 		Low24h:       low,
 		Change24hPct: chg,
+		Volume24h:    volume,
 		EventTime:    time.Now().UTC(),
 	}, true
 }

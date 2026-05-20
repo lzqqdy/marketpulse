@@ -18,6 +18,39 @@ symbols:
   - LTC
   - FIL
 
+alpha:
+  enabled: true
+  quote_asset: USDT
+  indices:
+    - id: qqqon
+      name: QQQ
+      symbol: QQQONUSDT
+    - id: spyon
+      name: SPY
+      symbol: SPYONUSDT
+  stocks:
+    - id: aaplon
+      name: AAPL
+      symbol: AAPLONUSDT
+    - id: msfton
+      name: MSFT
+      symbol: MSFTONUSDT
+    - id: nvdaon
+      name: NVDA
+      symbol: NVDAONUSDT
+    - id: amznon
+      name: AMZN
+      symbol: AMZNONUSDT
+    - id: googlon
+      name: GOOGL
+      symbol: GOOGLONUSDT
+    - id: metaon
+      name: META
+      symbol: METAONUSDT
+    - id: tslaon
+      name: TSLA
+      symbol: TSLAONUSDT
+
 ingest:
   binance:
     # 合并流示例，实现时按 symbols 生成
