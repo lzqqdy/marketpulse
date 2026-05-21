@@ -1,0 +1,93 @@
+<script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
+import StatusBar from '@/components/StatusBar.vue'
+import QuoteTable from '@/components/QuoteTable.vue'
+import MacroGrid from '@/components/MacroGrid.vue'
+import IndexGrid from '@/components/IndexGrid.vue'
+import AlphaStockPanel from '@/components/AlphaStockPanel.vue'
+import KlineDrawer from '@/components/KlineDrawer.vue'
+import { useMarketStore } from '@/stores/market'
+
+const store = useMarketStore()
+
+onMounted(() => {
+  store.initLive()
+})
+
+onUnmounted(() => {
+  store.teardown()
+  store.stopMockTick()
+})
+</script>
+
+<template>
+  <div class="dashboard">
+    <StatusBar />
+    <main class="dashboard-grid">
+      <section class="market-column">
+        <QuoteTable />
+      </section>
+      <aside class="side-column">
+        <MacroGrid />
+        <IndexGrid />
+        <AlphaStockPanel />
+      </aside>
+    </main>
+    <p class="footer-note">点击币种行查看 K 线 · 行情 Binance WS 实时</p>
+    <KlineDrawer />
+  </div>
+</template>
+
+<style scoped>
+.dashboard {
+  width: 100%;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+}
+
+.market-column,
+.side-column {
+  min-width: 0;
+}
+
+.market-column {
+  display: flex;
+  justify-content: center;
+}
+
+.side-column {
+  display: grid;
+  gap: 12px;
+}
+
+.footer-note {
+  text-align: center;
+  font-size: 11px;
+  color: #5f5f5f;
+  margin: 16px 0 0;
+}
+
+@media (min-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(400px, 1.2fr) minmax(300px, 0.8fr);
+    gap: 16px;
+  }
+
+  .footer-note {
+    margin-top: 20px;
+  }
+}
+
+@media (min-width: 1040px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(520px, 1.25fr) minmax(420px, 0.75fr);
+    gap: 20px;
+  }
+}
+</style>

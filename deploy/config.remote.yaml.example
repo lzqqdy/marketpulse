@@ -5,7 +5,7 @@ app:
   mode: "release"
   log_dir: "log"
   # 相对 remote_dir，与 web/dist 同步目录对应
-  static_dir: "web"
+  static_dir: "web/dist"
 
 cors:
   allowed_origins: []

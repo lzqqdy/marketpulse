@@ -1,0 +1,58 @@
+:root {
+  --bg: #0b0e11;
+  --card: #1e2329;
+  --card-soft: #151a21;
+  --line: #2b3139;
+  --text: #eaecef;
+  --muted: #848e9c;
+  --coin: #dbaa6a;
+  --up: #f6465d;
+  --down: #0ecb81;
+  --page-max: 1120px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  text-align: center;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-shell {
+  width: min(100%, var(--page-max));
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 8px 10px 28px;
+}
+
+button {
+  font-family: inherit;
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    padding: 18px 18px 36px;
+  }
+}
+
+@media (min-width: 1180px) {
+  .app-shell {
+    padding-inline: 0;
+  }
+}

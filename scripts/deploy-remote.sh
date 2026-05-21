@@ -115,6 +115,7 @@ ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "mkdir -p '${REMOTE_DIR}/'{bin,config,web,l
 if [[ "${DO_SYNC_SOURCE}" == "1" ]]; then
   echo "==> 同步源码（保留服务器 .git，排除 node_modules/bin/dist 等）"
   rsync -avz \
+    --delete \
     --exclude-from="${EXCLUDES}" \
     -e "${RSYNC_SSH}" \
     "${ROOT}/" "${SSH_TARGET}:${REMOTE_DIR}/"
@@ -124,7 +125,7 @@ fi
 
 echo "==> 同步运行产物"
 rsync -azc --progress -e "${RSYNC_SSH}" bin/marketd "${SSH_TARGET}:${REMOTE_DIR}/bin/"
-rsync -avz --delete -e "${RSYNC_SSH}" web/dist/ "${SSH_TARGET}:${REMOTE_DIR}/web/"
+rsync -avz --delete -e "${RSYNC_SSH}" web/dist/ "${SSH_TARGET}:${REMOTE_DIR}/web/dist/"
 if [[ "${DO_SYNC_CONFIG}" == "1" ]]; then
   echo "==> 覆盖远程 config/config.yaml（SHIP_SYNC_CONFIG=1 或 sync_config: true）"
   rsync -avz -e "${RSYNC_SSH}" "${TMP_CFG}" "${SSH_TARGET}:${REMOTE_DIR}/config/config.yaml"
