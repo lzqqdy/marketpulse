@@ -9,9 +9,12 @@ import AlphaStockPanel from '@/components/AlphaStockPanel.vue'
 import KlineDrawer from '@/components/KlineDrawer.vue'
 import { useMarketStore } from '@/stores/market'
 import { useProviderStore } from '@/stores/providers'
+import { useScreenWakeLock } from '@/composables/useScreenWakeLock'
 
 const store = useMarketStore()
 const providerStore = useProviderStore()
+
+useScreenWakeLock()
 
 onMounted(() => {
   store.initLive()

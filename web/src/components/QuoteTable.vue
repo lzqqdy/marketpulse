@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useMarketStore } from '@/stores/market'
 import { useChartStore } from '@/stores/chart'
 import { useTrendClass } from '@/composables/useTrendClass'
@@ -7,13 +7,19 @@ import { formatPct, formatPriceUsdt, formatRank } from '@/utils/format'
 
 const store = useMarketStore()
 const chartStore = useChartStore()
+const expanded = ref(false)
+const COLLAPSED_ROWS = 5
 
 function openChart(symbol: string) {
   chartStore.open(symbol)
 }
 const { priceClass, badgeClass } = useTrendClass()
 
-const rows = computed(() => store.quotes)
+const rows = computed(() =>
+  expanded.value ? store.quotes : store.quotes.slice(0, COLLAPSED_ROWS),
+)
+
+const canToggle = computed(() => store.quotes.length > COLLAPSED_ROWS)
 
 const ICON_FALLBACK: Record<string, string> = {
   BTC: 'https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/btc.svg',
@@ -83,6 +89,17 @@ function formatCny(value: number) {
         </tr>
       </tbody>
     </table>
+    <button
+      v-if="canToggle"
+      type="button"
+      class="quote-toggle"
+      :aria-label="expanded ? '收起币价列表' : '展开币价列表'"
+      @click="expanded = !expanded"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ expanded }">
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </button>
   </section>
 </template>
 
@@ -225,6 +242,37 @@ function formatCny(value: number) {
 
 .quote-row:hover {
   background: var(--hover);
+}
+
+.quote-toggle {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 26px;
+  margin: 8px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.quote-toggle:hover {
+  color: var(--coin);
+}
+
+.quote-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.18s ease;
+}
+
+.quote-toggle svg.expanded {
+  transform: rotate(180deg);
 }
 
 .sr-only {
