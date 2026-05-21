@@ -133,6 +133,9 @@ else
   echo "==> 保留远程 config/config.yaml（不存在时初始化）"
   rsync -avz -e "${RSYNC_SSH}" --ignore-existing "${TMP_CFG}" "${SSH_TARGET}:${REMOTE_DIR}/config/config.yaml"
 fi
+echo "==> 校正远程静态目录"
+ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" \
+  "CONFIG_PATH='${REMOTE_DIR}/config/config.yaml'; if grep -Eq '^[[:space:]]*static_dir:[[:space:]]*\"?web\"?[[:space:]]*$' \"\${CONFIG_PATH}\"; then cp \"\${CONFIG_PATH}\" \"\${CONFIG_PATH}.bak\" && sed -i -e 's|static_dir: \"web\"|static_dir: \"web/dist\"|' -e 's|static_dir: web$|static_dir: \"web/dist\"|' \"\${CONFIG_PATH}\"; fi"
 rsync -avz -e "${RSYNC_SSH}" deploy/remote-restart.sh "${SSH_TARGET}:${REMOTE_DIR}/scripts/restart.sh"
 rsync -avz -e "${RSYNC_SSH}" deploy/remote-git-commit.sh "${SSH_TARGET}:${REMOTE_DIR}/deploy/remote-git-commit.sh"
 
