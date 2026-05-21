@@ -211,9 +211,6 @@ func (s *Service) pollSGE(ctx context.Context) error {
 
 func (s *Service) fetchEquityProvider(provider string, defs []equity.IndexDef) (map[string]store.IndexQuote, error, bool) {
 	switch provider {
-	case "sina":
-		rows, err := equity.FetchSinaQuotes(httpClient, defs)
-		return rows, err, false
 	case "eastmoney":
 		rows, err := equity.FetchEastmoneyQuotes(httpClient, defs)
 		return rows, err, false
@@ -359,8 +356,6 @@ func (s *Service) ProviderStatus() ProviderStatusResponse {
 
 func equityProviderHealthName(provider string) string {
 	switch provider {
-	case "sina":
-		return "sina_index"
 	case "eastmoney":
 		return "eastmoney_index"
 	case "tencent":

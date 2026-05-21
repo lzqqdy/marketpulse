@@ -26,7 +26,7 @@ func TestLoad_example(t *testing.T) {
 	if !strings.Contains(cfg.BinanceStreamURL(), "btcusdt@miniTicker") {
 		t.Fatalf("stream url: %s", cfg.BinanceStreamURL())
 	}
-	if strings.Join(cfg.Ingest.Equity.Providers, ",") != "sina,tencent,eastmoney" {
+	if strings.Join(cfg.Ingest.Equity.Providers, ",") != "tencent,eastmoney" {
 		t.Fatalf("providers: %v", cfg.Ingest.Equity.Providers)
 	}
 	if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 7 {

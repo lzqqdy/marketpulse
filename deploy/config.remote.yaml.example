@@ -65,7 +65,6 @@ ingest:
   equity:
     interval: 60s
     providers:
-      - sina
       - tencent
       - eastmoney
     index_ids:

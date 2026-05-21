@@ -84,7 +84,6 @@ func defaultProviderDefs(alphaEnabled bool) []providerDef {
 		{Name: "okx_c2c", Label: "OKX C2C", Category: "forex", Role: "primary", StaleAfter: 3 * time.Minute},
 		{Name: "frankfurter_fx", Label: "Frankfurter FX", Category: "forex", Role: "primary", StaleAfter: 15 * time.Minute},
 		{Name: "tencent_index", Label: "Tencent", Category: "index", Role: "primary", StaleAfter: 3 * time.Minute},
-		{Name: "sina_index", Label: "Sina", Category: "index", Role: "fallback", StaleAfter: 3 * time.Minute},
 		{Name: "eastmoney_index", Label: "Eastmoney", Category: "index", Role: "fallback", StaleAfter: 3 * time.Minute},
 		{Name: "sge_gold", Label: "SGE Gold", Category: "index", Role: "auxiliary", StaleAfter: 90 * time.Minute},
 		{Name: "coingecko_macro", Label: "CoinGecko Macro", Category: "macro", Role: "primary", StaleAfter: 10 * time.Minute},

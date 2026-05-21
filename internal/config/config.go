@@ -165,7 +165,7 @@ func (c *Config) applyDefaults() {
 		c.Ingest.Equity.IndexIDs = append([]string(nil), DefaultEquityIndexIDs...)
 	}
 	if len(c.Ingest.Equity.Providers) == 0 {
-		c.Ingest.Equity.Providers = []string{"sina", "tencent", "eastmoney"}
+		c.Ingest.Equity.Providers = []string{"tencent", "eastmoney"}
 	}
 	normalizedIDs := make([]string, 0, len(c.Ingest.Equity.IndexIDs))
 	for _, id := range c.Ingest.Equity.IndexIDs {
@@ -179,12 +179,12 @@ func (c *Config) applyDefaults() {
 	for _, name := range c.Ingest.Equity.Providers {
 		name = strings.ToLower(strings.TrimSpace(name))
 		switch name {
-		case "sina", "eastmoney", "tencent":
+		case "eastmoney", "tencent":
 			normalizedProviders = append(normalizedProviders, name)
 		}
 	}
 	if len(normalizedProviders) == 0 {
-		normalizedProviders = []string{"sina", "tencent", "eastmoney"}
+		normalizedProviders = []string{"tencent", "eastmoney"}
 	}
 	c.Ingest.Equity.Providers = normalizedProviders
 	if c.Ingest.Macro.Interval == 0 {

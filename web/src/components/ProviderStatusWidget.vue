@@ -80,7 +80,6 @@ function togglePanel() {
         :aria-label="summaryText"
         @click="togglePanel"
       >
-        <span class="chip-dot"></span>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 7h11" />
           <path d="M4 12h16" />
@@ -211,30 +210,6 @@ function togglePanel() {
 
 .provider-trigger {
   align-items: center;
-}
-
-.chip-dot {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-
-.provider-trigger.healthy .chip-dot {
-  background: var(--down);
-}
-
-.provider-trigger.degraded .chip-dot,
-.provider-trigger.stale .chip-dot {
-  background: var(--warning);
-}
-
-.provider-trigger.unavailable .chip-dot,
-.provider-trigger.circuit_open .chip-dot {
-  background: var(--up);
 }
 
 .provider-panel {

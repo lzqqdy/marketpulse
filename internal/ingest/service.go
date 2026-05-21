@@ -53,7 +53,6 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s.ingestStatus.set("otc", "starting")
 	s.ingestStatus.set("forex", "starting")
 	s.ingestStatus.set("equity", "starting")
-	s.ingestStatus.set("equity_sina", "starting")
 	s.ingestStatus.set("equity_eastmoney", "starting")
 	s.ingestStatus.set("equity_tencent", "starting")
 	s.ingestStatus.set("macro", "starting")
