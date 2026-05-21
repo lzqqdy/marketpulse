@@ -61,10 +61,9 @@ ingest:
     usd_cny_interval: 1h
   equity:
     interval: 60s
-    providers:
-      - sina
       - tencent
       - eastmoney
+      - sina
     index_ids:
       - sh000001
       - sz399001

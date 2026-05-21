@@ -14,8 +14,9 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/store"
 )
 
-var sgeDelayedQuotesURL = "https://en.sge.com.cn/data_DelayedQuotes"
-var sgeDailyReportURL = "https://en.sge.com.cn/data/data_daily_international_new"
+var sgeDelayedQuotesURL = "https://www.sge.com.cn/sjzx/yshqbg"
+var sgeDelayedQuotesFallbackURL = "https://en.sgenow.cn/h5_data_DelayedQuotes"
+var sgeDailyReportURL = "https://www.sge.com.cn/sjzx/quotation_daily_new"
 
 var au9999RowPattern = regexp.MustCompile(`(?i)Au99\.99\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)`)
 var au9999DailyPattern = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}\s+Au99\.99\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+[-+0-9.]+\s+([-+0-9.]+)%`)
@@ -25,41 +26,43 @@ func FetchAu9999(client *http.Client) (store.IndexQuote, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	req, err := http.NewRequest(http.MethodGet, sgeDelayedQuotesURL, nil)
+	var firstErr error
+	for _, sourceURL := range []string{sgeDelayedQuotesURL, sgeDelayedQuotesFallbackURL} {
+		body, err := fetchSGEPage(client, sourceURL)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		latest, open, err := parseAu9999(body)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		changePct := 0.0
+		if open > 0 {
+			changePct = (latest - open) / open * 100
+		}
+		return store.IndexQuote{
+			ID:        "sge-au9999",
+			Name:      "国内金价",
+			Price:     latest,
+			ChangePct: changePct,
+			UpdatedAt: time.Now().UTC(),
+		}, nil
+	}
+
+	q, err := fetchRecentAu9999Daily(client)
 	if err != nil {
+		if firstErr != nil {
+			return store.IndexQuote{}, firstErr
+		}
 		return store.IndexQuote{}, err
 	}
-	req.Header.Set("User-Agent", "marketpulse-marketd/1.0")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return store.IndexQuote{}, fmt.Errorf("sge au9999 request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return store.IndexQuote{}, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return store.IndexQuote{}, fmt.Errorf("sge au9999 http %d", resp.StatusCode)
-	}
-
-	latest, open, err := parseAu9999(body)
-	if err != nil {
-		return fetchRecentAu9999Daily(client)
-	}
-	changePct := 0.0
-	if open > 0 {
-		changePct = (latest - open) / open * 100
-	}
-	return store.IndexQuote{
-		ID:        "sge-au9999",
-		Name:      "国内金价",
-		Price:     latest,
-		ChangePct: changePct,
-		UpdatedAt: time.Now().UTC(),
-	}, nil
+	return q, nil
 }
 
 func fetchRecentAu9999Daily(client *http.Client) (store.IndexQuote, error) {
@@ -88,26 +91,36 @@ func fetchRecentAu9999Daily(client *http.Client) (store.IndexQuote, error) {
 
 func fetchAu9999Daily(client *http.Client, day string) (price, changePct float64, err error) {
 	u := sgeDailyReportURL + "?start_date=" + url.QueryEscape(day) + "&end_date=" + url.QueryEscape(day)
+	body, err := fetchSGEPage(client, u)
+	if err != nil {
+		return 0, 0, fmt.Errorf("sge au9999 daily request: %w", err)
+	}
+	return parseAu9999Daily(body)
+}
+
+func fetchSGEPage(client *http.Client, u string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
-	req.Header.Set("User-Agent", "marketpulse-marketd/1.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; MarketPulse/1.0)")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, 0, fmt.Errorf("sge au9999 daily request: %w", err)
+		return nil, fmt.Errorf("sge au9999 request %s: %w", u, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, fmt.Errorf("sge au9999 daily http %d", resp.StatusCode)
+		return nil, fmt.Errorf("sge au9999 http %d url=%s", resp.StatusCode, u)
 	}
-	return parseAu9999Daily(body)
+	return body, nil
 }
 
 func parseAu9999(body []byte) (latest, open float64, err error) {

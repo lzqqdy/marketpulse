@@ -215,6 +215,8 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 
 	backoff := time.Second
 	const maxBackoff = 30 * time.Second
+	const pollInterval = 30 * time.Second
+	const resolveInterval = 10 * time.Minute
 
 	for {
 		if ctx.Err() != nil {
@@ -223,13 +225,13 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 			return
 		}
 
-		s.alphaStatus.Store("connecting")
-		s.ingestStatus.set("alpha_ws", "connecting")
+		s.alphaStatus.Store("polling")
+		s.ingestStatus.set("alpha_ws", "polling")
 		resolved := s.resolveAlphaItems()
 		if len(resolved) == 0 {
 			s.alphaStatus.Store("reconnecting")
 			s.ingestStatus.set("alpha_ws", "reconnecting")
-			slog.Warn("alpha no supported symbols", "retry_in", backoff)
+			slog.Warn("alpha no supported symbols", "transport", "rest_poll", "retry_in", backoff)
 			select {
 			case <-ctx.Done():
 				s.alphaStatus.Store("disconnected")
@@ -241,37 +243,29 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 			continue
 		}
 
-		bySymbol := make(map[string]alpha.ResolvedItem, len(resolved))
-		streams := make([]string, 0, len(resolved))
-		for _, item := range resolved {
-			bySymbol[item.AlphaSymbol] = item
-			streams = append(streams, strings.ToLower(item.AlphaSymbol)+"@ticker")
-		}
-		slog.Info("alpha ws connect", "url", alpha.WSURL, "streams", streams)
-		err := alpha.RunTicker(ctx, resolved, func(t alpha.Ticker) {
-			item, ok := bySymbol[t.Symbol]
-			if !ok {
-				return
-			}
-			s.onAlphaTicker(item, t)
-		})
-		if ctx.Err() != nil {
-			s.alphaStatus.Store("disconnected")
-			s.ingestStatus.set("alpha_ws", "disconnected")
-			return
-		}
+		backoff = time.Second
+		slog.Info("alpha polling started", "symbols", alphaItemSymbols(resolved), "interval", pollInterval, "transport", "rest_poll")
+		s.pollAlphaTickers(resolved)
 
-		s.alphaStatus.Store("reconnecting")
-		s.ingestStatus.set("alpha_ws", "reconnecting")
-		slog.Warn("alpha ws reconnect", "err", err, "retry_in", backoff)
-		select {
-		case <-ctx.Done():
-			s.alphaStatus.Store("disconnected")
-			s.ingestStatus.set("alpha_ws", "disconnected")
-			return
-		case <-time.After(backoff):
+		pollTicker := time.NewTicker(pollInterval)
+		resolveTicker := time.NewTicker(resolveInterval)
+		for {
+			select {
+			case <-ctx.Done():
+				pollTicker.Stop()
+				resolveTicker.Stop()
+				s.alphaStatus.Store("disconnected")
+				s.ingestStatus.set("alpha_ws", "disconnected")
+				return
+			case <-pollTicker.C:
+				s.pollAlphaTickers(resolved)
+			case <-resolveTicker.C:
+				pollTicker.Stop()
+				resolveTicker.Stop()
+				goto refresh
+			}
 		}
-		backoff = growBackoff(backoff, maxBackoff)
+	refresh:
 	}
 }
 
@@ -279,29 +273,37 @@ func (s *Service) resolveAlphaItems() []alpha.ResolvedItem {
 	resolved := alpha.ResolveItems(httpClient, s.cfg.Alpha.Indices, s.cfg.Alpha.Stocks, s.cfg.Alpha.QuoteAsset)
 	s.alphaItems.Store(resolved)
 	out := make([]alpha.ResolvedItem, 0, len(resolved))
-	tickers := make(map[string]alpha.Ticker, len(resolved))
 	for _, item := range resolved {
 		if !strings.HasPrefix(item.AlphaSymbol, "ALPHA_") {
 			slog.Warn("alpha symbol unsupported", "symbol", item.Item.Symbol, "alpha_symbol", item.AlphaSymbol, "id", item.Item.ID)
 			continue
 		}
-		ticker, err := alpha.FetchTicker(httpClient, item.AlphaSymbol)
-		if err != nil {
-			slog.Warn("alpha symbol unsupported", "symbol", item.Item.Symbol, "alpha_symbol", item.AlphaSymbol, "id", item.Item.ID, "err", err)
-			continue
-		}
 		out = append(out, item)
-		tickers[item.AlphaSymbol] = ticker
-	}
-	for _, item := range out {
-		if ticker, ok := tickers[item.AlphaSymbol]; ok {
-			s.onAlphaTicker(item, ticker)
-		}
 	}
 	s.alphaItems.Store(out)
 	slog.Info("alpha enabled", "indices", len(s.cfg.Alpha.Indices), "stocks", len(s.cfg.Alpha.Stocks), "supported", len(out))
-	slog.Info("alpha subscribed symbols", "symbols", alphaItemSymbols(out), "transport", "ws")
+	slog.Info("alpha subscribed symbols", "symbols", alphaItemSymbols(out), "transport", "rest_poll")
 	return out
+}
+
+func (s *Service) pollAlphaTickers(items []alpha.ResolvedItem) {
+	succeeded := 0
+	for _, item := range items {
+		ticker, err := alpha.FetchTicker(httpClient, item.AlphaSymbol)
+		if err != nil {
+			slog.Warn("alpha ticker poll failed", "symbol", item.Item.Symbol, "alpha_symbol", item.AlphaSymbol, "id", item.Item.ID, "err", err)
+			continue
+		}
+		s.onAlphaTicker(item, ticker)
+		succeeded++
+	}
+	if succeeded == 0 {
+		s.alphaStatus.Store("error")
+		s.ingestStatus.set("alpha_ws", "error")
+		slog.Warn("alpha ticker poll failed for all symbols", "requested", len(items), "transport", "rest_poll")
+		return
+	}
+	slog.Info("alpha ticker poll fetched", "requested", len(items), "succeeded", succeeded, "transport", "rest_poll")
 }
 
 func (s *Service) onAlphaTicker(item alpha.ResolvedItem, t alpha.Ticker) {
