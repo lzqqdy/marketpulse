@@ -161,7 +161,7 @@ function onBackdrop(e: MouseEvent) {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.72);
+  background: var(--modal-backdrop);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-end;
@@ -172,13 +172,13 @@ function onBackdrop(e: MouseEvent) {
   width: 100%;
   max-width: 480px;
   max-height: 92dvh;
-  background: #12161c;
+  background: var(--panel);
   border-radius: 16px 16px 0 0;
-  border: 1px solid #2b3139;
+  border: 1px solid var(--line);
   border-bottom: none;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 -8px 40px var(--shadow);
 }
 
 .panel-header {
@@ -187,7 +187,7 @@ function onBackdrop(e: MouseEvent) {
   gap: 8px;
   align-items: start;
   padding: 14px 16px 8px;
-  border-bottom: 1px solid #1e2329;
+  border-bottom: 1px solid var(--card);
 }
 
 .header-left {
@@ -207,19 +207,19 @@ function onBackdrop(e: MouseEvent) {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #eaecef;
+  color: var(--text);
 }
 
 .pair {
   font-size: 13px;
   font-weight: 400;
-  color: #848e9c;
+  color: var(--muted);
 }
 
 .subtitle {
   margin: 2px 0 0;
   font-size: 11px;
-  color: #5f5f5f;
+  color: var(--muted-2);
 }
 
 .header-right {
@@ -241,12 +241,12 @@ function onBackdrop(e: MouseEvent) {
 
 .live-price.up,
 .chg.up {
-  color: #f6465d;
+  color: var(--up);
 }
 
 .live-price.down,
 .chg.down {
-  color: #0ecb81;
+  color: var(--down);
 }
 
 .btn-close {
@@ -254,8 +254,8 @@ function onBackdrop(e: MouseEvent) {
   height: 32px;
   border: none;
   border-radius: 8px;
-  background: #1e2329;
-  color: #eaecef;
+  background: var(--card);
+  color: var(--text);
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
@@ -279,18 +279,18 @@ function onBackdrop(e: MouseEvent) {
 .iv-btn {
   flex-shrink: 0;
   padding: 6px 10px;
-  border: 1px solid #2b3139;
+  border: 1px solid var(--line);
   border-radius: 6px;
   background: transparent;
-  color: #848e9c;
+  color: var(--muted);
   font-size: 12px;
   cursor: pointer;
 }
 
 .iv-btn.active {
-  background: #2b3139;
-  color: #f0b90b;
-  border-color: #f0b90b;
+  background: var(--line);
+  color: var(--warning);
+  border-color: var(--warning);
 }
 
 .iv-btn:disabled {
@@ -302,8 +302,8 @@ function onBackdrop(e: MouseEvent) {
   padding: 6px 12px;
   border: none;
   border-radius: 6px;
-  background: #2b3139;
-  color: #eaecef;
+  background: var(--line);
+  color: var(--text);
   font-size: 12px;
   cursor: pointer;
 }
@@ -312,7 +312,7 @@ function onBackdrop(e: MouseEvent) {
   margin: 0;
   padding: 0 16px 4px;
   font-size: 11px;
-  color: #848e9c;
+  color: var(--muted);
   text-align: left;
   min-height: 16px;
 }
@@ -336,20 +336,20 @@ function onBackdrop(e: MouseEvent) {
   justify-content: center;
   height: min(360px, calc(100dvh - 280px));
   min-height: 280px;
-  color: #848e9c;
+  color: var(--muted);
   font-size: 14px;
   flex-direction: column;
   gap: 8px;
 }
 
 .chart-state.error {
-  color: #f6465d;
+  color: var(--up);
 }
 
 .link-btn {
   background: none;
   border: none;
-  color: #f0b90b;
+  color: var(--warning);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -359,7 +359,7 @@ function onBackdrop(e: MouseEvent) {
   justify-content: space-between;
   padding: 8px 16px 16px;
   font-size: 11px;
-  color: #5f5f5f;
+  color: var(--muted-2);
 }
 
 .fade-enter-active,
@@ -390,7 +390,7 @@ function onBackdrop(e: MouseEvent) {
 
   .kline-panel {
     border-radius: 16px;
-    border-bottom: 1px solid #2b3139;
+    border-bottom: 1px solid var(--line);
     max-height: 88vh;
   }
 

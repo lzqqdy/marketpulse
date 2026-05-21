@@ -101,20 +101,20 @@ function formatAlphaPrice(value: number) {
 .alpha-header h2 {
   margin: 0;
   font-size: 16px;
-  color: #f5f5f5;
+  color: var(--text-strong);
 }
 
 .alpha-header p {
   margin: 3px 0 0;
   font-size: 11px;
-  color: #848e9c;
+  color: var(--muted);
 }
 
 .switch {
   display: inline-flex;
   flex-shrink: 0;
   align-self: flex-start;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 2px;
 }
@@ -122,7 +122,7 @@ function formatAlphaPrice(value: number) {
 .switch button {
   border: 0;
   background: transparent;
-  color: #848e9c;
+  color: var(--muted);
   font-size: 11px;
   padding: 5px 7px;
   border-radius: 6px;
@@ -131,7 +131,7 @@ function formatAlphaPrice(value: number) {
 
 .switch button.active {
   background: rgba(240, 185, 11, 0.14);
-  color: #f0b90b;
+  color: var(--warning);
 }
 
 .alpha-grid {
@@ -146,8 +146,8 @@ function formatAlphaPrice(value: number) {
 
 .alpha-card {
   min-width: 0;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  background: rgba(15, 23, 42, 0.42);
+  border: 1px solid var(--line);
+  background: var(--card-soft);
   border-radius: 8px;
   padding: 8px;
   text-align: left;
@@ -166,7 +166,7 @@ function formatAlphaPrice(value: number) {
 
 .name {
   min-width: 0;
-  color: #f5f5f5;
+  color: var(--text-strong);
   font-size: 13px;
   font-weight: 700;
   overflow: hidden;
@@ -176,7 +176,7 @@ function formatAlphaPrice(value: number) {
 
 .symbol {
   flex-shrink: 0;
-  color: #848e9c;
+  color: var(--muted);
   font-size: 10px;
   text-align: right;
 }
@@ -221,7 +221,7 @@ function formatAlphaPrice(value: number) {
 }
 
 .badge-flat {
-  background-color: #5f5f5f;
+  background-color: var(--badge-flat);
 }
 
 @media (max-width: 420px) {

@@ -36,6 +36,7 @@ type HealthResponse struct {
 func Register(r *gin.Engine, h *Handler) {
 	r.GET("/healthz", h.Healthz)
 	r.GET("/api/v1/snapshot", h.Snapshot)
+	r.GET("/api/v1/providers/status", h.ProviderStatus)
 	r.GET("/api/v1/klines", h.Klines)
 	r.GET("/api/v1/index-klines", h.IndexKlines)
 	r.GET("/ws/v1/kline", h.KlineWS)
@@ -55,6 +56,20 @@ func (h *Handler) Healthz(c *gin.Context) {
 
 func (h *Handler) Snapshot(c *gin.Context) {
 	c.JSON(http.StatusOK, h.Store.GetSnapshot())
+}
+
+func (h *Handler) ProviderStatus(c *gin.Context) {
+	if h.Ingest == nil {
+		c.JSON(http.StatusOK, ingest.ProviderStatusResponse{
+			Overall: ingest.ProviderOverall{
+				Status:    ingest.ProviderDisabled,
+				UpdatedAt: time.Now().Unix(),
+			},
+			Providers: []ingest.ProviderHealth{},
+		})
+		return
+	}
+	c.JSON(http.StatusOK, h.Ingest.ProviderStatus())
 }
 
 func (h *Handler) ingestStatus() map[string]string {

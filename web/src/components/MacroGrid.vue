@@ -245,7 +245,7 @@ const cards = computed<MetricCard[]>(() => [
   margin: 0;
   font-size: 13px;
   line-height: 1.3;
-  color: #eaecef;
+  color: var(--text);
 }
 
 .metric-scroll {
@@ -274,7 +274,7 @@ const cards = computed<MetricCard[]>(() => [
 }
 
 .card {
-  background: #1e2329;
+  background: var(--card);
   border-radius: 4px;
   min-height: 68px;
   display: flex;
@@ -292,7 +292,7 @@ const cards = computed<MetricCard[]>(() => [
   font-weight: bold;
   font-size: 11px;
   line-height: 1.3;
-  color: #eaecef;
+  color: var(--text);
 }
 
 .index-box {
@@ -300,15 +300,15 @@ const cards = computed<MetricCard[]>(() => [
   font-size: 12px;
   font-weight: bold;
   line-height: 1.35;
-  color: #eaecef;
+  color: var(--text);
 }
 
 .index-box.up {
-  color: #f6465d;
+  color: var(--up);
 }
 
 .index-box.down {
-  color: #0ecb81;
+  color: var(--down);
 }
 
 .index-desc {
@@ -316,19 +316,19 @@ const cards = computed<MetricCard[]>(() => [
   font-size: 9px;
   font-weight: bold;
   line-height: 1.3;
-  color: #848e9c;
+  color: var(--muted);
 }
 
 .index-desc.up {
-  color: #f6465d;
+  color: var(--up);
 }
 
 .index-desc.down {
-  color: #0ecb81;
+  color: var(--down);
 }
 
 .index-desc.usd {
-  color: #008543;
+  color: var(--usd);
 }
 
 @media (max-width: 360px) {

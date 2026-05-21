@@ -104,6 +104,7 @@ func (s *Service) runLiquidationsWithRetry(ctx context.Context) {
 		}
 
 		s.ingestStatus.set("liquidations_ws", "reconnecting")
+		s.providerHealth.ReportFailure("binance_liquidations", err)
 		slog.Warn("binance liquidation stream disconnected", "err", err, "retry_in", backoff)
 		select {
 		case <-ctx.Done():
@@ -122,6 +123,12 @@ func (s *Service) runLiquidationsWithRetry(ctx context.Context) {
 
 func (s *Service) onLiquidation(order derivatives.LiquidationOrder) {
 	s.ingestStatus.set("liquidations_ws", "connected")
+	if !order.EventTime.IsZero() {
+		s.providerHealth.ReportSuccess("binance_liquidations", time.Since(order.EventTime))
+	} else {
+		s.providerHealth.ReportSuccess("binance_liquidations", 0)
+	}
+	s.providerHealth.ReportUsed("binance_liquidations", true)
 	s.store.SetLiquidations(s.liquidations.add(order))
 	s.ingestStatus.set("liquidations", "ok")
 }

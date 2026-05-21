@@ -11,12 +11,12 @@ kill_port() {
   local port="$1"
   if command -v lsof >/dev/null 2>&1; then
     local pids
-    pids="$(lsof -ti :"${port}" 2>/dev/null || true)"
+    pids="$(lsof -nP -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true)"
     if [[ -n "${pids}" ]]; then
       echo "==> 清理占用端口 ${port}: ${pids}"
       kill ${pids} 2>/dev/null || true
       sleep 0.5
-      pids="$(lsof -ti :"${port}" 2>/dev/null || true)"
+      pids="$(lsof -nP -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true)"
       [[ -n "${pids}" ]] && kill -9 ${pids} 2>/dev/null || true
     fi
   fi

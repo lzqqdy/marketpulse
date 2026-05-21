@@ -2,13 +2,77 @@
   --bg: #0b0e11;
   --card: #1e2329;
   --card-soft: #151a21;
+  --panel: #11161d;
+  --panel-soft: #151a21;
   --line: #2b3139;
   --text: #eaecef;
+  --text-strong: #f5f5f5;
   --muted: #848e9c;
+  --muted-2: #5f5f5f;
   --coin: #dbaa6a;
+  --coin-strong: #cd8518;
   --up: #f6465d;
   --down: #0ecb81;
+  --warning: #f0b90b;
+  --usd: #008543;
+  --hover: rgba(43, 49, 57, 0.25);
+  --hover-strong: rgba(43, 49, 57, 0.5);
+  --badge-flat: #5f5f5f;
+  --dock-bg: rgba(18, 22, 29, 0.58);
+  --dock-btn: rgba(18, 22, 29, 0.42);
+  --dock-btn-active: rgba(30, 35, 41, 0.86);
+  --dock-icon: rgba(242, 244, 247, 0.78);
+  --modal-backdrop: rgba(0, 0, 0, 0.72);
+  --shadow: rgba(0, 0, 0, 0.32);
+  --map-panel: #101418;
+  --map-divider: rgba(132, 142, 156, 0.22);
+  --map-dot: rgba(148, 158, 172, 0.22);
+  --map-asia-bg:
+    radial-gradient(ellipse 90% 80% at 18% 42%, rgba(42, 118, 168, 0.14), transparent 68%),
+    linear-gradient(160deg, rgba(16, 22, 30, 0.98), rgba(12, 16, 22, 0.92));
+  --map-us-bg:
+    radial-gradient(ellipse 90% 80% at 82% 44%, rgba(168, 128, 42, 0.12), transparent 68%),
+    linear-gradient(200deg, rgba(14, 18, 24, 0.92), rgba(18, 22, 28, 0.98));
+  --map-title: rgba(184, 194, 208, 0.72);
   --page-max: 1120px;
+}
+
+html[data-theme='light'] {
+  --bg: #f4f6f8;
+  --card: #ffffff;
+  --card-soft: #f7f9fb;
+  --panel: #ffffff;
+  --panel-soft: #f7f9fb;
+  --line: #d8dee6;
+  --text: #1f2933;
+  --text-strong: #111827;
+  --muted: #64748b;
+  --muted-2: #94a3b8;
+  --coin: #b7791f;
+  --coin-strong: #a16207;
+  --up: #dc2626;
+  --down: #059669;
+  --warning: #d97706;
+  --usd: #047857;
+  --hover: rgba(15, 23, 42, 0.06);
+  --hover-strong: rgba(15, 23, 42, 0.1);
+  --badge-flat: #94a3b8;
+  --dock-bg: rgba(255, 255, 255, 0.62);
+  --dock-btn: rgba(255, 255, 255, 0.44);
+  --dock-btn-active: rgba(255, 255, 255, 0.92);
+  --dock-icon: rgba(30, 41, 59, 0.72);
+  --modal-backdrop: rgba(15, 23, 42, 0.38);
+  --shadow: rgba(15, 23, 42, 0.18);
+  --map-panel: #ffffff;
+  --map-divider: rgba(100, 116, 139, 0.24);
+  --map-dot: rgba(100, 116, 139, 0.16);
+  --map-asia-bg:
+    radial-gradient(ellipse 90% 80% at 18% 42%, rgba(56, 189, 248, 0.12), transparent 68%),
+    linear-gradient(160deg, rgba(248, 250, 252, 0.98), rgba(239, 246, 255, 0.92));
+  --map-us-bg:
+    radial-gradient(ellipse 90% 80% at 82% 44%, rgba(251, 191, 36, 0.12), transparent 68%),
+    linear-gradient(200deg, rgba(255, 251, 235, 0.92), rgba(248, 250, 252, 0.98));
+  --map-title: rgba(71, 85, 105, 0.78);
 }
 
 * {

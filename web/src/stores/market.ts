@@ -46,9 +46,13 @@ export const useMarketStore = defineStore('market', () => {
   const wsStatus = ref<'mock' | 'connecting' | 'open' | 'closed'>('connecting')
   const live = ref(false)
   const ingestHealth = ref<HealthzResponse | null>(null)
+  const nowMs = ref(Date.now())
 
   let disconnectWs: (() => void) | null = null
   let healthTimer: ReturnType<typeof setInterval> | null = null
+  let clockTimer: ReturnType<typeof setInterval> | null = null
+  let resumeListenerInstalled = false
+  let initialFallbackTimer: ReturnType<typeof setTimeout> | null = null
 
   const STALE_QUOTE_MS = 45_000
 
@@ -71,7 +75,7 @@ export const useMarketStore = defineStore('market', () => {
     const t = snapshot.value.quotes[0]?.updatedAt
     if (!t) return true
     const ms = new Date(t).getTime()
-    return Number.isNaN(ms) || Date.now() - ms > STALE_QUOTE_MS
+    return Number.isNaN(ms) || nowMs.value - ms > STALE_QUOTE_MS
   })
 
   /** 仅当 Binance 入站正常且报价未过期时为 true */
@@ -137,28 +141,38 @@ export const useMarketStore = defineStore('market', () => {
     healthTimer = setInterval(() => void pollHealth(), 10_000)
   }
 
-  function teardown() {
-    disconnectWs?.()
-    disconnectWs = null
-    stopHealthPoll()
+  function stopClock() {
+    if (clockTimer) {
+      clearInterval(clockTimer)
+      clockTimer = null
+    }
   }
 
-  /** 连接真实行情：REST 首屏 + WS 推送 */
-  async function initLive() {
-    teardown()
-    live.value = true
-    wsStatus.value = 'connecting'
-    snapshot.value = createEmptySnapshot()
+  function startClock() {
+    stopClock()
+    nowMs.value = Date.now()
+    clockTimer = setInterval(() => {
+      nowMs.value = Date.now()
+    }, 5_000)
+  }
 
+  async function refreshSnapshot() {
     try {
       const snap = await fetchSnapshot()
       applySnapshot(snap)
     } catch {
-      // 后端未启动时先用空结构，等 WS 或降级
+      // 后台恢复时网络可能还没唤醒，交给 WS 自动重连继续补。
     }
+  }
 
-    startHealthPoll()
+  function disconnectStream() {
+    disconnectWs?.()
+    disconnectWs = null
+  }
 
+  function connectStream() {
+    disconnectStream()
+    wsStatus.value = 'connecting'
     disconnectWs = connectMarketStream(['quotes', 'rates', 'indices', 'alpha', 'macro'], {
       onOpen: () => {
         wsStatus.value = 'open'
@@ -210,8 +224,71 @@ export const useMarketStore = defineStore('market', () => {
         initMock()
       },
     })
+  }
 
-    setTimeout(() => {
+  function handlePageResume() {
+    if (!live.value) return
+    nowMs.value = Date.now()
+    void refreshSnapshot()
+    void pollHealth()
+    if (wsStatus.value === 'closed' || quotesStale.value) {
+      connectStream()
+    }
+  }
+
+  function installResumeListeners() {
+    if (resumeListenerInstalled) return
+    resumeListenerInstalled = true
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handlePageResume)
+    window.addEventListener('pageshow', handlePageResume)
+  }
+
+  function removeResumeListeners() {
+    if (!resumeListenerInstalled) return
+    resumeListenerInstalled = false
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    window.removeEventListener('focus', handlePageResume)
+    window.removeEventListener('pageshow', handlePageResume)
+  }
+
+  function handleVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      handlePageResume()
+    }
+  }
+
+  function clearInitialFallback() {
+    if (initialFallbackTimer) {
+      clearTimeout(initialFallbackTimer)
+      initialFallbackTimer = null
+    }
+  }
+
+  function teardown() {
+    clearInitialFallback()
+    disconnectStream()
+    stopHealthPoll()
+    stopClock()
+    stopMockTick()
+    removeResumeListeners()
+  }
+
+  /** 连接真实行情：REST 首屏 + WS 推送 */
+  async function initLive() {
+    teardown()
+    live.value = true
+    wsStatus.value = 'connecting'
+    snapshot.value = createEmptySnapshot()
+
+    startClock()
+    installResumeListeners()
+    await refreshSnapshot()
+    startHealthPoll()
+    connectStream()
+
+    initialFallbackTimer = setTimeout(() => {
+      initialFallbackTimer = null
       if (live.value && wsStatus.value === 'connecting' && snapshot.value.quotes.length === 0) {
         initMock()
       }

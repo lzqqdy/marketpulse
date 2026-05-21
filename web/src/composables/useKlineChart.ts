@@ -43,6 +43,12 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
   const crosshairTime = ref<string>('')
 
   let ro: ResizeObserver | null = null
+  let themeObserver: MutationObserver | null = null
+
+  function cssVar(name: string, fallback: string) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    return value || fallback
+  }
 
   function buildChart() {
     const el = container.value
@@ -52,28 +58,37 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
       chartRef.value.remove()
       chartRef.value = null
     }
+    ro?.disconnect()
+    ro = null
+
+    const bg = cssVar('--panel', '#0b0e11')
+    const text = cssVar('--muted', '#848e9c')
+    const line = cssVar('--line', '#2b3139')
+    const muted = cssVar('--muted-2', '#5f5f5f')
+    const up = cssVar('--up', '#f6465d')
+    const down = cssVar('--down', '#0ecb81')
 
     const chart = createChart(el, {
       layout: {
-        background: { type: ColorType.Solid, color: '#0b0e11' },
-        textColor: '#848e9c',
+        background: { type: ColorType.Solid, color: bg },
+        textColor: text,
         fontFamily: "'PingFang SC', 'Microsoft YaHei', sans-serif",
       },
       grid: {
-        vertLines: { color: '#1a1f26' },
-        horzLines: { color: '#1a1f26' },
+        vertLines: { color: line },
+        horzLines: { color: line },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#5f5f5f', labelBackgroundColor: '#2b3139' },
-        horzLine: { color: '#5f5f5f', labelBackgroundColor: '#2b3139' },
+        vertLine: { color: muted, labelBackgroundColor: line },
+        horzLine: { color: muted, labelBackgroundColor: line },
       },
       rightPriceScale: {
-        borderColor: '#2b3139',
+        borderColor: line,
         scaleMargins: { top: 0.08, bottom: 0.22 },
       },
       timeScale: {
-        borderColor: '#2b3139',
+        borderColor: line,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
@@ -83,12 +98,12 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
     })
 
     const candles_s = chart.addCandlestickSeries({
-      upColor: '#f6465d',
-      downColor: '#0ecb81',
-      borderUpColor: '#f6465d',
-      borderDownColor: '#0ecb81',
-      wickUpColor: '#f6465d',
-      wickDownColor: '#0ecb81',
+      upColor: up,
+      downColor: down,
+      borderUpColor: up,
+      borderDownColor: down,
+      wickUpColor: up,
+      wickDownColor: down,
     })
 
     const vol = chart.addHistogramSeries({
@@ -228,8 +243,19 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
     { deep: true },
   )
 
+  themeObserver = new MutationObserver(() => {
+    if (!container.value || !chartRef.value) return
+    buildChart()
+    if (candles.value.length) setData(candles.value)
+  })
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  })
+
   onUnmounted(() => {
     ro?.disconnect()
+    themeObserver?.disconnect()
     chartRef.value?.remove()
   })
 

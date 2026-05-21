@@ -1,28 +1,34 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import StatusBar from '@/components/StatusBar.vue'
+import ProviderStatusWidget from '@/components/ProviderStatusWidget.vue'
 import QuoteTable from '@/components/QuoteTable.vue'
 import MacroGrid from '@/components/MacroGrid.vue'
 import IndexGrid from '@/components/IndexGrid.vue'
 import AlphaStockPanel from '@/components/AlphaStockPanel.vue'
 import KlineDrawer from '@/components/KlineDrawer.vue'
 import { useMarketStore } from '@/stores/market'
+import { useProviderStore } from '@/stores/providers'
 
 const store = useMarketStore()
+const providerStore = useProviderStore()
 
 onMounted(() => {
   store.initLive()
+  providerStore.start()
 })
 
 onUnmounted(() => {
   store.teardown()
   store.stopMockTick()
+  providerStore.stop()
 })
 </script>
 
 <template>
   <div class="dashboard">
     <StatusBar />
+    <ProviderStatusWidget />
     <main class="dashboard-grid">
       <section class="market-column">
         <QuoteTable />
@@ -69,7 +75,7 @@ onUnmounted(() => {
 .footer-note {
   text-align: center;
   font-size: 11px;
-  color: #5f5f5f;
+  color: var(--muted-2);
   margin: 16px 0 0;
 }
 

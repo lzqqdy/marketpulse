@@ -19,16 +19,17 @@ type Service struct {
 	cfg   *config.Config
 	store *store.MarketStore
 
-	dayOpen       *dayOpenCache
-	equityCache   *equityCache
-	equityBreaker *equityBreakers
-	ingestStatus  *statusTracker
-	liquidations  *liquidationWindow
-	binanceStatus atomic.Value // string
-	alphaStatus   atomic.Value // string
-	lastQuoteAt   atomic.Int64 // unix ms
-	lastAlphaAt   atomic.Int64 // unix ms
-	alphaItems    atomic.Value // []alpha.ResolvedItem
+	dayOpen        *dayOpenCache
+	equityCache    *equityCache
+	equityBreaker  *equityBreakers
+	ingestStatus   *statusTracker
+	providerHealth *ProviderHealthStore
+	liquidations   *liquidationWindow
+	binanceStatus  atomic.Value // string
+	alphaStatus    atomic.Value // string
+	lastQuoteAt    atomic.Int64 // unix ms
+	lastAlphaAt    atomic.Int64 // unix ms
+	alphaItems     atomic.Value // []alpha.ResolvedItem
 
 	sgeGoldMu sync.RWMutex
 	sgeGold   store.IndexQuote
@@ -38,13 +39,14 @@ type Service struct {
 // New creates an ingest service.
 func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s := &Service{
-		cfg:           cfg,
-		store:         st,
-		dayOpen:       newDayOpenCache(),
-		equityCache:   newEquityCache(),
-		equityBreaker: newEquityBreakers(),
-		ingestStatus:  newStatusTracker(),
-		liquidations:  newLiquidationWindow(time.Hour),
+		cfg:            cfg,
+		store:          st,
+		dayOpen:        newDayOpenCache(),
+		equityCache:    newEquityCache(),
+		equityBreaker:  newEquityBreakers(),
+		ingestStatus:   newStatusTracker(),
+		providerHealth: newProviderHealthStore(defaultProviderDefs(cfg.Alpha.Enabled)),
+		liquidations:   newLiquidationWindow(time.Hour),
 	}
 	s.binanceStatus.Store("starting")
 	s.alphaStatus.Store("disabled")
@@ -67,6 +69,8 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	if cfg.Alpha.Enabled {
 		s.ingestStatus.set("alpha_ws", "starting")
 		s.seedAlphaDefaults()
+	} else {
+		s.providerHealth.ReportDisabled("binance_alpha")
 	}
 	return s
 }
@@ -184,6 +188,7 @@ func (s *Service) runBinanceWithRetry(ctx context.Context) {
 		}
 
 		s.binanceStatus.Store("reconnecting")
+		s.providerHealth.ReportFailure("binance_spot_ws", err)
 		slog.Warn("binance miniTicker disconnected", "err", err, "retry_in", backoff)
 		select {
 		case <-ctx.Done():
@@ -204,12 +209,14 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 	if !s.cfg.Alpha.Enabled {
 		s.alphaStatus.Store("disabled")
 		s.ingestStatus.set("alpha_ws", "disabled")
+		s.providerHealth.ReportDisabled("binance_alpha")
 		return
 	}
 	items := s.cfg.AlphaItems()
 	if len(items) == 0 {
 		s.alphaStatus.Store("disabled")
 		s.ingestStatus.set("alpha_ws", "disabled")
+		s.providerHealth.ReportDisabled("binance_alpha")
 		return
 	}
 
@@ -288,9 +295,12 @@ func (s *Service) resolveAlphaItems() []alpha.ResolvedItem {
 
 func (s *Service) pollAlphaTickers(items []alpha.ResolvedItem) {
 	succeeded := 0
+	start := time.Now()
+	var lastErr error
 	for _, item := range items {
 		ticker, err := alpha.FetchTicker(httpClient, item.AlphaSymbol)
 		if err != nil {
+			lastErr = err
 			slog.Warn("alpha ticker poll failed", "symbol", item.Item.Symbol, "alpha_symbol", item.AlphaSymbol, "id", item.Item.ID, "err", err)
 			continue
 		}
@@ -300,9 +310,12 @@ func (s *Service) pollAlphaTickers(items []alpha.ResolvedItem) {
 	if succeeded == 0 {
 		s.alphaStatus.Store("error")
 		s.ingestStatus.set("alpha_ws", "error")
+		s.providerHealth.ReportFailure("binance_alpha", lastErr)
 		slog.Warn("alpha ticker poll failed for all symbols", "requested", len(items), "transport", "rest_poll")
 		return
 	}
+	s.providerHealth.ReportSuccess("binance_alpha", time.Since(start))
+	s.providerHealth.ReportUsed("binance_alpha", true)
 	slog.Info("alpha ticker poll fetched", "requested", len(items), "succeeded", succeeded, "transport", "rest_poll")
 }
 
@@ -346,6 +359,12 @@ func alphaItemSymbols(items []alpha.ResolvedItem) []string {
 func (s *Service) onTicker(t binance.TickerUpdate) {
 	s.lastQuoteAt.Store(time.Now().UnixMilli())
 	s.binanceStatus.Store("connected")
+	if !t.EventTime.IsZero() {
+		s.providerHealth.ReportSuccess("binance_spot_ws", time.Since(t.EventTime))
+	} else {
+		s.providerHealth.ReportSuccess("binance_spot_ws", 0)
+	}
+	s.providerHealth.ReportUsed("binance_spot_ws", true)
 
 	now := time.Now()
 	q := store.Quote{

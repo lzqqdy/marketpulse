@@ -126,14 +126,14 @@ function formatCny(value: number) {
 
 .rank {
   font-size: 12px;
-  color: #5f5f5f;
+  color: var(--muted-2);
 }
 
 .col-coin {
   width: 18%;
   padding: 8px 0 8px 0;
   font-weight: bold;
-  color: #dbaa6a;
+  color: var(--coin);
   text-align: left;
   vertical-align: middle;
 }
@@ -142,7 +142,7 @@ function formatCny(value: number) {
   display: inline-block;
   font-size: 15px;
   line-height: 1.3;
-  color: #cd8518;
+  color: var(--coin-strong);
 }
 
 .supply {
@@ -150,7 +150,7 @@ function formatCny(value: number) {
   padding: 0;
   font-size: 10px;
   line-height: 1.2;
-  color: #858a90;
+  color: var(--muted);
   font-weight: normal;
 }
 
@@ -165,15 +165,15 @@ function formatCny(value: number) {
 }
 
 .col-price.up {
-  color: #f6465d;
+  color: var(--up);
 }
 
 .col-price.down {
-  color: #0ecb81;
+  color: var(--down);
 }
 
 .col-price.flat {
-  color: #eaecef;
+  color: var(--text);
 }
 
 .cny {
@@ -181,7 +181,7 @@ function formatCny(value: number) {
   padding: 0;
   font-size: 12px;
   line-height: 1.2;
-  color: #8c9fad;
+  color: var(--muted);
   font-weight: normal;
 }
 
@@ -216,7 +216,7 @@ function formatCny(value: number) {
 }
 
 .badge-flat {
-  background-color: #5f5f5f;
+  background-color: var(--badge-flat);
 }
 
 .quote-row {
@@ -224,7 +224,7 @@ function formatCny(value: number) {
 }
 
 .quote-row:hover {
-  background: rgba(43, 49, 57, 0.25);
+  background: var(--hover);
 }
 
 .sr-only {

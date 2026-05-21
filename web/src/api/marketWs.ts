@@ -61,6 +61,12 @@ export interface MarketWsCallbacks {
   onError?: () => void
 }
 
+const PING_INTERVAL_MS = 25_000
+const WATCHDOG_INTERVAL_MS = 10_000
+const STALE_CONNECTION_MS = 60_000
+const RECONNECT_BASE_MS = 1_000
+const RECONNECT_MAX_MS = 15_000
+
 function wsBase(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${window.location.host}`
@@ -72,37 +78,108 @@ export function connectMarketStream(
   callbacks: MarketWsCallbacks,
 ): () => void {
   const url = `${wsBase()}/ws/v1/stream?channels=${encodeURIComponent(channels.join(','))}`
-  const ws = new WebSocket(url)
+  let ws: WebSocket | null = null
+  let stopped = false
+  let reconnectAttempts = 0
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let pingTimer: ReturnType<typeof setInterval> | null = null
+  let watchdogTimer: ReturnType<typeof setInterval> | null = null
+  let lastMessageAt = Date.now()
 
-  ws.onopen = () => callbacks.onOpen?.()
-
-  ws.onmessage = (ev) => {
-    try {
-      const msg = JSON.parse(ev.data as string) as MarketWsMessage
-      if (msg.type === 'snapshot' && msg.data) callbacks.onSnapshot(msg)
-      else if (msg.type === 'quotes') callbacks.onQuotes(msg)
-      else if (msg.type === 'rates') callbacks.onRates?.(msg)
-      else if (msg.type === 'indices') callbacks.onIndices?.(msg)
-      else if (msg.type === 'macro') callbacks.onMacro?.(msg)
-      else if (msg.type === 'alpha') callbacks.onAlpha?.(msg)
-    } catch {
-      callbacks.onError?.()
+  function clearConnectionTimers() {
+    if (pingTimer) {
+      clearInterval(pingTimer)
+      pingTimer = null
+    }
+    if (watchdogTimer) {
+      clearInterval(watchdogTimer)
+      watchdogTimer = null
     }
   }
 
-  ws.onerror = () => callbacks.onError?.()
-  ws.onclose = () => callbacks.onClose?.()
+  function scheduleReconnect() {
+    if (stopped || reconnectTimer) return
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempts, RECONNECT_MAX_MS)
+    reconnectAttempts += 1
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      connect()
+    }, delay)
+  }
 
-  const pingTimer = setInterval(() => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ op: 'ping' }))
+  function closeStaleConnection() {
+    const current = ws
+    if (!current || current.readyState === WebSocket.CLOSED) return
+    current.close()
+  }
+
+  function connect() {
+    clearConnectionTimers()
+    lastMessageAt = Date.now()
+    ws = new WebSocket(url)
+
+    ws.onopen = () => {
+      reconnectAttempts = 0
+      lastMessageAt = Date.now()
+      callbacks.onOpen?.()
     }
-  }, 25000)
+
+    ws.onmessage = (ev) => {
+      lastMessageAt = Date.now()
+      try {
+        const msg = JSON.parse(ev.data as string) as MarketWsMessage
+        if (msg.type === 'snapshot' && msg.data) callbacks.onSnapshot(msg)
+        else if (msg.type === 'quotes') callbacks.onQuotes(msg)
+        else if (msg.type === 'rates') callbacks.onRates?.(msg)
+        else if (msg.type === 'indices') callbacks.onIndices?.(msg)
+        else if (msg.type === 'macro') callbacks.onMacro?.(msg)
+        else if (msg.type === 'alpha') callbacks.onAlpha?.(msg)
+      } catch {
+        callbacks.onError?.()
+      }
+    }
+
+    ws.onerror = () => {
+      if (!stopped) callbacks.onError?.()
+    }
+    ws.onclose = () => {
+      clearConnectionTimers()
+      if (stopped) return
+      callbacks.onClose?.()
+      scheduleReconnect()
+    }
+
+    pingTimer = setInterval(() => {
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ op: 'ping' }))
+      }
+    }, PING_INTERVAL_MS)
+
+    watchdogTimer = setInterval(() => {
+      if (Date.now() - lastMessageAt > STALE_CONNECTION_MS) {
+        closeStaleConnection()
+      }
+    }, WATCHDOG_INTERVAL_MS)
+  }
+
+  connect()
 
   return () => {
-    clearInterval(pingTimer)
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+    stopped = true
+    clearConnectionTimers()
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (ws) {
+      ws.onopen = null
+      ws.onmessage = null
+      ws.onerror = null
+      ws.onclose = null
+    }
+    if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) {
       ws.close()
     }
+    ws = null
   }
 }

@@ -170,7 +170,12 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 <template>
   <section class="index-panel">
     <header class="panel-head">
-      <h2>全球速览</h2>
+      <div class="panel-title">
+        <h2>全球速览</h2>
+        <p v-if="indicesCachedHint" class="indices-meta" :class="{ stale: indicesStale || equityState === 'degraded' }">
+          {{ indicesCachedHint }}
+        </p>
+      </div>
       <div class="view-actions" aria-label="指数视图切换">
         <button
           type="button"
@@ -193,10 +198,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
       </div>
     </header>
 
-    <p v-if="indicesCachedHint" class="indices-meta" :class="{ stale: indicesStale || equityState === 'degraded' }">
-      {{ indicesCachedHint }}
-    </p>
-    <p v-else-if="indicesLoadingSlow" class="indices-loading">
+    <p v-if="!indicesCachedHint && indicesLoadingSlow" class="indices-loading">
       指数拉取较慢（数据源限流），请稍候或约 2 分钟后刷新…
     </p>
     <p v-else-if="indicesLoading" class="indices-loading">指数加载中…</p>
@@ -296,42 +298,47 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
-  padding: 0 2px 6px;
+  gap: 12px;
+  padding: 0 2px 8px;
+}
+
+.panel-title {
+  min-width: 0;
+  text-align: left;
 }
 
 .panel-head h2 {
   margin: 0;
   font-size: 15px;
   line-height: 1.3;
-  color: #eaecef;
+  color: var(--text);
 }
 
 .indices-meta {
-  margin: 0 0 10px;
+  margin: 4px 0 0;
   max-width: 100%;
   font-size: 11px;
   line-height: 1.35;
-  color: #848e9c;
-  text-align: right;
+  color: var(--muted);
+  text-align: left;
 }
 
 .indices-meta.stale {
-  color: #f0b90b;
+  color: var(--warning);
 }
 
 .indices-loading {
   margin: 0 0 8px;
   padding: 12px 10px;
   font-size: 12px;
-  color: #848e9c;
+  color: var(--muted);
   text-align: center;
-  background: #151a20;
+  background: var(--card-soft);
   border-radius: 6px;
 }
 
 .indices-failed {
-  color: #f0b90b;
+  color: var(--warning);
 }
 
 .view-actions {
@@ -342,17 +349,17 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 .view-btn {
   width: 30px;
   height: 30px;
-  border: 1px solid #2b3139;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: #151a20;
-  color: #848e9c;
+  background: var(--card-soft);
+  color: var(--muted);
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
 }
 
 .view-btn.active {
-  color: #f0b90b;
+  color: var(--warning);
   border-color: rgba(240, 185, 11, 0.7);
   background: rgba(240, 185, 11, 0.08);
 }
@@ -364,8 +371,8 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   min-height: clamp(220px, 32vw, 280px);
   overflow: hidden;
   border-radius: 8px;
-  border: 1px solid #232a33;
-  background: #101418;
+  border: 1px solid var(--line);
+  background: var(--map-panel);
 }
 
 .world-preview::before {
@@ -374,7 +381,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   inset: 12px 50%;
   width: 1px;
   transform: translateX(-50%);
-  background: linear-gradient(180deg, transparent, rgba(132, 142, 156, 0.22), transparent);
+  background: linear-gradient(180deg, transparent, var(--map-divider), transparent);
   pointer-events: none;
   z-index: 2;
 }
@@ -402,20 +409,16 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   inset: 0;
   pointer-events: none;
   opacity: 0.28;
-  background-image: radial-gradient(rgba(148, 158, 172, 0.22) 0.6px, transparent 0.6px);
+  background-image: radial-gradient(var(--map-dot) 0.6px, transparent 0.6px);
   background-size: 16px 16px;
 }
 
 .map-column-asia::before {
-  background:
-    radial-gradient(ellipse 90% 80% at 18% 42%, rgba(42, 118, 168, 0.14), transparent 68%),
-    linear-gradient(160deg, rgba(16, 22, 30, 0.98), rgba(12, 16, 22, 0.92));
+  background: var(--map-asia-bg);
 }
 
 .map-column-us::before {
-  background:
-    radial-gradient(ellipse 90% 80% at 82% 44%, rgba(168, 128, 42, 0.12), transparent 68%),
-    linear-gradient(200deg, rgba(14, 18, 24, 0.92), rgba(18, 22, 28, 0.98));
+  background: var(--map-us-bg);
 }
 
 .map-column-title {
@@ -425,7 +428,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
-  color: rgba(184, 194, 208, 0.72);
+  color: var(--map-title);
   letter-spacing: 0.04em;
 }
 
@@ -528,7 +531,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 }
 
 .index-card {
-  background: #1e2329;
+  background: var(--card);
   border-radius: 4px;
   padding: 8px 4px;
   text-align: center;
@@ -546,12 +549,12 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 
 .index-card.clickable:hover,
 .index-row:not(.disabled):hover {
-  background: rgba(43, 49, 57, 0.5);
+  background: var(--hover-strong);
 }
 
 .index-card.clickable:active,
 .index-row:not(.disabled):active {
-  background: rgba(43, 49, 57, 0.72);
+  background: var(--hover);
 }
 
 .index-card.disabled,
@@ -563,7 +566,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   margin: 0;
   font-size: 12px;
   font-weight: bold;
-  color: #eaecef;
+  color: var(--text);
   line-height: 1.3;
 }
 
@@ -589,11 +592,11 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   margin-top: 8px;
   border-radius: 6px;
   overflow: hidden;
-  background: #151a20;
+  background: var(--card-soft);
 }
 
 .region-group + .region-group {
-  border-top: 1px solid #20262e;
+  border-top: 1px solid var(--line);
 }
 
 .region-group h3 {
@@ -602,7 +605,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   text-align: left;
   font-size: 12px;
   line-height: 1.3;
-  color: #848e9c;
+  color: var(--muted);
 }
 
 .index-row {
@@ -613,9 +616,9 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   gap: 6px;
   min-height: 42px;
   border: none;
-  border-top: 1px solid #20262e;
+  border-top: 1px solid var(--line);
   background: transparent;
-  color: #eaecef;
+  color: var(--text);
   padding: 7px 10px;
   font: inherit;
   text-align: left;
@@ -641,19 +644,19 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 .index-price.up,
 .index-chg.up,
 .row-change.up {
-  color: #f6465d;
+  color: var(--up);
 }
 
 .index-price.down,
 .index-chg.down,
 .row-change.down {
-  color: #0ecb81;
+  color: var(--down);
 }
 
 .index-price.flat,
 .index-chg.flat,
 .row-change.flat {
-  color: #848e9c;
+  color: var(--muted);
 }
 
 @media (max-width: 430px) {

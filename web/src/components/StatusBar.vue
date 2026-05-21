@@ -56,11 +56,11 @@ const statusClass = computed(() => {
 
 .tag-label {
   font-size: 12px;
-  color: #848e9c;
+  color: var(--muted);
 }
 
 .link {
-  color: #dbaa6a;
+  color: var(--coin);
   cursor: pointer;
 }
 
@@ -72,24 +72,24 @@ const statusClass = computed(() => {
   border-radius: 50%;
   margin-right: 4px;
   vertical-align: middle;
-  background: #848e9c;
+  background: var(--muted);
 }
 
 .dot.open::before {
-  background: #0ecb81;
+  background: var(--down);
 }
 
 .dot.connecting::before,
 .dot.stale::before {
-  background: #f0b90b;
+  background: var(--warning);
 }
 
 .dot.mock::before {
-  background: #848e9c;
+  background: var(--muted);
 }
 
 .dot.closed::before {
-  background: #f6465d;
+  background: var(--up);
 }
 
 @media (min-width: 760px) {
