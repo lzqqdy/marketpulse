@@ -47,6 +47,14 @@ API_PID="$!"
 
 echo "==> 启动前端 http://localhost:5173"
 cd "${ROOT}/web"
+if [[ ! -x node_modules/.bin/vite ]]; then
+  echo "==> 安装前端依赖（首次 clone 或 node_modules 缺失）"
+  if [[ -f package-lock.json ]]; then
+    npm ci
+  else
+    npm install
+  fi
+fi
 npm run dev &
 WEB_PID="$!"
 
