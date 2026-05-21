@@ -84,7 +84,6 @@ function togglePanel() {
           <path d="M4 7h11" />
           <path d="M4 12h16" />
           <path d="M4 17h11" />
-          <path d="m17 7 3 3-3 3" />
         </svg>
       </button>
       <button type="button" class="dock-btn theme-trigger" :aria-label="themeLabel" @click="themeStore.toggle">

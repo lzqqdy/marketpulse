@@ -10,6 +10,8 @@ EXCLUDES="${ROOT}/deploy/rsync-excludes.txt"
 SHIP_GIT_COMMIT="${SHIP_GIT_COMMIT:-}"
 SHIP_GIT_MSG="${SHIP_GIT_MSG:-}"
 SHIP_NO_SOURCE="${SHIP_NO_SOURCE:-}"
+DEPLOY_RESTART_SCRIPT="${DEPLOY_RESTART_SCRIPT:-deploy/remote-restart.sh}"
+MARKETPULSE_SUPERVISOR_TARGET="${MARKETPULSE_SUPERVISOR_TARGET:-}"
 
 if [[ ! -f "${CFG}" ]]; then
   echo "缺少 ${CFG}"
@@ -125,7 +127,13 @@ fi
 
 echo "==> 同步运行产物"
 rsync -azc --progress -e "${RSYNC_SSH}" bin/marketd "${SSH_TARGET}:${REMOTE_DIR}/bin/"
-rsync -avz --delete -e "${RSYNC_SSH}" web/dist/ "${SSH_TARGET}:${REMOTE_DIR}/web/dist/"
+rsync -avz --delete \
+  --exclude='/.user.ini' \
+  --exclude='/.htaccess' \
+  --exclude='/.well-known/' \
+  --exclude='/404.html' \
+  -e "${RSYNC_SSH}" \
+  web/dist/ "${SSH_TARGET}:${REMOTE_DIR}/web/dist/"
 if [[ "${DO_SYNC_CONFIG}" == "1" ]]; then
   echo "==> 覆盖远程 config/config.yaml（SHIP_SYNC_CONFIG=1 或 sync_config: true）"
   rsync -avz -e "${RSYNC_SSH}" "${TMP_CFG}" "${SSH_TARGET}:${REMOTE_DIR}/config/config.yaml"
@@ -136,12 +144,16 @@ fi
 echo "==> 校正远程静态目录"
 ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" \
   "CONFIG_PATH='${REMOTE_DIR}/config/config.yaml'; if grep -Eq '^[[:space:]]*static_dir:[[:space:]]*\"?web\"?[[:space:]]*$' \"\${CONFIG_PATH}\"; then cp \"\${CONFIG_PATH}\" \"\${CONFIG_PATH}.bak\" && sed -i -e 's|static_dir: \"web\"|static_dir: \"web/dist\"|' -e 's|static_dir: web$|static_dir: \"web/dist\"|' \"\${CONFIG_PATH}\"; fi"
-rsync -avz -e "${RSYNC_SSH}" deploy/remote-restart.sh "${SSH_TARGET}:${REMOTE_DIR}/scripts/restart.sh"
+rsync -avz -e "${RSYNC_SSH}" "${DEPLOY_RESTART_SCRIPT}" "${SSH_TARGET}:${REMOTE_DIR}/scripts/restart.sh"
 rsync -avz -e "${RSYNC_SSH}" deploy/remote-git-commit.sh "${SSH_TARGET}:${REMOTE_DIR}/deploy/remote-git-commit.sh"
 
 echo "==> 重启服务"
+RESTART_ENV=""
+if [[ -n "${MARKETPULSE_SUPERVISOR_TARGET}" ]]; then
+  RESTART_ENV="MARKETPULSE_SUPERVISOR_TARGET=$(printf '%q' "${MARKETPULSE_SUPERVISOR_TARGET}")"
+fi
 ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" \
-  "chmod +x '${REMOTE_DIR}/scripts/restart.sh' '${REMOTE_DIR}/deploy/remote-git-commit.sh' && '${REMOTE_DIR}/scripts/restart.sh'"
+  "chmod +x '${REMOTE_DIR}/scripts/restart.sh' '${REMOTE_DIR}/deploy/remote-git-commit.sh' && ${RESTART_ENV} '${REMOTE_DIR}/scripts/restart.sh'"
 
 if [[ "${DO_GIT_COMMIT}" == "1" ]]; then
   echo "==> 服务器 Git 提交"

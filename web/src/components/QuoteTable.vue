@@ -47,6 +47,13 @@ function formatCny(value: number) {
   <section class="quote-section">
     <table class="quote-table">
       <caption class="sr-only">实时币价</caption>
+      <colgroup>
+        <col class="w-icon" />
+        <col class="w-coin" />
+        <col class="w-price" />
+        <col class="w-pct" />
+        <col class="w-pct" />
+      </colgroup>
       <tbody>
         <tr
           v-for="row in rows"
@@ -124,7 +131,6 @@ function formatCny(value: number) {
 }
 
 .col-icon {
-  width: 9%;
   padding: 8px 2px 8px 4px;
   text-align: center;
 }
@@ -147,7 +153,6 @@ function formatCny(value: number) {
 }
 
 .col-coin {
-  width: 18%;
   padding: 8px 0 8px 0;
   font-weight: bold;
   color: var(--coin);
@@ -172,13 +177,13 @@ function formatCny(value: number) {
 }
 
 .col-price {
-  width: 32%;
   padding: 8px 14px 8px 0;
   font-weight: bold;
   font-size: 15px;
   line-height: 1.3;
   text-align: left;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .col-price.up {
@@ -203,7 +208,6 @@ function formatCny(value: number) {
 }
 
 .col-pct {
-  width: 20%;
   padding: 8px 4px;
   text-align: center;
 }

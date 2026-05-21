@@ -1,5 +1,5 @@
 # MarketPulse — 统一构建入口（Vibe Coding 以 make help 为准）
-.PHONY: help dev dev-api dev-api-log dev-web web api build deploy deploy-web deploy-api ship ship-commit restart-remote check check-binance check-binance-remote test setup-config setup-deploy setup-log
+.PHONY: help dev dev-api dev-api-log dev-web web api build deploy deploy-web deploy-api ship ship-bt ship-bt-commit ship-commit restart-remote check check-binance check-binance-remote test setup-config setup-deploy setup-log
 
 DEPLOY_MODE ?= nginx
 DEPLOY_HOST ?=
@@ -25,6 +25,8 @@ help:
 	@echo "  部署"
 	@echo "    make setup-deploy     复制 deploy.local.yaml 模板"
 	@echo "    make ship             一键部署（同步源码到 remote_dir + 重启）"
+	@echo "    make ship-bt          一键部署，并通过宝塔进程守护重启"
+	@echo "    make ship-bt-commit   同 ship-bt，并在服务器 git commit"
 	@echo "    make ship-commit      同上，并在服务器 git commit"
 	@echo "    make restart-remote   只重启线上后端（不构建/不同步/不覆盖配置）"
 	@echo "      SHIP_GIT_COMMIT=1   可选：本次部署后自动提交"
@@ -100,6 +102,14 @@ deploy: deploy-web deploy-api
 ship: setup-deploy
 	@chmod +x scripts/deploy-remote.sh deploy/remote-restart.sh deploy/remote-git-commit.sh
 	@./scripts/deploy-remote.sh
+
+ship-bt: setup-deploy
+	@chmod +x scripts/deploy-remote.sh deploy/remote-restart-bt.sh deploy/remote-git-commit.sh
+	@DEPLOY_RESTART_SCRIPT=deploy/remote-restart-bt.sh ./scripts/deploy-remote.sh
+
+ship-bt-commit: setup-deploy
+	@chmod +x scripts/deploy-remote.sh deploy/remote-restart-bt.sh deploy/remote-git-commit.sh
+	@DEPLOY_RESTART_SCRIPT=deploy/remote-restart-bt.sh SHIP_GIT_COMMIT=1 ./scripts/deploy-remote.sh
 
 ship-commit: setup-deploy
 	@chmod +x scripts/deploy-remote.sh deploy/remote-restart.sh deploy/remote-git-commit.sh
