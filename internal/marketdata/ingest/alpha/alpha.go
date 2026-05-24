@@ -496,6 +496,7 @@ func parseKlineRows(v any) []binance.Candle {
 				Low:    low,
 				Close:  closep,
 				Volume: parseAnyFloat(x[5]),
+				Closed: true,
 			})
 		case map[string]any:
 			t := int64(firstFloat(x, "openTime", "time", "t"))
@@ -516,6 +517,7 @@ func parseKlineRows(v any) []binance.Candle {
 				Low:    low,
 				Close:  closep,
 				Volume: firstFloat(x, "volume", "v"),
+				Closed: true,
 			})
 		}
 	}

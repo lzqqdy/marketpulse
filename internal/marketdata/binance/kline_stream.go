@@ -15,13 +15,17 @@ import (
 type klineWSMessage struct {
 	Event string `json:"e"`
 	K     struct {
-		Start  int64  `json:"t"`
-		Open   string `json:"o"`
-		High   string `json:"h"`
-		Low    string `json:"l"`
-		Close  string `json:"c"`
-		Volume string `json:"v"`
-		Closed bool   `json:"x"`
+		Start               int64  `json:"t"`
+		Open                string `json:"o"`
+		High                string `json:"h"`
+		Low                 string `json:"l"`
+		Close               string `json:"c"`
+		Volume              string `json:"v"`
+		Closed              bool   `json:"x"`
+		QuoteVolume         string `json:"q"`
+		TradeCount          int64  `json:"n"`
+		TakerBuyBaseVolume  string `json:"V"`
+		TakerBuyQuoteVolume string `json:"Q"`
 	} `json:"k"`
 }
 
@@ -67,6 +71,11 @@ func StreamKline(ctx context.Context, baseSymbol, interval string, onCandle func
 		if err != nil {
 			continue
 		}
+		c.Closed = msg.K.Closed
+		c.QuoteVolume, _ = strconv.ParseFloat(msg.K.QuoteVolume, 64)
+		c.TradeCount = msg.K.TradeCount
+		c.TakerBuyBaseVolume, _ = strconv.ParseFloat(msg.K.TakerBuyBaseVolume, 64)
+		c.TakerBuyQuoteVolume, _ = strconv.ParseFloat(msg.K.TakerBuyQuoteVolume, 64)
 		onCandle(c)
 	}
 }

@@ -121,6 +121,7 @@ func (s *Service) ProviderStatus() ProviderStatusResponse {
 func (s *Service) IngestStatus() map[string]string {
 	out := map[string]string{
 		"binance_ws":     s.ingest.BinanceStatus(),
+		"alpha_poll":     s.ingest.AlphaStatus(),
 		"alpha_ws":       s.ingest.AlphaStatus(),
 		"last_quote_ms":  formatLastQuote(s.ingest.LastQuoteMs()),
 		"last_alpha_ms":  formatLastQuote(s.ingest.LastAlphaMs()),

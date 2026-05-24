@@ -66,7 +66,7 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s.ingestStatus.set("liquidations_ws", "starting")
 	s.ingestStatus.set("sge_gold", "starting")
 	if cfg.Alpha.Enabled {
-		s.ingestStatus.set("alpha_ws", "starting")
+		s.ingestStatus.set("alpha_poll", "starting")
 		s.seedAlphaDefaults()
 	} else {
 		s.providerHealth.ReportDisabled("binance_alpha")
@@ -207,14 +207,14 @@ func (s *Service) runBinanceWithRetry(ctx context.Context) {
 func (s *Service) runAlphaWithRetry(ctx context.Context) {
 	if !s.cfg.Alpha.Enabled {
 		s.alphaStatus.Store("disabled")
-		s.ingestStatus.set("alpha_ws", "disabled")
+		s.ingestStatus.set("alpha_poll", "disabled")
 		s.providerHealth.ReportDisabled("binance_alpha")
 		return
 	}
 	items := s.cfg.AlphaItems()
 	if len(items) == 0 {
 		s.alphaStatus.Store("disabled")
-		s.ingestStatus.set("alpha_ws", "disabled")
+		s.ingestStatus.set("alpha_poll", "disabled")
 		s.providerHealth.ReportDisabled("binance_alpha")
 		return
 	}
@@ -227,21 +227,21 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 	for {
 		if ctx.Err() != nil {
 			s.alphaStatus.Store("disconnected")
-			s.ingestStatus.set("alpha_ws", "disconnected")
+			s.ingestStatus.set("alpha_poll", "disconnected")
 			return
 		}
 
 		s.alphaStatus.Store("polling")
-		s.ingestStatus.set("alpha_ws", "polling")
+		s.ingestStatus.set("alpha_poll", "polling")
 		resolved := s.resolveAlphaItems()
 		if len(resolved) == 0 {
 			s.alphaStatus.Store("reconnecting")
-			s.ingestStatus.set("alpha_ws", "reconnecting")
+			s.ingestStatus.set("alpha_poll", "reconnecting")
 			slog.Warn("alpha no supported symbols", "transport", "rest_poll", "retry_in", backoff)
 			select {
 			case <-ctx.Done():
 				s.alphaStatus.Store("disconnected")
-				s.ingestStatus.set("alpha_ws", "disconnected")
+				s.ingestStatus.set("alpha_poll", "disconnected")
 				return
 			case <-time.After(backoff):
 			}
@@ -261,7 +261,7 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 				pollTicker.Stop()
 				resolveTicker.Stop()
 				s.alphaStatus.Store("disconnected")
-				s.ingestStatus.set("alpha_ws", "disconnected")
+				s.ingestStatus.set("alpha_poll", "disconnected")
 				return
 			case <-pollTicker.C:
 				s.pollAlphaTickers(resolved)
@@ -308,7 +308,7 @@ func (s *Service) pollAlphaTickers(items []alpha.ResolvedItem) {
 	}
 	if succeeded == 0 {
 		s.alphaStatus.Store("error")
-		s.ingestStatus.set("alpha_ws", "error")
+		s.ingestStatus.set("alpha_poll", "error")
 		s.providerHealth.ReportFailure("binance_alpha", lastErr)
 		slog.Warn("alpha ticker poll failed for all symbols", "requested", len(items), "transport", "rest_poll")
 		return
@@ -321,7 +321,7 @@ func (s *Service) pollAlphaTickers(items []alpha.ResolvedItem) {
 func (s *Service) onAlphaTicker(item alpha.ResolvedItem, t alpha.Ticker) {
 	s.lastAlphaAt.Store(time.Now().UnixMilli())
 	s.alphaStatus.Store("connected")
-	s.ingestStatus.set("alpha_ws", "connected")
+	s.ingestStatus.set("alpha_poll", "connected")
 
 	s.store.UpdateAlphaQuote(store.AlphaQuote{
 		ID:           item.Item.ID,

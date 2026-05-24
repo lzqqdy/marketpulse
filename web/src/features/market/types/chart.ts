@@ -5,6 +5,11 @@ export interface Candle {
   low: number
   close: number
   volume: number
+  quoteVolume?: number
+  tradeCount?: number
+  takerBuyBaseVolume?: number
+  takerBuyQuoteVolume?: number
+  closed?: boolean
 }
 
 export interface KlineResponse {

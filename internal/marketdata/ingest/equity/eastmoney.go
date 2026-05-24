@@ -271,6 +271,7 @@ func (d *eastmoneyKlineData) candles() ([]binance.Candle, error) {
 			Low:    low,
 			Close:  closep,
 			Volume: volume,
+			Closed: true,
 		})
 	}
 	if len(out) == 0 {

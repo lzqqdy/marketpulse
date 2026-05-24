@@ -18,12 +18,17 @@ const DefaultKlineLimit = 300
 
 // Candle is one OHLCV bar for charting.
 type Candle struct {
-	Time   int64   `json:"time"` // unix seconds (UTC)
-	Open   float64 `json:"open"`
-	High   float64 `json:"high"`
-	Low    float64 `json:"low"`
-	Close  float64 `json:"close"`
-	Volume float64 `json:"volume"`
+	Time                int64   `json:"time"` // unix seconds (UTC)
+	Open                float64 `json:"open"`
+	High                float64 `json:"high"`
+	Low                 float64 `json:"low"`
+	Close               float64 `json:"close"`
+	Volume              float64 `json:"volume"`
+	QuoteVolume         float64 `json:"quoteVolume,omitempty"`
+	TradeCount          int64   `json:"tradeCount,omitempty"`
+	TakerBuyBaseVolume  float64 `json:"takerBuyBaseVolume,omitempty"`
+	TakerBuyQuoteVolume float64 `json:"takerBuyQuoteVolume,omitempty"`
+	Closed              bool    `json:"closed"`
 }
 
 var allowedIntervals = map[string]struct{}{
@@ -130,16 +135,57 @@ func fetchKlines(baseSymbol, interval string, limit int, startTimeMs int64) ([]C
 		low, _ := parseFloatRaw(row[3])
 		closep, _ := parseFloatRaw(row[4])
 		vol, _ := parseFloatRaw(row[5])
+		closed := true
+		if closeTimeMs, ok := parseKlineInt(row, 6); ok {
+			closed = time.Now().UnixMilli() > closeTimeMs
+		}
+		quoteVol, _ := parseKlineFloat(row, 7)
+		trades, _ := parseKlineInt(row, 8)
+		takerBuyBaseVol, _ := parseKlineFloat(row, 9)
+		takerBuyQuoteVol, _ := parseKlineFloat(row, 10)
 		out = append(out, Candle{
-			Time:   openTimeMs / 1000,
-			Open:   open,
-			High:   high,
-			Low:    low,
-			Close:  closep,
-			Volume: vol,
+			Time:                openTimeMs / 1000,
+			Open:                open,
+			High:                high,
+			Low:                 low,
+			Close:               closep,
+			Volume:              vol,
+			QuoteVolume:         quoteVol,
+			TradeCount:          trades,
+			TakerBuyBaseVolume:  takerBuyBaseVol,
+			TakerBuyQuoteVolume: takerBuyQuoteVol,
+			Closed:              closed,
 		})
 	}
 	return out, nil
+}
+
+func parseKlineFloat(row []json.RawMessage, index int) (float64, bool) {
+	if index < 0 || index >= len(row) {
+		return 0, false
+	}
+	v, err := parseFloatRaw(row[index])
+	return v, err == nil
+}
+
+func parseKlineInt(row []json.RawMessage, index int) (int64, bool) {
+	if index < 0 || index >= len(row) {
+		return 0, false
+	}
+	var n int64
+	if err := json.Unmarshal(row[index], &n); err == nil {
+		return n, true
+	}
+	var f float64
+	if err := json.Unmarshal(row[index], &f); err == nil {
+		return int64(f), true
+	}
+	var s string
+	if err := json.Unmarshal(row[index], &s); err == nil {
+		n, err = strconv.ParseInt(s, 10, 64)
+		return n, err == nil
+	}
+	return 0, false
 }
 
 func parseFloatRaw(r json.RawMessage) (float64, error) {
