@@ -69,7 +69,7 @@
 
 ---
 
-### Step 2：内存 Store `internal/store` ✅
+### Step 2：内存 Store `internal/marketdata/store` ✅
 
 **做什么**
 
@@ -84,13 +84,13 @@
 
 **Vibe 提示词**
 
-> 实现 Step 2 internal/store，字段与 RFC-002 snapshot 一致。
+> 实现 Step 2 internal/marketdata/store，字段与 RFC-002 snapshot 一致。
 
 ---
 
 ## Phase B — 后端行情（核心）
 
-### Step 3：Binance WebSocket Ingest `internal/ingest/binance` ✅
+### Step 3：Binance WebSocket Ingest `internal/marketdata/ingest/binance` ✅
 
 **做什么**
 
@@ -130,7 +130,7 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 ---
 
-### Step 5：WebSocket Hub `internal/hub` ✅
+### Step 5：WebSocket Hub `internal/marketdata/stream` ✅
 
 **做什么**
 
@@ -145,7 +145,7 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 **Vibe 提示词**
 
-> 实现 Step 5：internal/hub，store 更新时向订阅 quotes 的客户端推送。
+> 实现 Step 5：internal/marketdata/stream，store 更新时向订阅 quotes 的客户端推送。
 
 ---
 
@@ -164,7 +164,7 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 ---
 
-### Step 7：前端 API 层 `web/src/api`
+### Step 7：前端 API 层 `web/src/features/market/api`
 
 **做什么**
 
@@ -179,11 +179,11 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 **Vibe 提示词**
 
-> 实现 Step 7：web/src/api/http.ts 和 ws.ts，对齐 RFC-002。
+> 实现 Step 7：web/src/features/market/api/http.ts 和 ws.ts，对齐 RFC-002。
 
 ---
 
-### Step 8：Pinia Store `web/src/stores/market.ts`
+### Step 8：Pinia Store `web/src/features/market/stores/market.ts`
 
 **做什么**
 
@@ -303,8 +303,8 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 **做什么**
 
-- [ ] `internal/ingest/otc`：OKX C2C REST，30s
-- [ ] `internal/ingest/forex`：Frankfurter，1h
+- [ ] `internal/marketdata/ingest/otc`：OKX C2C REST，30s
+- [ ] `internal/marketdata/ingest/forex`：Frankfurter，1h
 - [ ] 写入 `store.UpdateRates`
 - [ ] `QuoteTable` 中 `priceCny = priceUsdt * usdtCny`
 - [ ] WS 推送 `type: rates`
@@ -319,7 +319,7 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 **做什么**
 
-- [ ] `internal/ingest/equity`：Yahoo symbols 映射（上证、恒生、道指等）
+- [ ] `internal/marketdata/ingest/equity`：Yahoo symbols 映射（上证、恒生、道指等）
 - [ ] 90s 轮询，休市仍返回昨收
 - [ ] `IndexGrid` 接真实数据
 - [ ] WS `type: indices` 或仅 REST 刷新（低频可只 snapshot）

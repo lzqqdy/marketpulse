@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lzqqdy/marketpulse/internal/config"
-	"github.com/lzqqdy/marketpulse/internal/store"
+	"github.com/lzqqdy/marketpulse/internal/marketdata"
 )
 
 func TestKlines_invalidSymbol(t *testing.T) {
@@ -16,7 +16,7 @@ func TestKlines_invalidSymbol(t *testing.T) {
 		App:     config.AppConfig{Mode: "debug"},
 		Symbols: []string{"BTC"},
 	}
-	h := &Handler{Config: cfg, Store: store.New("BTC")}
+	h := &Handler{Config: cfg, MarketData: marketdata.New(cfg)}
 	r := gin.New()
 	r.GET("/api/v1/klines", h.Klines)
 

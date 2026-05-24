@@ -29,12 +29,9 @@ func New(deps Deps) *Server {
 	r.Use(corsMiddleware(cfg))
 
 	h := &api.Handler{
-		Config:    cfg,
-		Store:     deps.Store,
-		StreamHub: deps.StreamHub,
-		KlineHub:  deps.KlineHub,
-		Ingest:    deps.Ingest,
-		StartedAt: time.Now().UTC(),
+		Config:     cfg,
+		MarketData: deps.MarketData,
+		StartedAt:  time.Now().UTC(),
 	}
 	api.Register(r, h)
 

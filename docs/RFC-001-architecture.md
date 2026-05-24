@@ -88,9 +88,10 @@ flowchart LR
 ┌─────────────────────────────────────────────────────────┐
 │ cmd/marketd                                              │
 ├─────────────────────────────────────────────────────────┤
-│ internal/ingest/*     数据采集（WS 长连接 + REST 轮询）   │
-│ internal/store        内存行情快照（线程安全）              │
-│ internal/hub            WebSocket 广播（多客户端）          │
+│ internal/marketdata        行情服务门面                     │
+│ internal/marketdata/ingest 数据采集（WS 长连接 + REST 轮询） │
+│ internal/marketdata/store  内存行情快照（线程安全）          │
+│ internal/marketdata/stream WebSocket 广播（多客户端）        │
 │ internal/api          REST 快照 / 健康检查                │
 │ internal/config       配置加载（YAML + 环境变量）           │
 └─────────────────────────────────────────────────────────┘

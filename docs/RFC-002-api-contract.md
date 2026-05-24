@@ -13,6 +13,8 @@
 ## 1. 通用约定
 
 - 基础路径：`/api/v1`
+- 行情模块 canonical 路径：`/api/v1/market/*` 与 `/ws/v1/market/*`
+- 旧行情路径暂时保留兼容：`/api/v1/snapshot`、`/api/v1/klines`、`/ws/v1/stream` 等
 - 时间：Unix 毫秒 `ts`，ISO8601 字符串 `updatedAt`
 - 数字：JSON number，前端展示自行格式化
 - 错误 REST：
@@ -23,7 +25,9 @@
 
 ---
 
-## 2. GET /api/v1/snapshot
+## 2. GET /api/v1/market/snapshot
+
+兼容路径：`GET /api/v1/snapshot`
 
 首屏全量数据。
 
@@ -72,7 +76,9 @@
 
 ---
 
-## 3. GET /api/v1/klines
+## 3. GET /api/v1/market/klines
+
+兼容路径：`GET /api/v1/klines`
 
 K 线历史（Binance REST 代理）。
 
@@ -117,7 +123,9 @@ K 线历史（Binance REST 代理）。
 
 ---
 
-## 4. WebSocket /ws/v1/kline（K 线，推荐）
+## 4. WebSocket /ws/v1/market/kline（K 线，推荐）
+
+兼容路径：`WS /ws/v1/kline`
 
 连接后服务端行为：
 
@@ -126,7 +134,7 @@ K 线历史（Binance REST 代理）。
 3. 订阅 Binance `@kline_{interval}`，推送 `kline_update` 增量
 
 ```
-wss://{host}/ws/v1/kline?symbol=BTC&interval=1h
+wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 ```
 
 **kline_snapshot**
@@ -156,12 +164,14 @@ wss://{host}/ws/v1/kline?symbol=BTC&interval=1h
 
 ---
 
-## 5. WebSocket /ws/v1/stream
+## 5. WebSocket /ws/v1/market/stream
+
+兼容路径：`WS /ws/v1/stream`
 
 ### 连接
 
 ```
-wss://{host}/ws/v1/stream?channels=quotes,indices,macro,rates
+wss://{host}/ws/v1/market/stream?channels=quotes,indices,macro,rates
 ```
 
 ### 客户端 → 服务端
@@ -215,7 +225,7 @@ wss://{host}/ws/v1/stream?channels=quotes,indices,macro,rates
 
 ## 5. 前端 TypeScript 类型（镜像）
 
-实现时放在 `web/src/types/market.ts`，字段与本文保持一致。
+实现时放在 `web/src/features/market/types/market.ts`，字段与本文保持一致。
 
 ---
 
@@ -224,3 +234,4 @@ wss://{host}/ws/v1/stream?channels=quotes,indices,macro,rates
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 0.1 | 2026-05-16 | 草案 |
+| 0.2 | 2026-05-24 | 增加 market canonical namespace，保留旧路径兼容 |

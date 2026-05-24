@@ -10,11 +10,9 @@ import (
 	"syscall"
 
 	"github.com/lzqqdy/marketpulse/internal/config"
-	"github.com/lzqqdy/marketpulse/internal/hub"
-	"github.com/lzqqdy/marketpulse/internal/ingest"
 	"github.com/lzqqdy/marketpulse/internal/logging"
+	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	"github.com/lzqqdy/marketpulse/internal/server"
-	"github.com/lzqqdy/marketpulse/internal/store"
 )
 
 func main() {
@@ -34,18 +32,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	st := store.New(cfg.Symbols...)
-	streamHub := hub.NewStreamHub(st)
-	klineHub := hub.NewKlineHub(cfg)
-	ingestSvc := ingest.New(cfg, st)
-	ingestSvc.Start(ctx)
+	marketData := marketdata.New(cfg)
+	marketData.Start(ctx)
 
 	srv := server.New(server.Deps{
-		Config:    cfg,
-		Store:     st,
-		StreamHub: streamHub,
-		KlineHub:  klineHub,
-		Ingest:    ingestSvc,
+		Config:     cfg,
+		MarketData: marketData,
 	})
 
 	slog.Info("marketpulse marketd listening", "addr", server.AddrLabel(cfg))

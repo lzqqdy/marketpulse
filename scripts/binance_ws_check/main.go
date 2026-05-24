@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/lzqqdy/marketpulse/internal/ingest/binance"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/binance"
 )
 
 func main() {

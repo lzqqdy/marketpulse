@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lzqqdy/marketpulse/internal/api"
 	"github.com/lzqqdy/marketpulse/internal/config"
-	"github.com/lzqqdy/marketpulse/internal/store"
+	"github.com/lzqqdy/marketpulse/internal/marketdata"
 )
 
 func TestMountStatic_SPAAndAPI(t *testing.T) {
@@ -33,9 +33,8 @@ func TestMountStatic_SPAAndAPI(t *testing.T) {
 		App:     config.AppConfig{Addr: ":0", Mode: "release", StaticDir: dir},
 		Symbols: []string{"BTC"},
 	}
-	st := store.New(cfg.Symbols...)
 	r := gin.New()
-	h := &api.Handler{Config: cfg, Store: st, StartedAt: time.Now().UTC()}
+	h := &api.Handler{Config: cfg, MarketData: marketdata.New(cfg), StartedAt: time.Now().UTC()}
 	api.Register(r, h)
 	if err := mountStatic(r, dir); err != nil {
 		t.Fatal(err)
