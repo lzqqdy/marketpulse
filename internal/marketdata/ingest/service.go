@@ -221,8 +221,8 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 
 	backoff := time.Second
 	const maxBackoff = 30 * time.Second
-	const pollInterval = 30 * time.Second
-	const resolveInterval = 10 * time.Minute
+	pollInterval := s.cfg.Alpha.PollInterval
+	resolveInterval := s.cfg.Alpha.ResolveInterval
 
 	for {
 		if ctx.Err() != nil {

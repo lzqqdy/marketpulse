@@ -32,6 +32,9 @@ func TestLoad_example(t *testing.T) {
 	if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 7 {
 		t.Fatalf("alpha config: enabled=%v indices=%d stocks=%d", cfg.Alpha.Enabled, len(cfg.Alpha.Indices), len(cfg.Alpha.Stocks))
 	}
+	if cfg.Alpha.PollInterval != 30*time.Second || cfg.Alpha.ResolveInterval != 10*time.Minute {
+		t.Fatalf("alpha intervals: poll=%s resolve=%s", cfg.Alpha.PollInterval, cfg.Alpha.ResolveInterval)
+	}
 	if strings.Join(cfg.AlphaBaseSymbols(), ",") != "QQQON,SPYON,AAPLON,MSFTON,NVDAON,AMZNON,GOOGLON,METAON,TSLAON" {
 		t.Fatalf("alpha base symbols: %v", cfg.AlphaBaseSymbols())
 	}

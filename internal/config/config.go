@@ -48,10 +48,12 @@ type BinanceConfig struct {
 
 // AlphaConfig configures Binance Alpha / tokenized stocks reference quotes.
 type AlphaConfig struct {
-	Enabled    bool        `yaml:"enabled"`
-	QuoteAsset string      `yaml:"quote_asset"`
-	Indices    []AlphaItem `yaml:"indices"`
-	Stocks     []AlphaItem `yaml:"stocks"`
+	Enabled         bool          `yaml:"enabled"`
+	QuoteAsset      string        `yaml:"quote_asset"`
+	PollInterval    time.Duration `yaml:"poll_interval"`
+	ResolveInterval time.Duration `yaml:"resolve_interval"`
+	Indices         []AlphaItem   `yaml:"indices"`
+	Stocks          []AlphaItem   `yaml:"stocks"`
 }
 
 // AlphaItem maps a display id/name to a Binance Alpha pair symbol.
@@ -142,6 +144,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Alpha.QuoteAsset == "" {
 		c.Alpha.QuoteAsset = "USDT"
+	}
+	if c.Alpha.PollInterval == 0 {
+		c.Alpha.PollInterval = 30 * time.Second
+	}
+	if c.Alpha.ResolveInterval == 0 {
+		c.Alpha.ResolveInterval = 10 * time.Minute
 	}
 	if len(c.Alpha.Indices) == 0 {
 		c.Alpha.Indices = append([]AlphaItem(nil), DefaultAlphaIndices...)

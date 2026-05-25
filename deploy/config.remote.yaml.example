@@ -20,6 +20,8 @@ symbols:
 alpha:
   enabled: true
   quote_asset: USDT
+  poll_interval: 30s
+  resolve_interval: 10m
   indices:
     - id: qqqon
       name: QQQ

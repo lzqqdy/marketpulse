@@ -17,6 +17,23 @@ const rows = computed(() =>
     .filter((item) => Number.isFinite(item.price) && item.price > 0),
 )
 
+const alphaMetaText = computed(() => {
+  const rowTimes = [...(store.alpha.indices ?? []), ...(store.alpha.stocks ?? [])]
+    .map((item) => new Date(item.updatedAt).getTime())
+    .filter((time) => Number.isFinite(time))
+  const snapshotTime = store.alpha.updatedAt ? new Date(store.alpha.updatedAt).getTime() : NaN
+  const latestTime = Number.isFinite(snapshotTime)
+    ? snapshotTime
+    : rowTimes.length > 0
+      ? Math.max(...rowTimes)
+      : NaN
+  const updatedText = Number.isFinite(latestTime)
+    ? new Date(latestTime).toLocaleString('zh-CN', { hour12: false })
+    : '--'
+  const source = store.alpha.source || 'binance-alpha'
+  return `更新于 ${updatedText} · ${source}`
+})
+
 function openAlpha(item: AlphaQuote) {
   chartStore.openAlpha(item)
 }
@@ -32,7 +49,7 @@ function formatAlphaPrice(value: number) {
     <header class="alpha-header">
       <div>
         <h2>Alpha 美股参考</h2>
-        <p>Binance Alpha · Tokenized Stocks</p>
+        <p>{{ alphaMetaText }}</p>
       </div>
       <div class="switch" role="tablist" aria-label="Alpha 美股参考分类">
         <button
