@@ -115,6 +115,79 @@ func FetchTicker(client *http.Client, symbol string) (Ticker, error) {
 	}, nil
 }
 
+func FetchReferenceTickers(client *http.Client, items []ResolvedItem, quoteAsset string) (map[string]Ticker, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	var body any
+	if err := getJSON(client, tokenListPath, nil, &body); err != nil {
+		return nil, err
+	}
+	rows, ok := unwrapData(body).([]any)
+	if !ok {
+		return nil, fmt.Errorf("alpha token list: unexpected payload")
+	}
+	out := parseReferenceTickers(rows, items, quoteAsset, time.Now().UTC())
+	if len(out) == 0 {
+		return nil, fmt.Errorf("alpha token list: no matched reference quotes")
+	}
+	return out, nil
+}
+
+func parseReferenceTickers(rows []any, items []ResolvedItem, quoteAsset string, now time.Time) map[string]Ticker {
+	wanted := make(map[string]ResolvedItem, len(items)*2)
+	for _, item := range items {
+		if item.BaseSymbol != "" {
+			wanted[matchKey(item.BaseSymbol, quoteAsset)] = item
+		}
+		if item.AlphaSymbol != "" {
+			wanted[matchKey(item.AlphaSymbol, quoteAsset)] = item
+		}
+	}
+	out := make(map[string]Ticker, len(items))
+	for _, row := range rows {
+		m, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		keys := []string{
+			matchKey(stringify(m["symbol"]), quoteAsset),
+			matchKey(objectAlphaSymbol(m, quoteAsset), quoteAsset),
+		}
+		var item ResolvedItem
+		matched := false
+		for _, key := range keys {
+			if key == "" {
+				continue
+			}
+			if found, ok := wanted[key]; ok {
+				item = found
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		price := firstFloat(m, "price", "lastPrice", "close", "c")
+		if price <= 0 {
+			continue
+		}
+		alphaSymbol := objectAlphaSymbol(m, quoteAsset)
+		if alphaSymbol == "" {
+			alphaSymbol = item.AlphaSymbol
+		}
+		out[item.BaseSymbol] = Ticker{
+			Symbol:       alphaSymbol,
+			Price:        price,
+			Change24hPct: firstFloat(m, "percentChange24h", "priceChangePercent", "change24hPct", "P"),
+			Volume:       firstFloat(m, "volume24h", "volume", "quoteVolume", "v"),
+			UpdatedAt:    now,
+		}
+	}
+	return out
+}
+
 func RunTicker(ctx context.Context, items []ResolvedItem, onTick func(Ticker)) error {
 	if len(items) == 0 {
 		return fmt.Errorf("alpha ticker: no symbols")

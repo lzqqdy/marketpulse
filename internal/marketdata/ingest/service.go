@@ -296,8 +296,17 @@ func (s *Service) pollAlphaTickers(items []alpha.ResolvedItem) {
 	succeeded := 0
 	start := time.Now()
 	var lastErr error
+	references, err := alpha.FetchReferenceTickers(httpClient, items, s.cfg.Alpha.QuoteAsset)
+	if err != nil {
+		lastErr = err
+		slog.Warn("alpha reference quote poll failed", "requested", len(items), "err", err)
+	}
 	for _, item := range items {
-		ticker, err := alpha.FetchTicker(httpClient, item.AlphaSymbol)
+		ticker, ok := references[item.BaseSymbol]
+		err = nil
+		if !ok {
+			ticker, err = alpha.FetchTicker(httpClient, item.AlphaSymbol)
+		}
 		if err != nil {
 			lastErr = err
 			slog.Warn("alpha ticker poll failed", "symbol", item.Item.Symbol, "alpha_symbol", item.AlphaSymbol, "id", item.Item.ID, "err", err)
