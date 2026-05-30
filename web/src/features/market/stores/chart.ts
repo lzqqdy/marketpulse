@@ -133,23 +133,27 @@ export const useChartStore = defineStore('chart', () => {
   }
 
   function open(sym: string) {
+    const changed = kind.value !== 'crypto' || symbol.value !== sym
     kind.value = 'crypto'
     symbol.value = sym
     displayName.value = sym
     pairLabel.value = 'USDT'
     indexQuote.value = null
     alphaQuote.value = null
+    if (changed) candles.value = []
     visible.value = true
     connectWs()
   }
 
   function openAlpha(item: AlphaQuote) {
+    const changed = kind.value !== 'alpha' || symbol.value !== item.symbol
     kind.value = 'alpha'
     symbol.value = item.symbol
     displayName.value = item.name
     pairLabel.value = 'USDT'
     indexQuote.value = null
     alphaQuote.value = item
+    if (changed) candles.value = []
     visible.value = true
     connectWs()
   }
@@ -176,12 +180,14 @@ export const useChartStore = defineStore('chart', () => {
   }
 
   function openIndex(item: IndexQuote) {
+    const changed = kind.value !== 'index' || symbol.value !== item.id
     kind.value = 'index'
     symbol.value = item.id
     displayName.value = item.name
     pairLabel.value = item.id
     indexQuote.value = item
     alphaQuote.value = null
+    if (changed) candles.value = []
     if (!['15m', '1h', '1d', '1w'].includes(interval.value)) {
       interval.value = '1d'
     }

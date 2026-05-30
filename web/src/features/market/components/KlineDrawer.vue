@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useChartStore } from '@/features/market/stores/chart'
 import { useKlineChart } from '@/features/market/composables/useKlineChart'
 import { KLINE_INTERVALS, type KlineInterval } from '@/features/market/types/chart'
-import { formatPct, formatPriceUsdt } from '@/utils/format'
+import { formatNumber, formatPct, formatPriceUsdt } from '@/utils/format'
 import { useTrendClass } from '@/features/market/composables/useTrendClass'
 
 const chartStore = useChartStore()
@@ -11,7 +11,15 @@ const { priceClass } = useTrendClass()
 
 const chartEl = ref<HTMLElement | null>(null)
 const candlesRef = computed(() => chartStore.candles)
-const { crosshairPrice, crosshairTime } = useKlineChart(chartEl, candlesRef)
+const {
+  crosshairPrice,
+  crosshairTime,
+  detailCandle,
+  detailPoint,
+  detailPinned,
+  clearPinned,
+  scrollToLatest,
+} = useKlineChart(chartEl, candlesRef)
 
 const displayPrice = computed(() => {
   if (crosshairPrice.value != null) return crosshairPrice.value
@@ -21,6 +29,7 @@ const displayPrice = computed(() => {
 })
 
 const priceChange = computed(() => chartStore.changePct)
+const activeCandle = computed(() => detailCandle.value ?? chartStore.candles.at(-1) ?? null)
 
 const visibleIntervals = computed(() =>
   chartStore.kind === 'index'
@@ -44,8 +53,61 @@ const subtitle = computed(() => {
   return `${chartStore.wsLive ? 'Binance WS 实时' : chartStore.source === 'mock' ? '演示 Mock' : chartStore.source} · MA5 / MA10 / MA20 / MA60`
 })
 
+const feedMode = computed(() => {
+  if (chartStore.kind === 'index') return 'REST历史'
+  if (chartStore.kind === 'alpha') {
+    return ['1m', '5m', '1h'].includes(chartStore.interval) && chartStore.wsLive
+      ? 'WS实时覆盖'
+      : 'REST历史'
+  }
+  return chartStore.wsLive ? 'WS实时' : 'REST历史'
+})
+
+const displayError = computed(() => {
+  if (!chartStore.error) return ''
+  if (chartStore.error.includes('unsupported') || chartStore.error.includes('HTTP 400')) {
+    return '当前数据源暂不支持该周期'
+  }
+  if (chartStore.error.includes('websocket')) return '实时连接暂不可用，点击重试'
+  return chartStore.error
+})
+
+const candleTooltip = computed(() => {
+  const c = detailCandle.value
+  if (!c) return null
+  const change = c.open > 0 ? ((c.close - c.open) / c.open) * 100 : 0
+  return {
+    ...c,
+    change,
+    timeText: new Date(c.time * 1000).toLocaleString('zh-CN', { hour12: false }),
+  }
+})
+
+const tooltipStyle = computed(() => {
+  const point = detailPoint.value
+  const width = chartEl.value?.clientWidth ?? 0
+  const height = chartEl.value?.clientHeight ?? 0
+  if (!point) return {}
+  const placeLeft = width > 0 && point.x > width - 180
+  const placeTop = height > 0 && point.y > height - 150
+  return {
+    left: `${Math.max(8, point.x + (placeLeft ? -168 : 12))}px`,
+    top: `${Math.max(8, point.y + (placeTop ? -132 : 12))}px`,
+  }
+})
+
+function intervalIsLive(iv: KlineInterval) {
+  if (chartStore.kind === 'alpha') return ['1m', '5m', '1h'].includes(iv)
+  if (chartStore.kind === 'crypto') return true
+  return false
+}
+
 function setInterval(iv: KlineInterval) {
   chartStore.setInterval(iv)
+}
+
+function goLatest() {
+  scrollToLatest()
 }
 
 watch(
@@ -94,6 +156,7 @@ function onBackdrop(e: MouseEvent) {
                   </h2>
                   <p class="subtitle">
                     {{ subtitle }}
+                    <span class="feed-badge" :class="{ live: feedMode.includes('WS') }">{{ feedMode }}</span>
                   </p>
                 </div>
               </div>
@@ -122,6 +185,7 @@ function onBackdrop(e: MouseEvent) {
                   @click="setInterval(iv.value)"
                 >
                   {{ iv.label }}
+                  <span v-if="intervalIsLive(iv.value)" class="live-dot" aria-label="支持实时"></span>
                 </button>
               </div>
               <button
@@ -134,19 +198,62 @@ function onBackdrop(e: MouseEvent) {
               </button>
             </div>
 
-            <p v-if="crosshairTime" class="crosshair-hint">{{ crosshairTime }}</p>
+            <div class="ohlc-bar">
+              <span class="ohlc-time">{{ crosshairTime || '最新' }}</span>
+              <template v-if="activeCandle">
+                <span>O {{ formatPriceUsdt(activeCandle.open) }}</span>
+                <span>H {{ formatPriceUsdt(activeCandle.high) }}</span>
+                <span>L {{ formatPriceUsdt(activeCandle.low) }}</span>
+                <span>C {{ formatPriceUsdt(activeCandle.close) }}</span>
+                <span>Vol {{ formatNumber(activeCandle.volume, 2) }}</span>
+              </template>
+            </div>
 
             <div class="chart-wrap">
-              <div v-if="chartStore.loading" class="chart-state">加载 K 线…</div>
-              <div v-else-if="chartStore.error" class="chart-state error">
-                {{ chartStore.error }}
+              <div v-if="chartStore.candles.length > 0" ref="chartEl" class="chart-container" />
+              <div
+                v-if="candleTooltip && detailPoint"
+                class="candle-tooltip"
+                :class="{ pinned: detailPinned }"
+                :style="tooltipStyle"
+              >
+                <button
+                  v-if="detailPinned"
+                  type="button"
+                  class="tooltip-close"
+                  aria-label="取消固定"
+                  @click="clearPinned"
+                >
+                  ×
+                </button>
+                <p class="tooltip-time">{{ candleTooltip.timeText }}</p>
+                <div class="tooltip-grid">
+                  <span>开</span><strong>{{ formatPriceUsdt(candleTooltip.open) }}</strong>
+                  <span>高</span><strong>{{ formatPriceUsdt(candleTooltip.high) }}</strong>
+                  <span>低</span><strong>{{ formatPriceUsdt(candleTooltip.low) }}</strong>
+                  <span>收</span><strong>{{ formatPriceUsdt(candleTooltip.close) }}</strong>
+                  <span>涨跌</span><strong :class="priceClass(candleTooltip.change)">{{ formatPct(candleTooltip.change) }}</strong>
+                  <span>量</span><strong>{{ formatNumber(candleTooltip.volume, 2) }}</strong>
+                </div>
+              </div>
+              <div v-if="chartStore.loading && chartStore.candles.length > 0" class="chart-loading-pill">
+                更新中…
+              </div>
+              <div v-if="chartStore.loading && chartStore.candles.length === 0" class="chart-state">
+                加载 K 线…
+              </div>
+              <div v-else-if="chartStore.error && chartStore.candles.length === 0" class="chart-state error">
+                {{ displayError }}
                 <button type="button" class="link-btn" @click="chartStore.reload()">重试</button>
               </div>
-              <div v-else ref="chartEl" class="chart-container" />
+              <div v-else-if="chartStore.error" class="chart-inline-error">
+                {{ displayError }}
+              </div>
             </div>
 
             <footer class="panel-footer">
               <span>拖动 · 滚轮缩放</span>
+              <button type="button" class="latest-btn" @click="goLatest">最新</button>
               <span>{{ chartStore.candles.length }} 根 K 线</span>
             </footer>
           </section>
@@ -222,6 +329,24 @@ function onBackdrop(e: MouseEvent) {
   color: var(--muted-2);
 }
 
+.feed-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.feed-badge.live {
+  color: var(--down);
+  border-color: color-mix(in srgb, var(--down) 60%, transparent);
+  background: color-mix(in srgb, var(--down) 10%, transparent);
+}
+
 .header-right {
   text-align: right;
 }
@@ -285,6 +410,9 @@ function onBackdrop(e: MouseEvent) {
   color: var(--muted);
   font-size: 12px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .iv-btn.active {
@@ -308,13 +436,35 @@ function onBackdrop(e: MouseEvent) {
   cursor: pointer;
 }
 
-.crosshair-hint {
-  margin: 0;
-  padding: 0 16px 4px;
+.live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--down);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--down) 16%, transparent);
+}
+
+.ohlc-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin: 0 12px 4px;
+  padding: 5px 8px;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--card-soft) 70%, transparent);
   font-size: 11px;
   color: var(--muted);
   text-align: left;
-  min-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ohlc-time {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .chart-wrap {
@@ -328,6 +478,90 @@ function onBackdrop(e: MouseEvent) {
   width: 100%;
   height: min(360px, calc(100dvh - 280px));
   min-height: 280px;
+}
+
+.chart-loading-pill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--line);
+  color: var(--warning);
+  font-size: 11px;
+}
+
+.candle-tooltip {
+  position: absolute;
+  z-index: 4;
+  width: 156px;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  box-shadow: 0 12px 28px var(--shadow);
+  padding: 8px;
+  color: var(--text);
+  backdrop-filter: blur(8px);
+}
+
+.candle-tooltip.pinned {
+  pointer-events: auto;
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--line));
+}
+
+.tooltip-time {
+  margin: 0 18px 6px 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.tooltip-grid {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 4px 8px;
+  align-items: baseline;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltip-grid span {
+  color: var(--muted);
+}
+
+.tooltip-grid strong {
+  text-align: right;
+  font-weight: 700;
+}
+
+.tooltip-grid .up {
+  color: var(--up);
+}
+
+.tooltip-grid .down {
+  color: var(--down);
+}
+
+.tooltip-grid .flat {
+  color: var(--muted);
+}
+
+.tooltip-close {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 18px;
 }
 
 .chart-state {
@@ -346,6 +580,21 @@ function onBackdrop(e: MouseEvent) {
   color: var(--up);
 }
 
+.chart-inline-error {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--up) 40%, transparent);
+  color: var(--up);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .link-btn {
   background: none;
   border: none;
@@ -356,10 +605,22 @@ function onBackdrop(e: MouseEvent) {
 
 .panel-footer {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 10px;
   padding: 8px 16px 16px;
   font-size: 11px;
   color: var(--muted-2);
+}
+
+.latest-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--warning);
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
 }
 
 .fade-enter-active,

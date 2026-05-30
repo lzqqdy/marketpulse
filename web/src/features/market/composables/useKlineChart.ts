@@ -1,4 +1,4 @@
-import { ref, shallowRef, watch, onUnmounted, type Ref } from 'vue'
+import { computed, ref, shallowRef, watch, onUnmounted, type Ref } from 'vue'
 import {
   createChart,
   ColorType,
@@ -41,6 +41,13 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
   const maSeries = shallowRef<ISeriesApi<'Line'>[]>([])
   const crosshairPrice = ref<number | null>(null)
   const crosshairTime = ref<string>('')
+  const crosshairCandle = ref<Candle | null>(null)
+  const crosshairPoint = ref<{ x: number; y: number } | null>(null)
+  const pinnedCandle = ref<Candle | null>(null)
+  const pinnedPoint = ref<{ x: number; y: number } | null>(null)
+  const detailCandle = computed(() => pinnedCandle.value ?? crosshairCandle.value)
+  const detailPoint = computed(() => pinnedPoint.value ?? crosshairPoint.value)
+  const detailPinned = computed(() => pinnedCandle.value != null)
 
   let ro: ResizeObserver | null = null
   let themeObserver: MutationObserver | null = null
@@ -104,6 +111,8 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
       borderDownColor: down,
       wickUpColor: up,
       wickDownColor: down,
+      priceLineVisible: true,
+      lastValueVisible: true,
     })
 
     const vol = chart.addHistogramSeries({
@@ -125,18 +134,57 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
       }),
     )
 
+    function candleFromData(d: CandlestickData | undefined): Candle | null {
+      if (!d || !('close' in d)) return null
+      const time = d.time as number
+      return {
+        time,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+        volume: candles.value.find((c) => c.time === time)?.volume ?? 0,
+      }
+    }
+
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || !param.seriesData.size) {
         crosshairPrice.value = null
         crosshairTime.value = ''
+        crosshairCandle.value = null
+        crosshairPoint.value = null
         return
       }
       const d = param.seriesData.get(candles_s) as CandlestickData | undefined
-      if (d && 'close' in d) {
-        crosshairPrice.value = d.close
+      const candle = candleFromData(d)
+      if (candle) {
+        if (pinnedCandle.value && pinnedCandle.value.time !== candle.time) {
+          pinnedCandle.value = null
+          pinnedPoint.value = null
+        }
+        crosshairPrice.value = candle.close
+        crosshairCandle.value = candle
+        crosshairPoint.value = param.point ? { x: param.point.x, y: param.point.y } : null
       }
       const t = param.time as number
       crosshairTime.value = new Date(t * 1000).toLocaleString('zh-CN', { hour12: false })
+    })
+
+    chart.subscribeClick((param) => {
+      const d = param.seriesData.get(candles_s) as CandlestickData | undefined
+      const candle = candleFromData(d)
+      if (!candle) {
+        pinnedCandle.value = null
+        pinnedPoint.value = null
+        return
+      }
+      if (pinnedCandle.value?.time === candle.time) {
+        pinnedCandle.value = null
+        pinnedPoint.value = null
+        return
+      }
+      pinnedCandle.value = candle
+      pinnedPoint.value = param.point ? { x: param.point.x, y: param.point.y } : null
     })
 
     chartRef.value = chart
@@ -153,6 +201,15 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
       }
     })
     ro.observe(el)
+  }
+
+  function scrollToLatest() {
+    chartRef.value?.timeScale().scrollToRealTime()
+  }
+
+  function clearPinned() {
+    pinnedCandle.value = null
+    pinnedPoint.value = null
   }
 
   function setData(data: Candle[]) {
@@ -216,6 +273,10 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
     candles,
     (data, prev) => {
       if (!data.length || !candleSeries.value) return
+      if (pinnedCandle.value && !data.some((c) => c.time === pinnedCandle.value?.time)) {
+        pinnedCandle.value = null
+        pinnedPoint.value = null
+      }
       const canPatch =
         prev &&
         prev.length === data.length &&
@@ -259,5 +320,14 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
     chartRef.value?.remove()
   })
 
-  return { crosshairPrice, crosshairTime }
+  return {
+    crosshairPrice,
+    crosshairTime,
+    crosshairCandle,
+    detailCandle,
+    detailPoint,
+    detailPinned,
+    clearPinned,
+    scrollToLatest,
+  }
 }
