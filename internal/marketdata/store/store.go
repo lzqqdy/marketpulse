@@ -20,7 +20,7 @@ type MarketStore struct {
 	listeners []ChangeListener
 }
 
-// UpdateAlphaQuote upserts a Binance Alpha quote without affecting crypto quotes.
+// UpdateAlphaQuote upserts an Alpha quote without affecting crypto quotes.
 func (s *MarketStore) UpdateAlphaQuote(row AlphaQuote) uint64 {
 	row.Symbol = strings.ToUpper(strings.TrimSpace(row.Symbol))
 	row.ID = strings.ToLower(strings.TrimSpace(row.ID))
@@ -49,7 +49,7 @@ func (s *MarketStore) UpdateAlphaQuote(row AlphaQuote) uint64 {
 	if row.UpdatedAt.After(s.alpha.UpdatedAt) || s.alpha.UpdatedAt.IsZero() {
 		s.alpha.UpdatedAt = row.UpdatedAt
 	}
-	s.alpha.Source = "binance-alpha"
+	s.alpha.Source = row.Source
 	v := s.bump()
 	s.notifyLocked(v)
 	return v
@@ -72,7 +72,19 @@ func (s *MarketStore) SetAlphaDefaults(indices []AlphaQuote, stocks []AlphaQuote
 	s.alpha.Indices = append([]AlphaQuote(nil), indices...)
 	s.alpha.Stocks = append([]AlphaQuote(nil), stocks...)
 	if len(indices) > 0 || len(stocks) > 0 {
-		s.alpha.Source = "binance-alpha"
+		for _, row := range append(append([]AlphaQuote(nil), indices...), stocks...) {
+			if row.UpdatedAt.After(s.alpha.UpdatedAt) || s.alpha.UpdatedAt.IsZero() {
+				s.alpha.UpdatedAt = row.UpdatedAt
+			}
+		}
+		switch {
+		case len(indices) > 0 && indices[0].Source != "":
+			s.alpha.Source = indices[0].Source
+		case len(stocks) > 0 && stocks[0].Source != "":
+			s.alpha.Source = stocks[0].Source
+		default:
+			s.alpha.Source = "binance-alpha"
+		}
 	}
 	v := s.bump()
 	s.notifyLocked(v)

@@ -32,10 +32,13 @@ func TestLoad_example(t *testing.T) {
 	if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 7 {
 		t.Fatalf("alpha config: enabled=%v indices=%d stocks=%d", cfg.Alpha.Enabled, len(cfg.Alpha.Indices), len(cfg.Alpha.Stocks))
 	}
+	if cfg.Alpha.Provider != "bitget" || cfg.Alpha.ProductType != "USDT-FUTURES" {
+		t.Fatalf("alpha provider: provider=%s productType=%s", cfg.Alpha.Provider, cfg.Alpha.ProductType)
+	}
 	if cfg.Alpha.PollInterval != 30*time.Second || cfg.Alpha.ResolveInterval != 10*time.Minute {
 		t.Fatalf("alpha intervals: poll=%s resolve=%s", cfg.Alpha.PollInterval, cfg.Alpha.ResolveInterval)
 	}
-	if strings.Join(cfg.AlphaBaseSymbols(), ",") != "QQQON,SPYON,AAPLON,MSFTON,NVDAON,AMZNON,GOOGLON,METAON,TSLAON" {
+	if strings.Join(cfg.AlphaBaseSymbols(), ",") != "QQQ,SPY,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA" {
 		t.Fatalf("alpha base symbols: %v", cfg.AlphaBaseSymbols())
 	}
 	if strings.Join(cfg.DayOpenSymbols(), ",") != strings.Join(cfg.Symbols, ",") {
@@ -69,6 +72,42 @@ ingest:
 	}
 	if cfg.App.Mode != "release" {
 		t.Fatalf("mode: %s", cfg.App.Mode)
+	}
+}
+
+func TestLoad_bitgetAlphaMigratesOndoSymbols(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.yaml")
+	content := `
+app:
+  mode: debug
+symbols:
+  - BTC
+alpha:
+  enabled: true
+  provider: bitget
+  quote_asset: USDT
+  indices:
+    - id: qqqon
+      name: QQQ
+      symbol: QQQONUSDT
+  stocks:
+    - id: aaplon
+      name: AAPL
+      symbol: AAPLONUSDT
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.AlphaBaseSymbols(), ",") != "QQQ,AAPL" {
+		t.Fatalf("alpha base symbols: %v", cfg.AlphaBaseSymbols())
+	}
+	if cfg.Alpha.Indices[0].Symbol != "QQQUSDT" || cfg.Alpha.Stocks[0].Symbol != "AAPLUSDT" {
+		t.Fatalf("alpha symbols: indices=%+v stocks=%+v", cfg.Alpha.Indices, cfg.Alpha.Stocks)
 	}
 }
 

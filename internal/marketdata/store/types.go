@@ -44,6 +44,9 @@ type AlphaQuote struct {
 	Change24hPct float64   `json:"change24hPct"`
 	ChangeDayPct float64   `json:"changeDayPct"`
 	Volume       float64   `json:"volume"`
+	MarkPrice    float64   `json:"markPrice,omitempty"`
+	IndexPrice   float64   `json:"indexPrice,omitempty"`
+	FundingRate  float64   `json:"fundingRate,omitempty"`
 	UpdatedAt    time.Time `json:"updatedAt"`
 	Source       string    `json:"source"`
 	Category     string    `json:"category"` // index | stock

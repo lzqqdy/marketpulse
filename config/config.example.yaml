@@ -20,38 +20,40 @@ symbols:
 
 alpha:
   enabled: true
+  provider: bitget
+  product_type: USDT-FUTURES
   quote_asset: USDT
   poll_interval: 30s
   resolve_interval: 10m
   indices:
-    - id: qqqon
-      name: QQQ
-      symbol: QQQONUSDT
-    - id: spyon
-      name: SPY
-      symbol: SPYONUSDT
+    - id: qqq
+      name: 纳指ETF
+      symbol: QQQUSDT
+    - id: spy
+      name: 标普ETF
+      symbol: SPYUSDT
   stocks:
-    - id: aaplon
-      name: AAPL
-      symbol: AAPLONUSDT
-    - id: msfton
-      name: MSFT
-      symbol: MSFTONUSDT
-    - id: nvdaon
-      name: NVDA
-      symbol: NVDAONUSDT
-    - id: amznon
-      name: AMZN
-      symbol: AMZNONUSDT
-    - id: googlon
-      name: GOOGL
-      symbol: GOOGLONUSDT
-    - id: metaon
+    - id: aapl
+      name: 苹果
+      symbol: AAPLUSDT
+    - id: msft
+      name: 微软
+      symbol: MSFTUSDT
+    - id: nvda
+      name: 英伟达
+      symbol: NVDAUSDT
+    - id: amzn
+      name: 亚马逊
+      symbol: AMZNUSDT
+    - id: googl
+      name: 谷歌
+      symbol: GOOGLUSDT
+    - id: meta
       name: META
-      symbol: METAONUSDT
-    - id: tslaon
-      name: TSLA
-      symbol: TSLAONUSDT
+      symbol: METAUSDT
+    - id: tsla
+      name: 特斯拉
+      symbol: TSLAUSDT
 
 ingest:
   binance:

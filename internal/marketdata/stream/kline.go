@@ -14,6 +14,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/binance"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/alpha"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/bitget"
 )
 
 // KlineHub streams kline snapshots + live updates to browser clients.
@@ -74,6 +75,13 @@ func (h *KlineHub) isAlphaSymbol(symbol string) bool {
 }
 
 func (h *KlineHub) alphaPair(symbol string) (string, bool) {
+	if h.cfg.Alpha.Provider == "bitget" {
+		item, _, ok := h.cfg.AlphaByBaseSymbol(symbol)
+		if !ok {
+			return "", false
+		}
+		return strings.ToUpper(strings.TrimSpace(item.Symbol)), true
+	}
 	resolved := alpha.ResolveItems(http.DefaultClient, h.cfg.Alpha.Indices, h.cfg.Alpha.Stocks, h.cfg.Alpha.QuoteAsset)
 	for _, item := range resolved {
 		if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
@@ -203,7 +211,13 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 		h.teardown(key)
 		return
 	}
-	candles, err := alpha.FetchKlines(http.DefaultClient, alphaPair, sub.interval, binance.DefaultKlineLimit)
+	var candles []binance.Candle
+	var err error
+	if h.cfg.Alpha.Provider == "bitget" {
+		candles, err = bitget.FetchKlines(http.DefaultClient, alphaPair, h.cfg.Alpha.ProductType, sub.interval, binance.DefaultKlineLimit)
+	} else {
+		candles, err = alpha.FetchKlines(http.DefaultClient, alphaPair, sub.interval, binance.DefaultKlineLimit)
+	}
 	if err != nil {
 		slog.Error("alpha kline history", "symbol", sub.symbol, "alpha_symbol", alphaPair, "interval", sub.interval, "err", err)
 		h.broadcastError(sub, "UPSTREAM_ERROR", err.Error())
@@ -223,10 +237,24 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 		Candles:  candles,
 		Source:   "binance-alpha",
 	}
+	if h.cfg.Alpha.Provider == "bitget" {
+		snap.Source = "bitget"
+	}
 	for c := range clients {
 		if err := c.WriteJSON(snap); err != nil {
 			h.removeClient(key, c)
 		}
+	}
+
+	if h.cfg.Alpha.Provider == "bitget" {
+		err = bitget.StreamKline(ctx, h.cfg.Alpha.ProductType, alphaPair, sub.interval, func(c binance.Candle) {
+			h.applyCandle(key, sub, c)
+		})
+		if err != nil && ctx.Err() == nil {
+			slog.Info("bitget alpha kline stream skipped", "symbol", sub.symbol, "alpha_symbol", alphaPair, "interval", sub.interval, "err", err)
+		}
+		h.teardown(key)
+		return
 	}
 
 	ticker := time.NewTicker(time.Minute)
@@ -251,6 +279,9 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 
 func (h *KlineHub) klineSource(symbol string) string {
 	if h.isAlphaSymbol(symbol) {
+		if h.cfg.Alpha.Provider == "bitget" {
+			return "bitget"
+		}
 		return "binance-alpha"
 	}
 	return "binance"

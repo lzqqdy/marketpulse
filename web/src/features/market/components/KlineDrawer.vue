@@ -39,7 +39,7 @@ const subtitle = computed(() => {
     return `${chartStore.source === 'eastmoney' || !chartStore.source ? '东方财富' : chartStore.source} 延迟行情 · MA5 / MA10 / MA20 / MA60`
   }
   if (chartStore.kind === 'alpha') {
-    return `${chartStore.source || 'binance-alpha'} · Tokenized Stocks · 仅供参考 · MA5 / MA10 / MA20 / MA60`
+    return `${chartStore.source || 'bitget'} · USDT-FUTURES · 仅供参考 · MA5 / MA10 / MA20 / MA60`
   }
   return `${chartStore.wsLive ? 'Binance WS 实时' : chartStore.source === 'mock' ? '演示 Mock' : chartStore.source} · MA5 / MA10 / MA20 / MA60`
 })

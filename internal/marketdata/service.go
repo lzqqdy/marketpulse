@@ -14,6 +14,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/marketdata/binance"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/alpha"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/bitget"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/equity"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/store"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/stream"
@@ -162,16 +163,20 @@ func (s *Service) Klines(symbol string, interval string, limit int) (KlineRespon
 	var candles []binance.Candle
 	var err error
 	if s.cfg.Alpha.Enabled && s.cfg.IsAlphaBaseSymbol(symbol) {
-		source = "binance-alpha"
+		source = s.alphaSource()
 		if alphaSymbol, ok := s.ingest.AlphaSymbolForBase(symbol); ok {
 			pair = alphaSymbol
 		}
-		if pair == binance.SymbolUSDT(symbol) {
+		if pair == binance.SymbolUSDT(symbol) && s.cfg.Alpha.Provider != "bitget" {
 			if alphaSymbol, ok := resolveAlphaPair(s.cfg, symbol); ok {
 				pair = alphaSymbol
 			}
 		}
-		candles, err = alpha.FetchKlines(http.DefaultClient, pair, interval, limit)
+		if s.cfg.Alpha.Provider == "bitget" {
+			candles, err = bitget.FetchKlines(http.DefaultClient, pair, s.cfg.Alpha.ProductType, interval, limit)
+		} else {
+			candles, err = alpha.FetchKlines(http.DefaultClient, pair, interval, limit)
+		}
 	} else {
 		candles, err = binance.FetchKlines(symbol, interval, limit)
 	}
@@ -185,6 +190,13 @@ func (s *Service) Klines(symbol string, interval string, limit int) (KlineRespon
 		Candles:  candles,
 		Source:   source,
 	}, nil
+}
+
+func (s *Service) alphaSource() string {
+	if s.cfg.Alpha.Provider == "bitget" {
+		return "bitget"
+	}
+	return "binance-alpha"
 }
 
 func (s *Service) IndexKlines(id string, interval string, limit int) (KlineResponse, error) {

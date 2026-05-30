@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/alpha"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/binance"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/bitget"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/store"
 )
 
@@ -30,6 +32,7 @@ type Service struct {
 	lastQuoteAt    atomic.Int64 // unix ms
 	lastAlphaAt    atomic.Int64 // unix ms
 	alphaItems     atomic.Value // []alpha.ResolvedItem
+	bitgetItems    atomic.Value // []bitget.ResolvedItem
 
 	sgeGoldMu sync.RWMutex
 	sgeGold   store.IndexQuote
@@ -45,7 +48,7 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 		equityCache:    newEquityCache(),
 		equityBreaker:  newEquityBreakers(),
 		ingestStatus:   newStatusTracker(),
-		providerHealth: newProviderHealthStore(defaultProviderDefs(cfg.Alpha.Enabled)),
+		providerHealth: newProviderHealthStore(defaultProviderDefs(cfg.Alpha.Enabled, cfg.Alpha.Provider)),
 		liquidations:   newLiquidationWindow(time.Hour),
 	}
 	s.binanceStatus.Store("starting")
@@ -69,7 +72,7 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 		s.ingestStatus.set("alpha_poll", "starting")
 		s.seedAlphaDefaults()
 	} else {
-		s.providerHealth.ReportDisabled("binance_alpha")
+		s.providerHealth.ReportDisabled(s.alphaProviderName())
 	}
 	return s
 }
@@ -84,7 +87,7 @@ func (s *Service) seedAlphaDefaults() {
 				Name:      item.Name,
 				Symbol:    strings.TrimSuffix(strings.ToUpper(item.Symbol), s.cfg.Alpha.QuoteAsset),
 				UpdatedAt: now,
-				Source:    "binance-alpha",
+				Source:    s.alphaSource(),
 				Category:  category,
 			})
 		}
@@ -148,6 +151,16 @@ func (s *Service) AlphaSymbolForBase(symbol string) (string, bool) {
 	if symbol == "" {
 		return "", false
 	}
+	if s.cfg.Alpha.Provider == "bitget" {
+		if v := s.bitgetItems.Load(); v != nil {
+			for _, item := range v.([]bitget.ResolvedItem) {
+				if item.BaseSymbol == symbol && item.Symbol != "" {
+					return item.Symbol, true
+				}
+			}
+		}
+		return "", false
+	}
 	if v := s.alphaItems.Load(); v != nil {
 		for _, item := range v.([]alpha.ResolvedItem) {
 			if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
@@ -208,14 +221,18 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 	if !s.cfg.Alpha.Enabled {
 		s.alphaStatus.Store("disabled")
 		s.ingestStatus.set("alpha_poll", "disabled")
-		s.providerHealth.ReportDisabled("binance_alpha")
+		s.providerHealth.ReportDisabled(s.alphaProviderName())
 		return
 	}
 	items := s.cfg.AlphaItems()
 	if len(items) == 0 {
 		s.alphaStatus.Store("disabled")
 		s.ingestStatus.set("alpha_poll", "disabled")
-		s.providerHealth.ReportDisabled("binance_alpha")
+		s.providerHealth.ReportDisabled(s.alphaProviderName())
+		return
+	}
+	if s.cfg.Alpha.Provider == "bitget" {
+		s.runBitgetAlphaWithRetry(ctx)
 		return
 	}
 
@@ -233,8 +250,16 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 
 		s.alphaStatus.Store("polling")
 		s.ingestStatus.set("alpha_poll", "polling")
-		resolved := s.resolveAlphaItems()
-		if len(resolved) == 0 {
+		var resolved []alpha.ResolvedItem
+		supported := 0
+		if s.cfg.Alpha.Provider == "bitget" {
+			bitgetResolved, _ := s.resolveBitgetItems()
+			supported = len(bitgetResolved)
+		} else {
+			resolved = s.resolveAlphaItems()
+			supported = len(resolved)
+		}
+		if supported == 0 {
 			s.alphaStatus.Store("reconnecting")
 			s.ingestStatus.set("alpha_poll", "reconnecting")
 			slog.Warn("alpha no supported symbols", "transport", "rest_poll", "retry_in", backoff)
@@ -250,7 +275,7 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 		}
 
 		backoff = time.Second
-		slog.Info("alpha polling started", "symbols", alphaItemSymbols(resolved), "interval", pollInterval, "transport", "rest_poll")
+		slog.Info("alpha polling started", "symbols", s.currentAlphaSymbols(resolved), "interval", pollInterval, "provider", s.cfg.Alpha.Provider, "transport", "rest_poll")
 		s.pollAlphaTickers(resolved)
 
 		pollTicker := time.NewTicker(pollInterval)
@@ -275,7 +300,82 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 	}
 }
 
+func (s *Service) runBitgetAlphaWithRetry(ctx context.Context) {
+	backoff := time.Second
+	const maxBackoff = 30 * time.Second
+
+	for {
+		if ctx.Err() != nil {
+			s.alphaStatus.Store("disconnected")
+			s.ingestStatus.set("alpha_poll", "disconnected")
+			return
+		}
+
+		s.alphaStatus.Store("connecting")
+		s.ingestStatus.set("alpha_poll", "connecting")
+		items, err := s.resolveBitgetItems()
+		if err != nil || len(items) == 0 {
+			if err == nil {
+				err = errors.New("bitget alpha: no supported symbols")
+			}
+			s.providerHealth.ReportFailure(s.alphaProviderName(), err)
+			slog.Warn("bitget alpha no supported symbols", "retry_in", backoff, "err", err)
+			select {
+			case <-ctx.Done():
+				s.alphaStatus.Store("disconnected")
+				s.ingestStatus.set("alpha_poll", "disconnected")
+				return
+			case <-time.After(backoff):
+			}
+			backoff = growBackoff(backoff, maxBackoff)
+			continue
+		}
+
+		backoff = time.Second
+		s.pollBitgetAlphaTickers()
+		symbols := make([]string, 0, len(items))
+		for _, item := range items {
+			symbols = append(symbols, item.Symbol)
+		}
+		s.alphaStatus.Store("connected")
+		s.ingestStatus.set("alpha_poll", "connected")
+		slog.Info("bitget alpha ticker ws connect", "symbols", symbols, "product_type", s.cfg.Alpha.ProductType)
+
+		err = bitget.StreamTicker(ctx, s.cfg.Alpha.ProductType, symbols, func(t bitget.Ticker) {
+			for _, item := range s.currentBitgetItems() {
+				if item.Symbol == t.Symbol {
+					s.onBitgetAlphaTicker(item, t)
+					s.providerHealth.ReportSuccess(s.alphaProviderName(), time.Since(t.UpdatedAt))
+					s.providerHealth.ReportUsed(s.alphaProviderName(), true)
+					return
+				}
+			}
+		})
+		if ctx.Err() != nil {
+			s.alphaStatus.Store("disconnected")
+			s.ingestStatus.set("alpha_poll", "disconnected")
+			return
+		}
+		s.alphaStatus.Store("reconnecting")
+		s.ingestStatus.set("alpha_poll", "reconnecting")
+		s.providerHealth.ReportFailure(s.alphaProviderName(), err)
+		slog.Warn("bitget alpha ticker ws disconnected", "err", err, "retry_in", backoff)
+		select {
+		case <-ctx.Done():
+			s.alphaStatus.Store("disconnected")
+			s.ingestStatus.set("alpha_poll", "disconnected")
+			return
+		case <-time.After(backoff):
+		}
+		backoff = growBackoff(backoff, maxBackoff)
+	}
+}
+
 func (s *Service) resolveAlphaItems() []alpha.ResolvedItem {
+	if s.cfg.Alpha.Provider == "bitget" {
+		_, _ = s.resolveBitgetItems()
+		return nil
+	}
 	resolved := alpha.ResolveItems(httpClient, s.cfg.Alpha.Indices, s.cfg.Alpha.Stocks, s.cfg.Alpha.QuoteAsset)
 	s.alphaItems.Store(resolved)
 	out := make([]alpha.ResolvedItem, 0, len(resolved))
@@ -293,6 +393,10 @@ func (s *Service) resolveAlphaItems() []alpha.ResolvedItem {
 }
 
 func (s *Service) pollAlphaTickers(items []alpha.ResolvedItem) {
+	if s.cfg.Alpha.Provider == "bitget" {
+		s.pollBitgetAlphaTickers()
+		return
+	}
 	succeeded := 0
 	start := time.Now()
 	var lastErr error
@@ -318,12 +422,12 @@ func (s *Service) pollAlphaTickers(items []alpha.ResolvedItem) {
 	if succeeded == 0 {
 		s.alphaStatus.Store("error")
 		s.ingestStatus.set("alpha_poll", "error")
-		s.providerHealth.ReportFailure("binance_alpha", lastErr)
+		s.providerHealth.ReportFailure(s.alphaProviderName(), lastErr)
 		slog.Warn("alpha ticker poll failed for all symbols", "requested", len(items), "transport", "rest_poll")
 		return
 	}
-	s.providerHealth.ReportSuccess("binance_alpha", time.Since(start))
-	s.providerHealth.ReportUsed("binance_alpha", true)
+	s.providerHealth.ReportSuccess(s.alphaProviderName(), time.Since(start))
+	s.providerHealth.ReportUsed(s.alphaProviderName(), true)
 	slog.Info("alpha ticker poll fetched", "requested", len(items), "succeeded", succeeded, "transport", "rest_poll")
 }
 
@@ -341,9 +445,126 @@ func (s *Service) onAlphaTicker(item alpha.ResolvedItem, t alpha.Ticker) {
 		ChangeDayPct: t.Change24hPct,
 		Volume:       t.Volume,
 		UpdatedAt:    t.UpdatedAt,
-		Source:       "binance-alpha",
+		Source:       s.alphaSource(),
 		Category:     item.Category,
 	})
+}
+
+func (s *Service) resolveBitgetItems() ([]bitget.ResolvedItem, error) {
+	resolved, missing, err := bitget.ResolveItems(httpClient, s.cfg.Alpha.Indices, s.cfg.Alpha.Stocks, s.cfg.Alpha.QuoteAsset, s.cfg.Alpha.ProductType)
+	if err != nil {
+		s.bitgetItems.Store([]bitget.ResolvedItem{})
+		s.providerHealth.ReportFailure(s.alphaProviderName(), err)
+		slog.Warn("bitget alpha resolve failed", "err", err)
+		return nil, err
+	}
+	for _, item := range missing {
+		slog.Warn("bitget alpha symbol unavailable", "symbol", item.Symbol, "id", item.ID)
+	}
+	if len(missing) > 0 {
+		s.providerHealth.ReportFailure(s.alphaProviderName(), errors.New("bitget alpha: some configured symbols are unavailable"))
+	}
+	s.bitgetItems.Store(resolved)
+	slog.Info("bitget alpha enabled", "indices", len(s.cfg.Alpha.Indices), "stocks", len(s.cfg.Alpha.Stocks), "supported", len(resolved), "missing", len(missing), "product_type", s.cfg.Alpha.ProductType)
+	return resolved, nil
+}
+
+func (s *Service) pollBitgetAlphaTickers() {
+	items := s.currentBitgetItems()
+	if len(items) == 0 {
+		items, _ = s.resolveBitgetItems()
+	}
+	if len(items) == 0 {
+		err := errors.New("bitget alpha: no supported symbols")
+		s.alphaStatus.Store("error")
+		s.ingestStatus.set("alpha_poll", "error")
+		s.providerHealth.ReportFailure(s.alphaProviderName(), err)
+		return
+	}
+	start := time.Now()
+	tickers, err := bitget.FetchTickers(httpClient, s.cfg.Alpha.ProductType)
+	if err != nil {
+		s.alphaStatus.Store("error")
+		s.ingestStatus.set("alpha_poll", "error")
+		s.providerHealth.ReportFailure(s.alphaProviderName(), err)
+		slog.Warn("bitget alpha ticker poll failed", "err", err)
+		return
+	}
+	succeeded := 0
+	for _, item := range items {
+		ticker, ok := tickers[item.Symbol]
+		if !ok {
+			slog.Warn("bitget alpha ticker missing", "symbol", item.Symbol, "id", item.Item.ID)
+			continue
+		}
+		s.onBitgetAlphaTicker(item, ticker)
+		succeeded++
+	}
+	if succeeded == 0 {
+		err := errors.New("bitget alpha: no configured ticker rows")
+		s.alphaStatus.Store("error")
+		s.ingestStatus.set("alpha_poll", "error")
+		s.providerHealth.ReportFailure(s.alphaProviderName(), err)
+		return
+	}
+	s.providerHealth.ReportSuccess(s.alphaProviderName(), time.Since(start))
+	s.providerHealth.ReportUsed(s.alphaProviderName(), true)
+	slog.Info("bitget alpha ticker poll fetched", "requested", len(items), "succeeded", succeeded, "transport", "rest_poll")
+}
+
+func (s *Service) currentBitgetItems() []bitget.ResolvedItem {
+	if v := s.bitgetItems.Load(); v != nil {
+		return v.([]bitget.ResolvedItem)
+	}
+	return nil
+}
+
+func (s *Service) currentAlphaSymbols(alphaItems []alpha.ResolvedItem) []string {
+	if s.cfg.Alpha.Provider != "bitget" {
+		return alphaItemSymbols(alphaItems)
+	}
+	items := s.currentBitgetItems()
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Symbol)
+	}
+	return out
+}
+
+func (s *Service) onBitgetAlphaTicker(item bitget.ResolvedItem, t bitget.Ticker) {
+	s.lastAlphaAt.Store(time.Now().UnixMilli())
+	s.alphaStatus.Store("connected")
+	s.ingestStatus.set("alpha_poll", "connected")
+
+	s.store.UpdateAlphaQuote(store.AlphaQuote{
+		ID:           item.Item.ID,
+		Name:         item.Item.Name,
+		Symbol:       item.BaseSymbol,
+		Price:        t.Price,
+		Change24hPct: t.Change24hPct,
+		ChangeDayPct: t.Change24hPct,
+		Volume:       t.Volume,
+		MarkPrice:    t.MarkPrice,
+		IndexPrice:   t.IndexPrice,
+		FundingRate:  t.FundingRate,
+		UpdatedAt:    t.UpdatedAt,
+		Source:       s.alphaSource(),
+		Category:     item.Category,
+	})
+}
+
+func (s *Service) alphaProviderName() string {
+	if s.cfg.Alpha.Provider == "bitget" {
+		return "bitget_alpha"
+	}
+	return "binance_alpha"
+}
+
+func (s *Service) alphaSource() string {
+	if s.cfg.Alpha.Provider == "bitget" {
+		return "bitget"
+	}
+	return "binance-alpha"
 }
 
 func growBackoff(current, max time.Duration) time.Duration {

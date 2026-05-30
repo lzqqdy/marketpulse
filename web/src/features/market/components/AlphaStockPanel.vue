@@ -30,7 +30,7 @@ const alphaMetaText = computed(() => {
   const updatedText = Number.isFinite(latestTime)
     ? new Date(latestTime).toLocaleString('zh-CN', { hour12: false })
     : '--'
-  const source = store.alpha.source || 'binance-alpha'
+  const source = store.alpha.source || 'bitget'
   return `更新于 ${updatedText} · ${source}`
 })
 

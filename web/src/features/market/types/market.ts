@@ -42,6 +42,9 @@ export interface AlphaQuote {
   change24hPct: number
   changeDayPct: number
   volume: number
+  markPrice?: number
+  indexPrice?: number
+  fundingRate?: number
   updatedAt: string
   source: string
   category: 'index' | 'stock'

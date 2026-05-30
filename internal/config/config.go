@@ -49,6 +49,8 @@ type BinanceConfig struct {
 // AlphaConfig configures Binance Alpha / tokenized stocks reference quotes.
 type AlphaConfig struct {
 	Enabled         bool          `yaml:"enabled"`
+	Provider        string        `yaml:"provider"`
+	ProductType     string        `yaml:"product_type"`
 	QuoteAsset      string        `yaml:"quote_asset"`
 	PollInterval    time.Duration `yaml:"poll_interval"`
 	ResolveInterval time.Duration `yaml:"resolve_interval"`
@@ -90,18 +92,18 @@ var DefaultEquityIndexIDs = []string{
 }
 
 var DefaultAlphaIndices = []AlphaItem{
-	{ID: "qqqon", Name: "QQQ", Symbol: "QQQONUSDT"},
-	{ID: "spyon", Name: "SPY", Symbol: "SPYONUSDT"},
+	{ID: "qqq", Name: "纳指ETF", Symbol: "QQQUSDT"},
+	{ID: "spy", Name: "标普ETF", Symbol: "SPYUSDT"},
 }
 
 var DefaultAlphaStocks = []AlphaItem{
-	{ID: "aaplon", Name: "AAPL", Symbol: "AAPLONUSDT"},
-	{ID: "msfton", Name: "MSFT", Symbol: "MSFTONUSDT"},
-	{ID: "nvdaon", Name: "NVDA", Symbol: "NVDAONUSDT"},
-	{ID: "amznon", Name: "AMZN", Symbol: "AMZNONUSDT"},
-	{ID: "googlon", Name: "GOOGL", Symbol: "GOOGLONUSDT"},
-	{ID: "metaon", Name: "META", Symbol: "METAONUSDT"},
-	{ID: "tslaon", Name: "TSLA", Symbol: "TSLAONUSDT"},
+	{ID: "aapl", Name: "苹果", Symbol: "AAPLUSDT"},
+	{ID: "msft", Name: "微软", Symbol: "MSFTUSDT"},
+	{ID: "nvda", Name: "英伟达", Symbol: "NVDAUSDT"},
+	{ID: "amzn", Name: "亚马逊", Symbol: "AMZNUSDT"},
+	{ID: "googl", Name: "谷歌", Symbol: "GOOGLUSDT"},
+	{ID: "meta", Name: "Meta", Symbol: "METAUSDT"},
+	{ID: "tsla", Name: "特斯拉", Symbol: "TSLAUSDT"},
 }
 
 // MacroConfig configures macro indicator polling.
@@ -145,6 +147,12 @@ func (c *Config) applyDefaults() {
 	if c.Alpha.QuoteAsset == "" {
 		c.Alpha.QuoteAsset = "USDT"
 	}
+	if c.Alpha.Provider == "" {
+		c.Alpha.Provider = "bitget"
+	}
+	if c.Alpha.ProductType == "" {
+		c.Alpha.ProductType = "USDT-FUTURES"
+	}
 	if c.Alpha.PollInterval == 0 {
 		c.Alpha.PollInterval = 30 * time.Second
 	}
@@ -158,8 +166,10 @@ func (c *Config) applyDefaults() {
 		c.Alpha.Stocks = append([]AlphaItem(nil), DefaultAlphaStocks...)
 	}
 	c.Alpha.QuoteAsset = strings.ToUpper(strings.TrimSpace(c.Alpha.QuoteAsset))
-	c.Alpha.Indices = normalizeAlphaItems(c.Alpha.Indices, c.Alpha.QuoteAsset)
-	c.Alpha.Stocks = normalizeAlphaItems(c.Alpha.Stocks, c.Alpha.QuoteAsset)
+	c.Alpha.Provider = strings.ToLower(strings.TrimSpace(c.Alpha.Provider))
+	c.Alpha.ProductType = strings.ToUpper(strings.TrimSpace(c.Alpha.ProductType))
+	c.Alpha.Indices = normalizeAlphaItems(c.Alpha.Indices, c.Alpha.QuoteAsset, c.Alpha.Provider)
+	c.Alpha.Stocks = normalizeAlphaItems(c.Alpha.Stocks, c.Alpha.QuoteAsset, c.Alpha.Provider)
 	if c.Ingest.OTC.USDTCNYInterval == 0 {
 		c.Ingest.OTC.USDTCNYInterval = 30 * time.Second
 	}
@@ -209,13 +219,16 @@ func (c *Config) applyDefaults() {
 	c.Symbols = normalized
 }
 
-func normalizeAlphaItems(items []AlphaItem, quoteAsset string) []AlphaItem {
+func normalizeAlphaItems(items []AlphaItem, quoteAsset string, provider string) []AlphaItem {
 	out := make([]AlphaItem, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
 		item.ID = strings.ToLower(strings.TrimSpace(item.ID))
 		item.Name = strings.TrimSpace(item.Name)
 		item.Symbol = strings.ToUpper(strings.TrimSpace(item.Symbol))
+		if provider == "bitget" && strings.HasSuffix(strings.TrimSuffix(item.Symbol, quoteAsset), "ON") {
+			item.Symbol = strings.TrimSuffix(strings.TrimSuffix(item.Symbol, quoteAsset), "ON") + quoteAsset
+		}
 		if item.Symbol == "" && item.ID != "" {
 			item.Symbol = strings.ToUpper(item.ID) + quoteAsset
 		}
@@ -257,6 +270,11 @@ func (c *Config) validate() error {
 	case "debug", "release":
 	default:
 		return fmt.Errorf("config: app.mode must be debug or release, got %q", c.App.Mode)
+	}
+	switch c.Alpha.Provider {
+	case "", "bitget", "binance":
+	default:
+		return fmt.Errorf("config: alpha.provider must be bitget or binance, got %q", c.Alpha.Provider)
 	}
 	return nil
 }

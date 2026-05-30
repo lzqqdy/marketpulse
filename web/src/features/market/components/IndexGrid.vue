@@ -38,12 +38,12 @@ const REGION_ORDER: IndexRegion[] = ['中国', '香港', '美国', '日本', '�
 
 const ASIA_MAP_ORDER = ['n225', 'ks11', 'sh000001', 'sz399001', 'sz399006', 'sh000688', 'hsi'] as const
 const US_MAP_ORDER = ['dji', 'ixic', 'gspc'] as const
-const COMMODITY_MAP_ORDER = ['gold', 'silver', 'crude'] as const
+const COMMODITY_MAP_ORDER = ['gold', 'silver', 'crude', 'sge-au9999'] as const
 
 const store = useMarketStore()
 const chartStore = useChartStore()
 const { priceClass } = useTrendClass()
-const viewMode = ref<'map' | 'grid'>('grid')
+const viewMode = ref<'map' | 'grid'>('map')
 const liveStartedAt = ref(Date.now())
 let tickTimer: ReturnType<typeof setInterval> | null = null
 const nowMs = ref(Date.now())
@@ -119,7 +119,7 @@ const indicesCachedHint = computed(() => {
   return ''
 })
 
-const mapItems = computed(() => indices.value.filter((item) => item.id !== 'sge-au9999'))
+const mapItems = computed(() => indices.value)
 
 function sortMapItems(items: (IndexQuote & { meta: IndexMeta })[], order: readonly string[]) {
   const rank = new Map(order.map((id, index) => [id, index]))
@@ -182,20 +182,20 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
         <button
           type="button"
           class="view-btn"
-          :class="{ active: viewMode === 'grid' }"
-          aria-label="方块视图"
-          @click="viewMode = 'grid'"
-        >
-          ▦
-        </button>
-        <button
-          type="button"
-          class="view-btn"
           :class="{ active: viewMode === 'map' }"
           aria-label="地图视图"
           @click="viewMode = 'map'"
         >
           ◫
+        </button>
+        <button
+          type="button"
+          class="view-btn"
+          :class="{ active: viewMode === 'grid' }"
+          aria-label="方块视图"
+          @click="viewMode = 'grid'"
+        >
+          ▦
         </button>
       </div>
     </header>
@@ -217,7 +217,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
             :key="item.id"
             type="button"
             class="map-bubble"
-            :class="[bubbleClass(item), { stale: item.stale }]"
+            :class="[bubbleClass(item), { stale: item.stale, disabled: !canOpenChart(item) }]"
             @click="openChart(item)"
           >
             <span>{{ item.meta.shortName ?? item.name }}</span>
@@ -277,6 +277,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
       </article>
     </div>
 
+    <!--
     <div v-if="viewMode === 'map' && groupedIndices.length > 0" class="index-list">
       <section v-for="group in groupedIndices" :key="group.region" class="region-group">
         <h3>{{ group.region }}</h3>
@@ -299,6 +300,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
         </button>
       </section>
     </div>
+    -->
   </section>
 </template>
 
@@ -512,6 +514,14 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 
 .map-bubble:hover {
   filter: brightness(1.12);
+}
+
+.map-bubble.disabled {
+  cursor: default;
+}
+
+.map-bubble.disabled:hover {
+  filter: none;
 }
 
 .map-bubble.stale,
