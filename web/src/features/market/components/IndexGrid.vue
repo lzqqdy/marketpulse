@@ -194,7 +194,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
           aria-label="地图视图"
           @click="viewMode = 'map'"
         >
-          ◫
+          <span class="view-icon view-icon-list" aria-hidden="true"></span>
         </button>
         <button
           type="button"
@@ -203,7 +203,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
           aria-label="方块视图"
           @click="viewMode = 'grid'"
         >
-          ▦
+          <span class="view-icon view-icon-grid" aria-hidden="true"></span>
         </button>
       </div>
     </header>
@@ -354,15 +354,38 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   border-radius: 6px;
   background: var(--card-soft);
   color: var(--muted);
-  font-size: 18px;
-  line-height: 1;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .view-btn.active {
   color: var(--warning);
   border-color: rgba(240, 185, 11, 0.7);
   background: rgba(240, 185, 11, 0.08);
+}
+
+.view-icon {
+  width: 13px;
+  height: 13px;
+  color: currentColor;
+}
+
+.view-icon-list {
+  background:
+    linear-gradient(currentColor 0 0) 0 1px / 13px 2px no-repeat,
+    linear-gradient(currentColor 0 0) 0 6px / 13px 2px no-repeat,
+    linear-gradient(currentColor 0 0) 0 11px / 13px 2px no-repeat;
+}
+
+.view-icon-grid {
+  background-image:
+    linear-gradient(currentColor 1px, transparent 1px),
+    linear-gradient(90deg, currentColor 1px, transparent 1px);
+  background-size: 4px 4px;
+  border: 1px solid currentColor;
+  opacity: 0.95;
 }
 
 .heatmap-preview {
