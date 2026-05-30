@@ -39,6 +39,8 @@ The market data module is responsible for:
 - Reporting provider health.
 - Serving kline data.
 
+Provider details are documented in [`DATA_SOURCES.md`](./DATA_SOURCES.md). New providers should be added there before or alongside implementation.
+
 The market data module is not responsible for:
 
 - User accounts or permissions.
