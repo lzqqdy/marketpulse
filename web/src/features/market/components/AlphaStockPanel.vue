@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useMarketStore } from '@/features/market/stores/market'
 import { useChartStore } from '@/features/market/stores/chart'
 import { useTrendClass } from '@/features/market/composables/useTrendClass'
@@ -9,13 +9,21 @@ import type { AlphaQuote } from '@/features/market/types/market'
 const store = useMarketStore()
 const chartStore = useChartStore()
 const { priceClass, badgeClass } = useTrendClass()
+const expanded = ref(false)
+const gridColumns = ref(3)
+const COLLAPSED_ROWS = 3
+let mediaQuery: MediaQueryList | null = null
 
-const mode = ref<'indices' | 'stocks'>('indices')
-
-const rows = computed(() =>
-  (mode.value === 'indices' ? store.alpha.indices ?? [] : store.alpha.stocks ?? [])
+const allRows = computed(() =>
+  [...(store.alpha.indices ?? []), ...(store.alpha.stocks ?? [])]
     .filter((item) => Number.isFinite(item.price) && item.price > 0),
 )
+
+const collapsedCount = computed(() => gridColumns.value * COLLAPSED_ROWS)
+const rows = computed(() =>
+  expanded.value ? allRows.value : allRows.value.slice(0, collapsedCount.value),
+)
+const canToggle = computed(() => allRows.value.length > collapsedCount.value)
 
 const alphaMetaText = computed(() => {
   const rowTimes = [...(store.alpha.indices ?? []), ...(store.alpha.stocks ?? [])]
@@ -34,6 +42,20 @@ const alphaMetaText = computed(() => {
   return `更新于 ${updatedText} · ${source}`
 })
 
+function updateGridColumns() {
+  gridColumns.value = mediaQuery?.matches ? 2 : 3
+}
+
+onMounted(() => {
+  mediaQuery = window.matchMedia('(max-width: 420px)')
+  updateGridColumns()
+  mediaQuery.addEventListener('change', updateGridColumns)
+})
+
+onUnmounted(() => {
+  mediaQuery?.removeEventListener('change', updateGridColumns)
+})
+
 function openAlpha(item: AlphaQuote) {
   chartStore.openAlpha(item)
 }
@@ -48,28 +70,12 @@ function formatAlphaPrice(value: number) {
   <section v-if="store.alpha.indices.length || store.alpha.stocks.length" class="alpha-panel">
     <header class="alpha-header">
       <div>
-        <h2>Alpha 美股参考</h2>
+        <h2>美股参考</h2>
         <p>{{ alphaMetaText }}</p>
-      </div>
-      <div class="switch" role="tablist" aria-label="Alpha 美股参考分类">
-        <button
-          type="button"
-          :class="{ active: mode === 'indices' }"
-          @click="mode = 'indices'"
-        >
-          指数ETF
-        </button>
-        <button
-          type="button"
-          :class="{ active: mode === 'stocks' }"
-          @click="mode = 'stocks'"
-        >
-          科技热门
-        </button>
       </div>
     </header>
 
-    <div class="alpha-grid" :class="{ compact: mode === 'stocks' }">
+    <div class="alpha-grid">
       <button
         v-for="item in rows"
         :key="item.id"
@@ -91,6 +97,17 @@ function formatAlphaPrice(value: number) {
         </span>
       </button>
     </div>
+    <button
+      v-if="canToggle"
+      type="button"
+      class="alpha-toggle"
+      :aria-label="expanded ? '收起美股参考列表' : '展开美股参考列表'"
+      @click="expanded = !expanded"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ expanded }">
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </button>
   </section>
 </template>
 
@@ -127,38 +144,10 @@ function formatAlphaPrice(value: number) {
   color: var(--muted);
 }
 
-.switch {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-self: flex-start;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 2px;
-}
-
-.switch button {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  padding: 5px 7px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.switch button.active {
-  background: rgba(240, 185, 11, 0.14);
-  color: var(--warning);
-}
-
 .alpha-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-}
-
-.alpha-grid.compact {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .alpha-card {
@@ -241,13 +230,43 @@ function formatAlphaPrice(value: number) {
   background-color: var(--badge-flat);
 }
 
+.alpha-toggle {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 18px;
+  margin: 6px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.alpha-toggle:hover {
+  color: var(--warning);
+}
+
+.alpha-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.18s ease;
+}
+
+.alpha-toggle svg.expanded {
+  transform: rotate(180deg);
+}
+
 @media (max-width: 420px) {
   .alpha-header {
     align-items: flex-start;
   }
 
-  .alpha-grid,
-  .alpha-grid.compact {
+  .alpha-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

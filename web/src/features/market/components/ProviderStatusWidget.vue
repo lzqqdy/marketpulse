@@ -24,6 +24,16 @@ const roleText: Record<string, string> = {
   auxiliary: '辅助',
 }
 
+const categoryText: Record<string, string> = {
+  crypto: '实时行情',
+  index: '指数行情',
+  forex: '汇率',
+  macro: '宏观指标',
+  derivatives: '衍生品',
+  alpha: '美股参考',
+  other: '其他',
+}
+
 const summaryText = computed(() => {
   const overall = store.overall
   if (!overall) return store.loading ? '数据源：加载中' : '数据源：--'
@@ -63,6 +73,10 @@ function usageLabel(row: ProviderHealth) {
   const role = roleText[row.role] ?? row.role
   if (row.current_used) return `${role} · 当前使用`
   return role || '-'
+}
+
+function categoryLabel(category: string) {
+  return categoryText[category] ?? category
 }
 
 function togglePanel() {
@@ -138,7 +152,7 @@ function togglePanel() {
             <div v-for="row in group.rows" :key="row.name" class="provider-row">
               <span class="provider-name">
                 <strong>{{ row.label }}</strong>
-                <small>{{ row.category }}</small>
+                <small>{{ categoryLabel(row.category) }}</small>
               </span>
               <span class="state-pill" :class="row.status">{{ statusText[row.status] ?? row.status }}</span>
               <span>{{ latencyLabel(row.latency_ms) }}</span>

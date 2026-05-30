@@ -25,7 +25,7 @@ export const useProviderStore = defineStore('providers', () => {
       forex: '汇率',
       macro: '宏观指标',
       derivatives: '衍生品',
-      alpha: 'Alpha',
+      alpha: '美股参考',
       other: '其他',
     }
     const order = ['crypto', 'index', 'forex', 'macro', 'derivatives', 'alpha', 'other']
