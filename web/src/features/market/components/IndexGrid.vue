@@ -402,7 +402,6 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 
 .heatmap-preview::after {
   content: "";
-  position: relative;
   position: absolute;
   inset: 0;
   pointer-events: none;

@@ -52,6 +52,25 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
   let ro: ResizeObserver | null = null
   let themeObserver: MutationObserver | null = null
 
+  function resetInteraction() {
+    crosshairPrice.value = null
+    crosshairTime.value = ''
+    crosshairCandle.value = null
+    crosshairPoint.value = null
+    pinnedCandle.value = null
+    pinnedPoint.value = null
+  }
+
+  function destroyChart() {
+    ro?.disconnect()
+    ro = null
+    chartRef.value?.remove()
+    chartRef.value = null
+    candleSeries.value = null
+    volumeSeries.value = null
+    maSeries.value = []
+  }
+
   function cssVar(name: string, fallback: string) {
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
     return value || fallback
@@ -61,12 +80,7 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
     const el = container.value
     if (!el) return
 
-    if (chartRef.value) {
-      chartRef.value.remove()
-      chartRef.value = null
-    }
-    ro?.disconnect()
-    ro = null
+    destroyChart()
 
     const bg = cssVar('--panel', '#0b0e11')
     const text = cssVar('--muted', '#848e9c')
@@ -264,6 +278,9 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
       if (el) {
         buildChart()
         if (candles.value.length) setData(candles.value)
+      } else {
+        destroyChart()
+        resetInteraction()
       }
     },
     { flush: 'post' },
@@ -272,7 +289,11 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
   watch(
     candles,
     (data, prev) => {
-      if (!data.length || !candleSeries.value) return
+      if (!data.length) {
+        resetInteraction()
+        return
+      }
+      if (!candleSeries.value) return
       if (pinnedCandle.value && !data.some((c) => c.time === pinnedCandle.value?.time)) {
         pinnedCandle.value = null
         pinnedPoint.value = null
@@ -315,9 +336,9 @@ export function useKlineChart(container: Ref<HTMLElement | null>, candles: Ref<C
   })
 
   onUnmounted(() => {
-    ro?.disconnect()
     themeObserver?.disconnect()
-    chartRef.value?.remove()
+    destroyChart()
+    resetInteraction()
   })
 
   return {
