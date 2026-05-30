@@ -147,6 +147,14 @@ const commodityMapItems = computed(() =>
   ),
 )
 
+const heatmapGroups = computed(() =>
+  [
+    { key: 'asia', title: '亚洲市场', items: asiaMapItems.value },
+    { key: 'us', title: '美国市场', items: usMapItems.value },
+    { key: 'commodity', title: '商品', items: commodityMapItems.value },
+  ].filter((group) => group.items.length > 0),
+)
+
 const groupedIndices = computed(() =>
   REGION_ORDER.map((region) => ({
     region,
@@ -208,45 +216,21 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
       指数暂不可用，约 2 分钟后自动重试
     </p>
 
-    <div v-if="viewMode === 'map'" class="world-preview">
-      <section class="map-column map-column-asia" aria-label="亚洲市场">
-        <h3 class="map-column-title">亚洲市场</h3>
-        <div class="map-bubble-row">
+    <div v-if="viewMode === 'map'" class="heatmap-preview">
+      <section
+        v-for="group in heatmapGroups"
+        :key="group.key"
+        class="heatmap-section"
+        :class="`heatmap-section-${group.key}`"
+      >
+        <h3 class="heatmap-title">{{ group.title }}</h3>
+        <div class="heatmap-bubbles">
           <button
-            v-for="item in asiaMapItems"
+            v-for="item in group.items"
             :key="item.id"
             type="button"
             class="map-bubble"
             :class="[bubbleClass(item), { stale: item.stale, disabled: !canOpenChart(item) }]"
-            @click="openChart(item)"
-          >
-            <span>{{ item.meta.shortName ?? item.name }}</span>
-            <strong>{{ formatPct(item.changePct) }}</strong>
-          </button>
-        </div>
-      </section>
-      <section class="map-column map-column-us" aria-label="美国市场">
-        <h3 class="map-column-title">美国市场</h3>
-        <div class="map-bubble-row map-bubble-row-us">
-          <button
-            v-for="item in usMapItems"
-            :key="item.id"
-            type="button"
-            class="map-bubble"
-            :class="[bubbleClass(item), { stale: item.stale }]"
-            @click="openChart(item)"
-          >
-            <span>{{ item.meta.shortName ?? item.name }}</span>
-            <strong>{{ formatPct(item.changePct) }}</strong>
-          </button>
-        </div>
-        <div class="map-bubble-row map-bubble-row-commodity">
-          <button
-            v-for="item in commodityMapItems"
-            :key="item.id"
-            type="button"
-            class="map-bubble"
-            :class="[bubbleClass(item), { stale: item.stale }]"
             @click="openChart(item)"
           >
             <span>{{ item.meta.shortName ?? item.name }}</span>
@@ -381,47 +365,21 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   background: rgba(240, 185, 11, 0.08);
 }
 
-.world-preview {
+.heatmap-preview {
   position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  min-height: clamp(220px, 32vw, 280px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   overflow: hidden;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--map-panel);
+  padding: 10px;
 }
 
-.world-preview::before {
+.heatmap-preview::after {
   content: "";
-  position: absolute;
-  inset: 12px 50%;
-  width: 1px;
-  transform: translateX(-50%);
-  background: linear-gradient(180deg, transparent, var(--map-divider), transparent);
-  pointer-events: none;
-  z-index: 2;
-}
-
-.map-column {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  min-width: 0;
-  padding: 12px 10px 14px;
-}
-
-.map-column::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.95;
-}
-
-.map-column::after {
-  content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -430,18 +388,20 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   background-size: 16px 16px;
 }
 
-.map-column-asia::before {
-  background: var(--map-asia-bg);
-}
-
-.map-column-us::before {
-  background: var(--map-us-bg);
-}
-
-.map-column-title {
+.heatmap-section {
   position: relative;
   z-index: 1;
-  margin: 0 0 10px;
+  min-width: 0;
+  border-radius: 6px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--card-soft) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+}
+
+.heatmap-title {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 8px;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
@@ -449,7 +409,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   letter-spacing: 0.04em;
 }
 
-.map-bubble-row {
+.heatmap-bubbles {
   position: relative;
   z-index: 1;
   display: flex;
@@ -457,29 +417,14 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  flex: 1;
   min-height: 0;
 }
 
-.map-column-asia .map-bubble-row,
-.map-column-us .map-bubble-row {
-  align-content: center;
-}
-
-.map-column-us {
-  gap: 12px;
-}
-
-.map-bubble-row-us {
-  flex: 0 0 auto;
-  min-height: 82px;
-}
-
-.map-bubble-row-commodity {
-  flex: 0 0 auto;
-  min-height: 62px;
-  padding-top: 2px;
-  border-top: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+.heatmap-section-asia .heatmap-bubbles {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  justify-content: center;
+  align-items: center;
 }
 
 .map-bubble {
@@ -701,16 +646,21 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 }
 
 @media (max-width: 430px) {
-  .world-preview {
-    min-height: 248px;
+  .heatmap-preview {
+    padding: 8px;
+    gap: 7px;
   }
 
-  .map-column {
-    padding: 10px 6px 12px;
+  .heatmap-section {
+    padding: 7px;
   }
 
-  .map-bubble-row {
+  .heatmap-bubbles {
     gap: 8px;
+  }
+
+  .heatmap-section-asia .heatmap-bubbles {
+    grid-template-columns: repeat(4, max-content);
   }
 
   .map-bubble {
@@ -742,6 +692,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   .bubble-lg strong {
     font-size: 12px;
   }
+
 }
 
 @media (min-width: 760px) {
