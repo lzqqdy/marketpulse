@@ -17,10 +17,17 @@ interface IndexMeta {
   shortName?: string
 }
 
+type IndexMapItem = IndexQuote & {
+  meta: IndexMeta
+  visualSize: number
+  marker: 'top' | 'worstDown' | 'weakUp' | ''
+}
+
 const INDEX_META: Record<string, IndexMeta> = {
   sh000001: { region: '中国', flag: '🇨🇳', x: 54, y: 49, size: 'sm', shortName: '上证' },
   sz399001: { region: '中国', flag: '🇨🇳', x: 48, y: 59, size: 'sm', shortName: '深证' },
   sz399006: { region: '中国', flag: '🇨🇳', x: 52, y: 64, size: 'sm', shortName: '创业板' },
+  sh000300: { region: '中国', flag: '🇨🇳', x: 55, y: 53, size: 'sm', shortName: '沪深300' },
   sh000688: { region: '中国', flag: '🇨🇳', x: 58, y: 56, size: 'sm', shortName: '科创50' },
   hsi: { region: '香港', flag: '🇭🇰', x: 38, y: 62, size: 'md', shortName: '恒生' },
   dji: { region: '美国', flag: '🇺🇸', x: 82, y: 34, size: 'sm', shortName: '道琼斯' },
@@ -36,8 +43,8 @@ const INDEX_META: Record<string, IndexMeta> = {
 
 const REGION_ORDER: IndexRegion[] = ['中国', '香港', '美国', '日本', '韩国', '商品']
 
-const ASIA_MAP_ORDER = ['n225', 'ks11', 'sh000001', 'sz399001', 'sz399006', 'sh000688', 'hsi'] as const
-const US_MAP_ORDER = ['dji', 'ixic', 'gspc'] as const
+const ASIA_MAP_ORDER = ['n225', 'ks11', 'sh000001', 'sz399001', 'sz399006', 'sh000300', 'sh000688', 'hsi'] as const
+const US_MAP_ORDER = ['ixic', 'dji', 'gspc'] as const
 const COMMODITY_MAP_ORDER = ['gold', 'silver', 'crude', 'sge-au9999'] as const
 
 const store = useMarketStore()
@@ -147,11 +154,32 @@ const commodityMapItems = computed(() =>
   ),
 )
 
+function scaleMapItems(items: (IndexQuote & { meta: IndexMeta })[], minSize = 44, maxSize = 68): IndexMapItem[] {
+  if (items.length === 0) return []
+  const changes = items.map((item) => item.changePct).filter(Number.isFinite)
+  const maxChange = changes.length > 0 ? Math.max(...changes) : 0
+  const minChange = changes.length > 0 ? Math.min(...changes) : 0
+  const range = maxChange - minChange
+
+  return items.map((item) => {
+    const normalized = range > 0 ? (item.changePct - minChange) / range : 0.5
+    const visualSize = Math.round(minSize + normalized * (maxSize - minSize))
+    const marker = range > 0 && item.changePct === maxChange
+      ? 'top'
+      : range > 0 && item.changePct === minChange && item.changePct < 0
+        ? 'worstDown'
+        : range > 0 && item.changePct === minChange && item.changePct > 0
+          ? 'weakUp'
+          : ''
+    return { ...item, visualSize, marker }
+  })
+}
+
 const heatmapGroups = computed(() =>
   [
-    { key: 'asia', title: '亚洲市场', items: asiaMapItems.value },
-    { key: 'us', title: '美国市场', items: usMapItems.value },
-    { key: 'commodity', title: '商品', items: commodityMapItems.value },
+    { key: 'asia', title: '亚洲市场', items: scaleMapItems(asiaMapItems.value) },
+    { key: 'us', title: '美国市场', items: scaleMapItems(usMapItems.value, 52, 62) },
+    { key: 'commodity', title: '商品', items: scaleMapItems(commodityMapItems.value) },
   ].filter((group) => group.items.length > 0),
 )
 
@@ -171,8 +199,15 @@ function openChart(item: IndexQuote) {
   chartStore.openIndex(item)
 }
 
-function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
-  return [`bubble-${item.meta.size}`, priceClass(item.changePct)]
+function bubbleClass(item: IndexMapItem) {
+  return [priceClass(item.changePct), { champion: item.marker === 'top', weakest: item.marker === 'worstDown' || item.marker === 'weakUp' }]
+}
+
+function markerIcon(marker: IndexMapItem['marker']) {
+  if (marker === 'top') return '👑'
+  if (marker === 'worstDown') return '💩'
+  if (marker === 'weakUp') return '☀️'
+  return ''
 }
 
 </script>
@@ -231,8 +266,12 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
             type="button"
             class="map-bubble"
             :class="[bubbleClass(item), { stale: item.stale, disabled: !canOpenChart(item) }]"
+            :style="{ '--bubble-size': `${item.visualSize}px` }"
             @click="openChart(item)"
           >
+            <span v-if="item.marker" class="bubble-marker" aria-hidden="true">
+              {{ markerIcon(item.marker) }}
+            </span>
             <span>{{ item.meta.shortName ?? item.name }}</span>
             <strong>{{ formatPct(item.changePct) }}</strong>
           </button>
@@ -390,8 +429,11 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 
 .heatmap-preview {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "asia asia"
+    "us commodity";
   gap: 8px;
   overflow: hidden;
   border-radius: 8px;
@@ -413,17 +455,31 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 .heatmap-section {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   border-radius: 6px;
-  padding: 8px;
+  padding: 7px;
   background: color-mix(in srgb, var(--card-soft) 78%, transparent);
   border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+}
+
+.heatmap-section-asia {
+  grid-area: asia;
+}
+
+.heatmap-section-us {
+  grid-area: us;
+}
+
+.heatmap-section-commodity {
+  grid-area: commodity;
 }
 
 .heatmap-title {
   position: relative;
   z-index: 1;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
@@ -438,20 +494,44 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 7px;
   min-height: 0;
+  flex: 1;
 }
 
 .heatmap-section-asia .heatmap-bubbles {
   display: grid;
-  grid-template-columns: repeat(4, max-content);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   justify-content: center;
+  justify-items: center;
   align-items: center;
+  row-gap: 6px;
+  column-gap: 6px;
+}
+
+.heatmap-section-us .heatmap-bubbles,
+.heatmap-section-commodity .heatmap-bubbles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-items: center;
+  align-items: center;
+  row-gap: 8px;
+  column-gap: 6px;
+}
+
+.heatmap-section-us .heatmap-bubbles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.heatmap-section-us .map-bubble:first-child {
+  grid-column: 1 / -1;
 }
 
 .map-bubble {
   position: relative;
   flex: 0 0 auto;
+  width: var(--bubble-size);
+  height: var(--bubble-size);
   border: 2px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   color: #fff;
@@ -467,6 +547,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   cursor: pointer;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  transition: filter 0.16s ease, transform 0.16s ease;
 }
 
 .map-bubble.up {
@@ -481,6 +562,7 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 
 .map-bubble:hover {
   filter: brightness(1.12);
+  transform: translateY(-1px);
 }
 
 .map-bubble.disabled {
@@ -489,12 +571,37 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
 
 .map-bubble.disabled:hover {
   filter: none;
+  transform: none;
 }
 
 .map-bubble.stale,
 .index-card.stale,
 .index-row.stale {
   opacity: 0.78;
+}
+
+.map-bubble.champion {
+  border-color: color-mix(in srgb, var(--warning) 70%, rgba(255, 255, 255, 0.18));
+}
+
+.map-bubble.weakest {
+  opacity: 0.88;
+}
+
+.bubble-marker {
+  position: absolute;
+  top: -10px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: 0 4px 10px var(--shadow);
 }
 
 .map-bubble span {
@@ -504,32 +611,36 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   white-space: normal;
 }
 
+.heatmap-section-us .map-bubble span {
+  max-width: calc(var(--bubble-size) - 8px);
+  font-size: 9px;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.heatmap-section-us .map-bubble strong {
+  font-size: 10px;
+}
+
 .map-bubble strong {
   font-size: 11px;
   line-height: 1.1;
 }
 
-.bubble-sm {
-  width: 50px;
-  height: 50px;
-}
-
-.bubble-md {
-  width: 58px;
-  height: 58px;
-}
-
-.bubble-lg {
-  width: 66px;
-  height: 66px;
-}
-
-.bubble-lg span {
+.map-bubble.champion span {
   font-size: 12px;
 }
 
-.bubble-lg strong {
+.map-bubble.champion strong {
   font-size: 13px;
+}
+
+.heatmap-section-us .map-bubble.champion span {
+  font-size: 10px;
+}
+
+.heatmap-section-us .map-bubble.champion strong {
+  font-size: 11px;
 }
 
 .index-grid {
@@ -678,11 +789,11 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
   }
 
   .heatmap-bubbles {
-    gap: 8px;
+    gap: 6px;
   }
 
   .heatmap-section-asia .heatmap-bubbles {
-    grid-template-columns: repeat(4, max-content);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .map-bubble {
@@ -690,31 +801,15 @@ function bubbleClass(item: IndexQuote & { meta: IndexMeta }) {
     box-shadow: 0 0 0 3px rgba(3, 130, 24, 0.14);
   }
 
-  .bubble-sm {
-    width: 44px;
-    height: 44px;
-  }
-
-  .bubble-md {
-    width: 52px;
-    height: 52px;
-  }
-
-  .bubble-lg {
-    width: 58px;
-    height: 58px;
-  }
-
   .map-bubble span,
   .map-bubble strong {
     font-size: 10px;
   }
 
-  .bubble-lg span,
-  .bubble-lg strong {
+  .map-bubble.champion span,
+  .map-bubble.champion strong {
     font-size: 12px;
   }
-
 }
 
 @media (min-width: 760px) {

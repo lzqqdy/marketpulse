@@ -150,6 +150,9 @@ export function createMockSnapshot(): MarketSnapshot {
     indices: [
       { id: 'sh000001', name: '上证', price: 3123.45, changePct: -0.32, updatedAt: now },
       { id: 'sz399001', name: '深证', price: 9856.12, changePct: -0.58, updatedAt: now },
+      { id: 'sz399006', name: '创业板', price: 2046.18, changePct: 0.16, updatedAt: now },
+      { id: 'sh000300', name: '沪深300', price: 3658.32, changePct: -0.21, updatedAt: now },
+      { id: 'sh000688', name: '科创50', price: 912.48, changePct: 0.08, updatedAt: now },
       { id: 'hsi', name: '恒生', price: 19842.5, changePct: -1.12, updatedAt: now },
       { id: 'n225', name: '日经225', price: 38682.4, changePct: -0.72, updatedAt: now },
       { id: 'ks11', name: 'KOSPI', price: 2742.1, changePct: 0.41, updatedAt: now },

@@ -17,6 +17,7 @@ var DefaultIndices = []IndexDef{
 	{ID: "sh000001", Name: "上证", EastmoneySecID: "1.000001", TencentSymbol: "s_sh000001", MinPrice: 1000, MaxPrice: 10000},
 	{ID: "sz399001", Name: "深证", EastmoneySecID: "0.399001", TencentSymbol: "s_sz399001", MinPrice: 5000, MaxPrice: 30000},
 	{ID: "sz399006", Name: "创业板", EastmoneySecID: "0.399006", TencentSymbol: "s_sz399006", MinPrice: 500, MaxPrice: 10000},
+	{ID: "sh000300", Name: "沪深300", EastmoneySecID: "1.000300", TencentSymbol: "s_sh000300", MinPrice: 1000, MaxPrice: 10000},
 	{ID: "sh000688", Name: "科创50", EastmoneySecID: "1.000688", TencentSymbol: "sh000688", MinPrice: 100, MaxPrice: 10000},
 	{ID: "hsi", Name: "恒生", EastmoneySecID: "100.HSI", TencentSymbol: "s_hkHSI", MinPrice: 5000, MaxPrice: 50000},
 	{ID: "dji", Name: "道琼斯", EastmoneySecID: "100.DJIA", TencentSymbol: "s_usDJI", MinPrice: 10000, MaxPrice: 100000},
