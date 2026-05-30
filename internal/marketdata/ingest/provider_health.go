@@ -80,13 +80,7 @@ func newProviderHealthStore(defs []providerDef) *ProviderHealthStore {
 }
 
 func defaultProviderDefs(alphaEnabled bool, alphaProvider string) []providerDef {
-	alphaName := "bitget_alpha"
-	alphaLabel := "Bitget USDT-FUTURES"
-	if alphaProvider == "binance" {
-		alphaName = "binance_alpha"
-		alphaLabel = "Binance Alpha"
-	}
-	return []providerDef{
+	defs := []providerDef{
 		{Name: "binance_spot_ws", Label: "Binance Spot WS", Category: "crypto", Role: "primary", StaleAfter: 45 * time.Second},
 		{Name: "okx_c2c", Label: "OKX C2C", Category: "forex", Role: "primary", StaleAfter: 3 * time.Minute},
 		{Name: "frankfurter_fx", Label: "Frankfurter FX", Category: "forex", Role: "primary", StaleAfter: 15 * time.Minute},
@@ -95,10 +89,18 @@ func defaultProviderDefs(alphaEnabled bool, alphaProvider string) []providerDef 
 		{Name: "sge_gold", Label: "SGE Gold", Category: "index", Role: "auxiliary", StaleAfter: 90 * time.Minute},
 		{Name: "coingecko_macro", Label: "CoinGecko Macro", Category: "macro", Role: "primary", StaleAfter: 10 * time.Minute},
 		{Name: "coingecko_meta", Label: "CoinGecko Metadata", Category: "macro", Role: "auxiliary", StaleAfter: 20 * time.Minute},
-		{Name: alphaName, Label: alphaLabel, Category: "alpha", Role: "primary", StaleAfter: 90 * time.Second, Disabled: !alphaEnabled},
 		{Name: "binance_derivatives", Label: "Binance Derivatives", Category: "derivatives", Role: "primary", StaleAfter: 3 * time.Minute},
 		{Name: "binance_liquidations", Label: "Binance Liquidations", Category: "derivatives", Role: "auxiliary", StaleAfter: 3 * time.Minute},
 	}
+	if alphaProvider == "binance" {
+		defs = append(defs, providerDef{Name: "binance_alpha", Label: "Binance Alpha", Category: "alpha", Role: "primary", StaleAfter: 90 * time.Second, Disabled: !alphaEnabled})
+		return defs
+	}
+	defs = append(defs,
+		providerDef{Name: "bitget_alpha", Label: "Bitget USDT-FUTURES", Category: "alpha", Role: "primary", StaleAfter: 90 * time.Second, Disabled: !alphaEnabled},
+		providerDef{Name: "binance_alpha", Label: "Binance Alpha", Category: "alpha", Role: "fallback", StaleAfter: 3 * time.Minute, Disabled: !alphaEnabled},
+	)
+	return defs
 }
 
 func (h *ProviderHealthStore) ReportSuccess(name string, latency time.Duration) {

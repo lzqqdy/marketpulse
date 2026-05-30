@@ -174,6 +174,16 @@ func (s *Service) Klines(symbol string, interval string, limit int) (KlineRespon
 		}
 		if s.cfg.Alpha.Provider == "bitget" {
 			candles, err = bitget.FetchKlines(http.DefaultClient, pair, s.cfg.Alpha.ProductType, interval, limit)
+			if err != nil {
+				if fallbackPair, ok := resolveAlphaPair(s.cfg, symbol); ok {
+					if fallbackCandles, fallbackErr := alpha.FetchKlines(http.DefaultClient, fallbackPair, interval, limit); fallbackErr == nil {
+						pair = fallbackPair
+						source = "binance-alpha"
+						candles = fallbackCandles
+						err = nil
+					}
+				}
+			}
 		} else {
 			candles, err = alpha.FetchKlines(http.DefaultClient, pair, interval, limit)
 		}

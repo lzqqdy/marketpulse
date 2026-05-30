@@ -213,8 +213,22 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 	}
 	var candles []binance.Candle
 	var err error
+	source := "binance-alpha"
+	usingFallback := false
 	if h.cfg.Alpha.Provider == "bitget" {
+		source = "bitget"
 		candles, err = bitget.FetchKlines(http.DefaultClient, alphaPair, h.cfg.Alpha.ProductType, sub.interval, binance.DefaultKlineLimit)
+		if err != nil {
+			if fallbackPair, ok := h.binanceAlphaPair(sub.symbol); ok {
+				if fallbackCandles, fallbackErr := alpha.FetchKlines(http.DefaultClient, fallbackPair, sub.interval, binance.DefaultKlineLimit); fallbackErr == nil {
+					alphaPair = fallbackPair
+					candles = fallbackCandles
+					err = nil
+					source = "binance-alpha"
+					usingFallback = true
+				}
+			}
+		}
 	} else {
 		candles, err = alpha.FetchKlines(http.DefaultClient, alphaPair, sub.interval, binance.DefaultKlineLimit)
 	}
@@ -235,10 +249,7 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 		Symbol:   sub.symbol,
 		Interval: sub.interval,
 		Candles:  candles,
-		Source:   "binance-alpha",
-	}
-	if h.cfg.Alpha.Provider == "bitget" {
-		snap.Source = "bitget"
+		Source:   source,
 	}
 	for c := range clients {
 		if err := c.WriteJSON(snap); err != nil {
@@ -246,15 +257,21 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 		}
 	}
 
-	if h.cfg.Alpha.Provider == "bitget" {
+	if h.cfg.Alpha.Provider == "bitget" && !usingFallback {
 		err = bitget.StreamKline(ctx, h.cfg.Alpha.ProductType, alphaPair, sub.interval, func(c binance.Candle) {
 			h.applyCandle(key, sub, c)
 		})
 		if err != nil && ctx.Err() == nil {
 			slog.Info("bitget alpha kline stream skipped", "symbol", sub.symbol, "alpha_symbol", alphaPair, "interval", sub.interval, "err", err)
+			if fallbackPair, ok := h.binanceAlphaPair(sub.symbol); ok {
+				alphaPair = fallbackPair
+				usingFallback = true
+			}
 		}
-		h.teardown(key)
-		return
+		if !usingFallback {
+			h.teardown(key)
+			return
+		}
 	}
 
 	ticker := time.NewTicker(time.Minute)
@@ -275,6 +292,16 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 			}
 		}
 	}
+}
+
+func (h *KlineHub) binanceAlphaPair(symbol string) (string, bool) {
+	resolved := alpha.ResolveItems(http.DefaultClient, h.cfg.Alpha.Indices, h.cfg.Alpha.Stocks, h.cfg.Alpha.QuoteAsset)
+	for _, item := range resolved {
+		if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
+			return item.AlphaSymbol, true
+		}
+	}
+	return "", false
 }
 
 func (h *KlineHub) klineSource(symbol string) string {
