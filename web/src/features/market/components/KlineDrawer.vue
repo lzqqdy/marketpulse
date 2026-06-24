@@ -102,8 +102,8 @@ function intervalIsLive(iv: KlineInterval) {
   return false
 }
 
-function setInterval(iv: KlineInterval) {
-  chartStore.setInterval(iv)
+function setKlineInterval(iv: KlineInterval) {
+  chartStore.setKlineInterval(iv)
 }
 
 function goLatest() {
@@ -182,7 +182,7 @@ function onBackdrop(e: MouseEvent) {
                   class="iv-btn"
                   :class="{ active: chartStore.interval === iv.value }"
                   :disabled="chartStore.loading"
-                  @click="setInterval(iv.value)"
+                  @click="setKlineInterval(iv.value)"
                 >
                   {{ iv.label }}
                   <span v-if="intervalIsLive(iv.value)" class="live-dot" aria-label="支持实时"></span>

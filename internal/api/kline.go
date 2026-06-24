@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -42,7 +43,15 @@ func (h *Handler) IndexKlines(c *gin.Context) {
 		return
 	}
 
-	interval := c.DefaultQuery("interval", "1d")
+	interval := strings.ToLower(strings.TrimSpace(c.DefaultQuery("interval", "1d")))
+	switch interval {
+	case "15m", "1h", "1d", "1w":
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{"code": "INVALID_INTERVAL", "message": fmt.Sprintf("unsupported index interval: %s", interval)},
+		})
+		return
+	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(binance.DefaultKlineLimit)))
 
 	resp, err := h.MarketData.IndexKlines(id, interval, limit)

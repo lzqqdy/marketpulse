@@ -66,9 +66,9 @@ export const useChartStore = defineStore('chart', () => {
     loading.value = false
 
     let price = candles.value[candles.value.length - 1]?.close ?? 1000
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       if (!visible.value) {
-        clearInterval(timer)
+        window.clearInterval(timer)
         return
       }
       const last = candles.value[candles.value.length - 1]
@@ -85,7 +85,7 @@ export const useChartStore = defineStore('chart', () => {
       }
       candles.value = mergeCandle(candles.value, c)
     }, 2000)
-    disconnect = () => clearInterval(timer)
+    disconnect = () => window.clearInterval(timer)
   }
 
   function connectWs() {
@@ -93,6 +93,7 @@ export const useChartStore = defineStore('chart', () => {
     loading.value = true
     error.value = ''
     source.value = ''
+    interval.value = normalizeInterval(interval.value)
 
     disconnect = connectKlineWs(symbol.value, interval.value, {
       onOpen: () => {
@@ -158,12 +159,21 @@ export const useChartStore = defineStore('chart', () => {
     connectWs()
   }
 
+  function normalizeInterval(iv: unknown): KlineInterval {
+    const allowed: KlineInterval[] = ['1m', '5m', '15m', '1h', '1d', '1w']
+    if (typeof iv === 'string' && allowed.includes(iv as KlineInterval)) {
+      return iv as KlineInterval
+    }
+    return '1d'
+  }
+
   async function loadIndexKlines() {
     teardownWs()
     loading.value = true
     error.value = ''
     source.value = ''
     wsLive.value = false
+    interval.value = normalizeInterval(interval.value)
 
     try {
       const res = await fetchIndexKlines(symbol.value, interval.value, KLINE_FETCH_LIMIT)
@@ -188,6 +198,7 @@ export const useChartStore = defineStore('chart', () => {
     indexQuote.value = item
     alphaQuote.value = null
     if (changed) candles.value = []
+    interval.value = normalizeInterval(interval.value)
     if (!['15m', '1h', '1d', '1w'].includes(interval.value)) {
       interval.value = '1d'
     }
@@ -195,8 +206,8 @@ export const useChartStore = defineStore('chart', () => {
     void loadIndexKlines()
   }
 
-  function setInterval(iv: KlineInterval) {
-    interval.value = iv
+  function setKlineInterval(iv: KlineInterval) {
+    interval.value = normalizeInterval(iv)
     if (kind.value === 'index') {
       void loadIndexKlines()
       return
@@ -238,6 +249,6 @@ export const useChartStore = defineStore('chart', () => {
     openIndex,
     close,
     reload,
-    setInterval,
+    setKlineInterval,
   }
 })
