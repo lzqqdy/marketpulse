@@ -61,7 +61,7 @@ func (c *klineCache) fetch(client *http.Client, def IndexDef, interval string, l
 		}
 	}
 
-	fresh, err := FetchEastmoneyKlines(client, def, interval, fetchLimit)
+	fresh, source, err := fetchIndexKlines(client, def, interval, fetchLimit)
 	if err != nil {
 		if ok && len(entry.candles) > 0 {
 			return trimCandles(entry.candles, limit), "eastmoney_cache_stale", nil
@@ -78,7 +78,22 @@ func (c *klineCache) fetch(client *http.Client, def IndexDef, interval string, l
 		candles:   append([]binance.Candle(nil), merged...),
 		fetchedAt: now,
 	}
-	return append([]binance.Candle(nil), merged...), "eastmoney", nil
+	return append([]binance.Candle(nil), merged...), source, nil
+}
+
+func fetchIndexKlines(client *http.Client, def IndexDef, interval string, limit int) ([]binance.Candle, string, error) {
+	candles, err := FetchEastmoneyKlines(client, def, interval, limit)
+	if err == nil {
+		return candles, "eastmoney", nil
+	}
+	if interval != "1d" && interval != "" {
+		return nil, "", err
+	}
+	tcandles, terr := FetchTencentKlines(client, def, interval, limit)
+	if terr != nil {
+		return nil, "", err
+	}
+	return tcandles, "tencent", nil
 }
 
 func mergeCandles(oldRows, newRows []binance.Candle) []binance.Candle {

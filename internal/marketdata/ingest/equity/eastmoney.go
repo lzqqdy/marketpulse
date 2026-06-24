@@ -17,15 +17,37 @@ import (
 
 const (
 	eastmoneyQuoteBase = "https://push2.eastmoney.com/api/qt/stock/get"
-	eastmoneyKlineBase = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+	eastmoneyKlinePath = "/api/qt/stock/kline/get"
 	eastmoneyUT        = "fa5fd1943c7b386f172d6893dbfba10b"
 	eastmoneyGap       = 250 * time.Millisecond
-	eastmoneyAttempts  = 3
+	eastmoneyAttempts  = 5
 )
+
+var eastmoneyKlineHosts = []string{
+	"https://push2his.eastmoney.com",
+	"https://16.push2his.eastmoney.com",
+	"https://17.push2his.eastmoney.com",
+	"https://18.push2his.eastmoney.com",
+	"https://19.push2his.eastmoney.com",
+}
 
 // eastmoneyKlineHTTPClient is used for kline history; responses must stay bounded
 // (beg=0 returns full history and can exceed 700KB, causing EOF on slow links).
-var eastmoneyKlineHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var eastmoneyKlineHTTPClient = &http.Client{
+	Timeout:   45 * time.Second,
+	Transport: eastmoneyKlineTransport(),
+}
+
+func eastmoneyKlineTransport() *http.Transport {
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     false,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ResponseHeaderTimeout: 20 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DisableKeepAlives:     true,
+	}
+}
 
 type eastmoneyQuoteResponse struct {
 	RC   int `json:"rc"`
@@ -158,8 +180,8 @@ func FetchEastmoneyKlines(client *http.Client, def IndexDef, interval string, li
 				return candles, nil
 			}
 			lastErr = err
-			if attempt < eastmoneyAttempts {
-				time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
+			if attempt < eastmoneyAttempts && isRetryableNetworkErr(err) {
+				time.Sleep(time.Duration(attempt) * 400 * time.Millisecond)
 			}
 		}
 	}
@@ -180,40 +202,81 @@ func fetchEastmoneyKlinesOnce(client *http.Client, def IndexDef, klt string, lim
 	q.Set("rtntype", "6")
 	q.Set("fields1", "f1,f2,f3,f4,f5,f6")
 	q.Set("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61")
-	req, err := http.NewRequest(http.MethodGet, eastmoneyKlineBase+"?"+q.Encode(), nil)
-	if err != nil {
-		return nil, err
-	}
-	setEastmoneyHeaders(req, def)
-	req.Close = true
+	query := q.Encode()
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("%s eastmoney kline request: %w", def.ID, err)
+	var lastErr error
+	for _, host := range eastmoneyKlineHosts {
+		req, err := http.NewRequest(http.MethodGet, host+eastmoneyKlinePath+"?"+query, nil)
+		if err != nil {
+			return nil, err
+		}
+		setEastmoneyHeaders(req, def)
+		req.Host = "push2his.eastmoney.com"
+		req.Close = true
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("%s eastmoney kline request: %w", def.ID, err)
+			if isRetryableNetworkErr(err) {
+				slog.Warn("eastmoney kline host failed", "id", def.ID, "host", host, "err", err)
+				continue
+			}
+			return nil, lastErr
+		}
+		candles, readErr := readEastmoneyKlineResponse(resp, def.ID, limit)
+		if readErr != nil {
+			lastErr = readErr
+			if isRetryableNetworkErr(readErr) {
+				slog.Warn("eastmoney kline read failed", "id", def.ID, "host", host, "err", readErr)
+				continue
+			}
+			return nil, readErr
+		}
+		return candles, nil
 	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("%s eastmoney kline request: all hosts failed", def.ID)
+}
+
+func readEastmoneyKlineResponse(resp *http.Response, id string, limit int) ([]binance.Candle, error) {
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s eastmoney kline http %d", def.ID, resp.StatusCode)
+		return nil, fmt.Errorf("%s eastmoney kline http %d", id, resp.StatusCode)
 	}
 	var parsed eastmoneyKlineResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return nil, fmt.Errorf("%s eastmoney kline parse: %w", def.ID, err)
+		return nil, fmt.Errorf("%s eastmoney kline parse: %w", id, err)
 	}
 	if parsed.RC != 0 || parsed.Data == nil {
-		return nil, fmt.Errorf("%s eastmoney kline rc %d", def.ID, parsed.RC)
+		return nil, fmt.Errorf("%s eastmoney kline rc %d", id, parsed.RC)
 	}
 	candles, err := parsed.Data.candles()
 	if err != nil {
-		return nil, fmt.Errorf("%s eastmoney kline: %w", def.ID, err)
+		return nil, fmt.Errorf("%s eastmoney kline: %w", id, err)
 	}
 	if len(candles) > limit {
 		candles = candles[len(candles)-limit:]
 	}
 	return candles, nil
+}
+
+func isRetryableNetworkErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "eof") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "tls") ||
+		strings.Contains(msg, "connection refused")
 }
 
 func klineLimitAttempts(limit int) []int {
