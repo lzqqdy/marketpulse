@@ -1,6 +1,24 @@
 package equity
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestEastmoneyKlineBegEnd(t *testing.T) {
+	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
+	beg, end := eastmoneyKlineBegEnd("101", 30, now)
+	if end != "20260624" {
+		t.Fatalf("end=%s", end)
+	}
+	if beg == "0" || beg >= end {
+		t.Fatalf("beg=%s end=%s", beg, end)
+	}
+	lookback := eastmoneyKlineLookbackDays("101", 300)
+	if lookback < 300 {
+		t.Fatalf("daily lookback too small: %d", lookback)
+	}
+}
 
 func TestEastmoneyKlineDataCandles(t *testing.T) {
 	data := eastmoneyKlineData{

@@ -225,7 +225,7 @@ func (s *Service) IndexKlines(id string, interval string, limit int) (KlineRespo
 		limit = binance.DefaultKlineLimit
 	}
 
-	candles, source, err := equity.FetchCachedEastmoneyKlines(http.DefaultClient, def, interval, limit)
+	candles, source, err := equity.FetchCachedEastmoneyKlines(nil, def, interval, limit)
 	if err != nil {
 		return KlineResponse{}, err
 	}

@@ -23,6 +23,10 @@ const (
 	eastmoneyAttempts  = 3
 )
 
+// eastmoneyKlineHTTPClient is used for kline history; responses must stay bounded
+// (beg=0 returns full history and can exceed 700KB, causing EOF on slow links).
+var eastmoneyKlineHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
 type eastmoneyQuoteResponse struct {
 	RC   int `json:"rc"`
 	Data struct {
@@ -130,7 +134,7 @@ func fetchEastmoneyOne(client *http.Client, def IndexDef, now time.Time) (store.
 // FetchEastmoneyKlines loads historical candles for an index or gold symbol.
 func FetchEastmoneyKlines(client *http.Client, def IndexDef, interval string, limit int) ([]binance.Candle, error) {
 	if client == nil {
-		client = http.DefaultClient
+		client = eastmoneyKlineHTTPClient
 	}
 	klt, err := normalizeEastmoneyKlineInterval(interval)
 	if err != nil {
@@ -163,13 +167,15 @@ func FetchEastmoneyKlines(client *http.Client, def IndexDef, interval string, li
 }
 
 func fetchEastmoneyKlinesOnce(client *http.Client, def IndexDef, klt string, limit int) ([]binance.Candle, error) {
+	now := time.Now().UTC()
+	beg, end := eastmoneyKlineBegEnd(klt, limit, now)
 	q := url.Values{}
 	q.Set("secid", def.EastmoneySecID)
 	q.Set("klt", klt)
 	q.Set("fqt", "0")
 	q.Set("lmt", strconv.Itoa(limit))
-	q.Set("beg", "0")
-	q.Set("end", "20500101")
+	q.Set("beg", beg)
+	q.Set("end", end)
 	q.Set("ut", eastmoneyUT)
 	q.Set("rtntype", "6")
 	q.Set("fields1", "f1,f2,f3,f4,f5,f6")
@@ -278,6 +284,47 @@ func (d *eastmoneyKlineData) candles() ([]binance.Candle, error) {
 		return nil, fmt.Errorf("no candles")
 	}
 	return out, nil
+}
+
+// eastmoneyKlineBegEnd returns a bounded date window. Eastmoney ignores lmt when
+// beg=0/end=20500101 and returns the entire history (9000+ daily bars).
+func eastmoneyKlineBegEnd(klt string, limit int, now time.Time) (beg, end string) {
+	if limit <= 0 {
+		limit = 30
+	}
+	end = now.Format("20060102")
+	lookbackDays := eastmoneyKlineLookbackDays(klt, limit)
+	beg = now.AddDate(0, 0, -lookbackDays).Format("20060102")
+	return beg, end
+}
+
+func eastmoneyKlineLookbackDays(klt string, limit int) int {
+	switch klt {
+	case "15":
+		days := limit/20 + 7
+		if days < 14 {
+			return 14
+		}
+		return days
+	case "60":
+		days := limit/6 + 10
+		if days < 21 {
+			return 21
+		}
+		return days
+	case "102":
+		days := limit*7 + 21
+		if days < 60 {
+			return 60
+		}
+		return days
+	default:
+		days := limit * 2
+		if days < 30 {
+			return 30
+		}
+		return days
+	}
 }
 
 func normalizeEastmoneyKlineInterval(interval string) (string, error) {
