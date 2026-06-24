@@ -20,7 +20,7 @@ The market data boundary is `internal/marketdata`. Other future modules should c
 | Derivatives indicators | Binance USD-M Futures | None | REST poll | `internal/marketdata/ingest/derivatives` |
 | Liquidations | Binance USD-M Futures | REST aggregate from memory | WS live + memory window | `internal/marketdata/ingest/derivatives` |
 | US stock reference quotes | Bitget USDT-FUTURES | Binance Alpha | REST bootstrap + WS live, REST fallback | `internal/marketdata/ingest/bitget`, `internal/marketdata/ingest/alpha` |
-| US stock reference K lines | Binance Alpha | Bitget USDT-FUTURES | REST history, WS/poll live | `internal/marketdata/service.go`, `internal/marketdata/stream/kline.go` |
+| US stock reference K lines | Bitget USDT-FUTURES | Binance Alpha | REST history, WS/poll live | `internal/marketdata/service.go`, `internal/marketdata/stream/kline.go` |
 
 ## Provider Health Names
 
@@ -253,9 +253,9 @@ Ticker mapping:
 
 Fallback behavior:
 
-- Quotes: Bitget resolve/poll/WS failure triggers one Binance Alpha fallback poll.
-- REST K lines: Binance Alpha is currently tried first because Bitget history can be sparse; Bitget is fallback.
-- WS K lines: initial snapshot uses Binance Alpha first; live update tries Bitget WS when available, otherwise Binance Alpha polling.
+- Quotes: Bitget REST bootstrap, then Bitget WS live; resolve/poll/WS failure triggers one Binance Alpha REST fallback poll.
+- REST K lines: Bitget history first; Binance Alpha is used when Bitget history is unavailable or sparse.
+- Live K lines: Bitget WS for the latest candle when available; otherwise Bitget REST poll at `alpha.poll_interval`, then Binance Alpha REST poll as fallback.
 - Provider health marks `bitget_alpha` and `binance_alpha` separately and marks the currently used one.
 
 ## Normalized Output Contracts

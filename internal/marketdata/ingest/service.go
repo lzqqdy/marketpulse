@@ -72,7 +72,8 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 		s.ingestStatus.set("alpha_poll", "starting")
 		s.seedAlphaDefaults()
 	} else {
-		s.providerHealth.ReportDisabled(s.alphaProviderName())
+		s.providerHealth.ReportDisabled("bitget_alpha")
+		s.providerHealth.ReportDisabled("binance_alpha")
 	}
 	return s
 }
@@ -250,15 +251,8 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 
 		s.alphaStatus.Store("polling")
 		s.ingestStatus.set("alpha_poll", "polling")
-		var resolved []alpha.ResolvedItem
-		supported := 0
-		if s.cfg.Alpha.Provider == "bitget" {
-			bitgetResolved, _ := s.resolveBitgetItems()
-			supported = len(bitgetResolved)
-		} else {
-			resolved = s.resolveAlphaItems()
-			supported = len(resolved)
-		}
+		resolved := s.resolveAlphaItems()
+		supported := len(resolved)
 		if supported == 0 {
 			s.alphaStatus.Store("reconnecting")
 			s.ingestStatus.set("alpha_poll", "reconnecting")
@@ -303,6 +297,7 @@ func (s *Service) runAlphaWithRetry(ctx context.Context) {
 func (s *Service) runBitgetAlphaWithRetry(ctx context.Context) {
 	backoff := time.Second
 	const maxBackoff = 30 * time.Second
+	resolveInterval := s.cfg.Alpha.ResolveInterval
 
 	for {
 		if ctx.Err() != nil {
@@ -342,27 +337,59 @@ func (s *Service) runBitgetAlphaWithRetry(ctx context.Context) {
 		}
 		s.alphaStatus.Store("connected")
 		s.ingestStatus.set("alpha_poll", "connected")
-		slog.Info("bitget alpha ticker ws connect", "symbols", symbols, "product_type", s.cfg.Alpha.ProductType)
+		slog.Info("bitget alpha ticker ws connect", "symbols", symbols, "product_type", s.cfg.Alpha.ProductType, "resolve_interval", resolveInterval)
 
-		err = bitget.StreamTicker(ctx, s.cfg.Alpha.ProductType, symbols, func(t bitget.Ticker) {
-			for _, item := range s.currentBitgetItems() {
-				if item.Symbol == t.Symbol {
-					s.onBitgetAlphaTicker(item, t)
-					s.providerHealth.ReportSuccess(s.alphaProviderName(), time.Since(t.UpdatedAt))
-					s.markAlphaProviderUsed(s.alphaProviderName())
-					return
+		streamCtx, streamCancel := context.WithCancel(ctx)
+		resolveTicker := time.NewTicker(resolveInterval)
+		wsDone := make(chan error, 1)
+		go func() {
+			wsDone <- bitget.StreamTicker(streamCtx, s.cfg.Alpha.ProductType, symbols, func(t bitget.Ticker) {
+				for _, item := range s.currentBitgetItems() {
+					if item.Symbol == t.Symbol {
+						s.onBitgetAlphaTicker(item, t)
+						s.providerHealth.ReportSuccess(s.alphaProviderName(), time.Since(t.UpdatedAt))
+						s.markAlphaProviderUsed(s.alphaProviderName())
+						return
+					}
 				}
-			}
-		})
+			})
+		}()
+
+		var wsErr error
+		refresh := false
+		select {
+		case <-ctx.Done():
+			streamCancel()
+			resolveTicker.Stop()
+			<-wsDone
+			s.alphaStatus.Store("disconnected")
+			s.ingestStatus.set("alpha_poll", "disconnected")
+			return
+		case <-resolveTicker.C:
+			streamCancel()
+			resolveTicker.Stop()
+			wsErr = <-wsDone
+			refresh = true
+			slog.Info("bitget alpha resolve refresh", "product_type", s.cfg.Alpha.ProductType)
+		case wsErr = <-wsDone:
+			resolveTicker.Stop()
+		}
+
 		if ctx.Err() != nil {
 			s.alphaStatus.Store("disconnected")
 			s.ingestStatus.set("alpha_poll", "disconnected")
 			return
 		}
+		if refresh {
+			continue
+		}
+
 		s.alphaStatus.Store("reconnecting")
 		s.ingestStatus.set("alpha_poll", "reconnecting")
-		s.providerHealth.ReportFailure(s.alphaProviderName(), err)
-		slog.Warn("bitget alpha ticker ws disconnected", "err", err, "retry_in", backoff)
+		if wsErr != nil {
+			s.providerHealth.ReportFailure(s.alphaProviderName(), wsErr)
+			slog.Warn("bitget alpha ticker ws disconnected", "err", wsErr, "retry_in", backoff)
+		}
 		s.pollBinanceAlphaFallback("bitget_ws_disconnected")
 		select {
 		case <-ctx.Done():

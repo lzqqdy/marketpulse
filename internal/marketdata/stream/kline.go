@@ -258,38 +258,81 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 	}
 
 	if h.cfg.Alpha.Provider == "bitget" && !usingFallback {
-		err = bitget.StreamKline(ctx, h.cfg.Alpha.ProductType, alphaPair, sub.interval, func(c binance.Candle) {
+		h.runBitgetAlphaKlineLive(ctx, key, sub, alphaPair)
+		return
+	}
+	h.runAlphaKlinePoll(ctx, key, sub, alphaPair, true)
+}
+
+func (h *KlineHub) alphaPollInterval() time.Duration {
+	if h.cfg.Alpha.PollInterval > 0 {
+		return h.cfg.Alpha.PollInterval
+	}
+	return 30 * time.Second
+}
+
+func (h *KlineHub) runBitgetAlphaKlineLive(ctx context.Context, key string, sub *klineSub, alphaPair string) {
+	wsCtx, wsCancel := context.WithCancel(ctx)
+	defer wsCancel()
+	wsDone := make(chan error, 1)
+	go func() {
+		wsDone <- bitget.StreamKline(wsCtx, h.cfg.Alpha.ProductType, alphaPair, sub.interval, func(c binance.Candle) {
 			h.applyCandle(key, sub, c)
 		})
-		if err != nil && ctx.Err() == nil {
-			slog.Info("bitget alpha kline stream skipped", "symbol", sub.symbol, "alpha_symbol", alphaPair, "interval", sub.interval, "err", err)
-			if fallbackPair, ok := h.binanceAlphaPair(sub.symbol); ok {
-				alphaPair = fallbackPair
-				usingFallback = true
-			}
-		}
-		if !usingFallback {
+	}()
+
+	select {
+	case <-ctx.Done():
+		wsCancel()
+		<-wsDone
+		h.teardown(key)
+		return
+	case err := <-wsDone:
+		if ctx.Err() != nil {
 			h.teardown(key)
 			return
 		}
+		if err != nil {
+			slog.Info("bitget alpha kline stream ended", "symbol", sub.symbol, "alpha_symbol", alphaPair, "interval", sub.interval, "err", err)
+		}
 	}
+	h.runAlphaKlinePoll(ctx, key, sub, alphaPair, false)
+}
 
-	ticker := time.NewTicker(time.Minute)
+func (h *KlineHub) runAlphaKlinePoll(ctx context.Context, key string, sub *klineSub, alphaPair string, binanceOnly bool) {
+	ticker := time.NewTicker(h.alphaPollInterval())
 	defer ticker.Stop()
+	useBinance := binanceOnly || h.cfg.Alpha.Provider != "bitget"
+	pair := alphaPair
+
 	for {
+		if !useBinance {
+			fresh, err := bitget.FetchKlines(http.DefaultClient, pair, h.cfg.Alpha.ProductType, sub.interval, 2)
+			if err == nil && len(fresh) > 0 {
+				h.applyCandle(key, sub, fresh[len(fresh)-1])
+			} else {
+				if fallbackPair, ok := h.binanceAlphaPair(sub.symbol); ok {
+					pair = fallbackPair
+					useBinance = true
+				} else if err != nil {
+					slog.Warn("alpha kline poll", "symbol", sub.symbol, "alpha_symbol", pair, "interval", sub.interval, "err", err)
+				}
+			}
+		}
+		if useBinance {
+			fresh, err := alpha.FetchKlines(http.DefaultClient, pair, sub.interval, 2)
+			if err != nil {
+				slog.Warn("alpha kline poll", "symbol", sub.symbol, "alpha_symbol", pair, "interval", sub.interval, "err", err)
+			} else if len(fresh) > 0 {
+				h.applyCandle(key, sub, fresh[len(fresh)-1])
+			}
+		}
+
 		select {
 		case <-ctx.Done():
 			h.teardown(key)
 			return
 		case <-ticker.C:
-			fresh, err := alpha.FetchKlines(http.DefaultClient, alphaPair, sub.interval, 2)
-			if err != nil {
-				slog.Warn("alpha kline poll", "symbol", sub.symbol, "alpha_symbol", alphaPair, "interval", sub.interval, "err", err)
-				continue
-			}
-			if len(fresh) > 0 {
-				h.applyCandle(key, sub, fresh[len(fresh)-1])
-			}
 		}
 	}
 }

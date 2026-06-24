@@ -46,7 +46,7 @@ type BinanceConfig struct {
 	WSBase string `yaml:"ws_base"`
 }
 
-// AlphaConfig configures Binance Alpha / tokenized stocks reference quotes.
+// AlphaConfig configures US stock reference quotes (Bitget primary, Binance Alpha fallback).
 type AlphaConfig struct {
 	Enabled         bool          `yaml:"enabled"`
 	Provider        string        `yaml:"provider"`
@@ -58,7 +58,7 @@ type AlphaConfig struct {
 	Stocks          []AlphaItem   `yaml:"stocks"`
 }
 
-// AlphaItem maps a display id/name to a Binance Alpha pair symbol.
+// AlphaItem maps a display id/name to an upstream pair symbol (e.g. AAPLUSDT).
 type AlphaItem struct {
 	ID     string `yaml:"id"`
 	Name   string `yaml:"name"`
