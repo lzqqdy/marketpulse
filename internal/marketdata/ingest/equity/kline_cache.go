@@ -1,6 +1,7 @@
 package equity
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -82,18 +83,63 @@ func (c *klineCache) fetch(client *http.Client, def IndexDef, interval string, l
 }
 
 func fetchIndexKlines(client *http.Client, def IndexDef, interval string, limit int) ([]binance.Candle, string, error) {
-	candles, err := FetchEastmoneyKlines(client, def, interval, limit)
+	ctx, cancel := context.WithTimeout(context.Background(), indexKlineFetchBudget)
+	defer cancel()
+
+	interval = strings.ToLower(strings.TrimSpace(interval))
+	if interval == "" {
+		interval = "1d"
+	}
+	if interval == "1d" {
+		if _, ok := tencentKlineSymbol(def); ok {
+			return raceDailyIndexKlines(ctx, client, def, limit)
+		}
+	}
+	candles, err := fetchEastmoneyKlinesCtx(ctx, client, def, interval, limit)
 	if err == nil {
 		return candles, "eastmoney", nil
 	}
-	if interval != "1d" && interval != "" {
-		return nil, "", err
+	return nil, "", err
+}
+
+type indexKlineResult struct {
+	candles []binance.Candle
+	source  string
+	err     error
+}
+
+func raceDailyIndexKlines(ctx context.Context, client *http.Client, def IndexDef, limit int) ([]binance.Candle, string, error) {
+	results := make(chan indexKlineResult, 2)
+	go func() {
+		candles, err := fetchEastmoneyKlinesCtx(ctx, client, def, "1d", limit)
+		results <- indexKlineResult{candles: candles, source: "eastmoney", err: err}
+	}()
+	go func() {
+		candles, err := fetchTencentKlinesCtx(ctx, client, def, "1d", limit)
+		results <- indexKlineResult{candles: candles, source: "tencent", err: err}
+	}()
+
+	var lastErr error
+	for i := 0; i < 2; i++ {
+		select {
+		case res := <-results:
+			if res.err == nil && len(res.candles) > 0 {
+				return res.candles, res.source, nil
+			}
+			if res.err != nil {
+				lastErr = res.err
+			}
+		case <-ctx.Done():
+			if lastErr != nil {
+				return nil, "", lastErr
+			}
+			return nil, "", ctx.Err()
+		}
 	}
-	tcandles, terr := FetchTencentKlines(client, def, interval, limit)
-	if terr != nil {
-		return nil, "", err
+	if lastErr != nil {
+		return nil, "", lastErr
 	}
-	return tcandles, "tencent", nil
+	return nil, "", fmt.Errorf("%s index kline: no data", def.ID)
 }
 
 func mergeCandles(oldRows, newRows []binance.Candle) []binance.Candle {

@@ -1,6 +1,7 @@
 package equity
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,21 +21,18 @@ const (
 	eastmoneyKlinePath = "/api/qt/stock/kline/get"
 	eastmoneyUT        = "fa5fd1943c7b386f172d6893dbfba10b"
 	eastmoneyGap       = 250 * time.Millisecond
-	eastmoneyAttempts  = 5
+	eastmoneyAttempts  = 2
+	eastmoneyKlineTimeout = 8 * time.Second
+	indexKlineFetchBudget = 12 * time.Second
 )
 
 var eastmoneyKlineHosts = []string{
 	"https://push2his.eastmoney.com",
 	"https://16.push2his.eastmoney.com",
-	"https://17.push2his.eastmoney.com",
-	"https://18.push2his.eastmoney.com",
-	"https://19.push2his.eastmoney.com",
 }
 
-// eastmoneyKlineHTTPClient is used for kline history; responses must stay bounded
-// (beg=0 returns full history and can exceed 700KB, causing EOF on slow links).
 var eastmoneyKlineHTTPClient = &http.Client{
-	Timeout:   45 * time.Second,
+	Timeout:   eastmoneyKlineTimeout,
 	Transport: eastmoneyKlineTransport(),
 }
 
@@ -42,8 +40,8 @@ func eastmoneyKlineTransport() *http.Transport {
 	return &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		ForceAttemptHTTP2:     false,
-		TLSHandshakeTimeout:   15 * time.Second,
-		ResponseHeaderTimeout: 20 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 6 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DisableKeepAlives:     true,
 	}
@@ -153,8 +151,14 @@ func fetchEastmoneyOne(client *http.Client, def IndexDef, now time.Time) (store.
 	}, nil
 }
 
-// FetchEastmoneyKlines loads historical candles for an index or gold symbol.
+// FetchEastmoneyKlines loads historical candles for an index or commodity symbol.
 func FetchEastmoneyKlines(client *http.Client, def IndexDef, interval string, limit int) ([]binance.Candle, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), indexKlineFetchBudget)
+	defer cancel()
+	return fetchEastmoneyKlinesCtx(ctx, client, def, interval, limit)
+}
+
+func fetchEastmoneyKlinesCtx(ctx context.Context, client *http.Client, def IndexDef, interval string, limit int) ([]binance.Candle, error) {
 	if client == nil {
 		client = eastmoneyKlineHTTPClient
 	}
@@ -175,20 +179,32 @@ func FetchEastmoneyKlines(client *http.Client, def IndexDef, interval string, li
 	var lastErr error
 	for _, fetchLimit := range klineLimitAttempts(limit) {
 		for attempt := 1; attempt <= eastmoneyAttempts; attempt++ {
-			candles, err := fetchEastmoneyKlinesOnce(client, def, klt, fetchLimit)
+			if ctx.Err() != nil {
+				if lastErr != nil {
+					return nil, lastErr
+				}
+				return nil, ctx.Err()
+			}
+			candles, err := fetchEastmoneyKlinesOnce(ctx, client, def, klt, fetchLimit)
 			if err == nil {
 				return candles, nil
 			}
 			lastErr = err
-			if attempt < eastmoneyAttempts && isRetryableNetworkErr(err) {
-				time.Sleep(time.Duration(attempt) * 400 * time.Millisecond)
+			if isRetryableNetworkErr(err) {
+				break
 			}
+			if attempt < eastmoneyAttempts {
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
+		if lastErr != nil && isRetryableNetworkErr(lastErr) {
+			return nil, lastErr
 		}
 	}
 	return nil, lastErr
 }
 
-func fetchEastmoneyKlinesOnce(client *http.Client, def IndexDef, klt string, limit int) ([]binance.Candle, error) {
+func fetchEastmoneyKlinesOnce(ctx context.Context, client *http.Client, def IndexDef, klt string, limit int) ([]binance.Candle, error) {
 	now := time.Now().UTC()
 	beg, end := eastmoneyKlineBegEnd(klt, limit, now)
 	q := url.Values{}
@@ -206,7 +222,13 @@ func fetchEastmoneyKlinesOnce(client *http.Client, def IndexDef, klt string, lim
 
 	var lastErr error
 	for _, host := range eastmoneyKlineHosts {
-		req, err := http.NewRequest(http.MethodGet, host+eastmoneyKlinePath+"?"+query, nil)
+		if ctx.Err() != nil {
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, ctx.Err()
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, host+eastmoneyKlinePath+"?"+query, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 package equity
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,11 +16,16 @@ import (
 
 const tencentKlineBase = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
 
-var tencentKlineHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var tencentKlineHTTPClient = &http.Client{Timeout: eastmoneyKlineTimeout}
 
 // FetchTencentKlines loads daily index/commodity candles from Tencent fqkline.
-// Only 1d is supported reliably; other intervals return an error.
 func FetchTencentKlines(client *http.Client, def IndexDef, interval string, limit int) ([]binance.Candle, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), indexKlineFetchBudget)
+	defer cancel()
+	return fetchTencentKlinesCtx(ctx, client, def, interval, limit)
+}
+
+func fetchTencentKlinesCtx(ctx context.Context, client *http.Client, def IndexDef, interval string, limit int) ([]binance.Candle, error) {
 	if client == nil {
 		client = tencentKlineHTTPClient
 	}
@@ -43,7 +49,7 @@ func FetchTencentKlines(client *http.Client, def IndexDef, interval string, limi
 
 	param := fmt.Sprintf("%s,day,,,%d,qfq", symbol, limit)
 	reqURL := tencentKlineBase + "?" + url.Values{"param": {param}}.Encode()
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, err
 	}
