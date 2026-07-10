@@ -15,9 +15,11 @@ deploy/deploy.local.yaml
 .env
 .env.*
 
-# IDE
+# IDE / AI Agent
 .idea/
 .vscode/
+.cursor/*
+!.cursor/skills/
 *.swp
 .DS_Store
 

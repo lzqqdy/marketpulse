@@ -51,8 +51,15 @@ make ship SHIP_GIT_COMMIT=1   # 单次自动提交
 - 模板说明：[deploy/README.md](./deploy/README.md)
 - 使用 **Nginx + 域名** 时：`make deploy DEPLOY_HOST=user@host`
 
-## Vibe Coding
+## 开发方式
+
+### Spec Kit（新功能推荐）
+
+已集成 [GitHub Spec Kit](https://github.com/github/spec-kit)。在 Cursor Agent 中使用 `/speckit-specify` 开始新功能开发。详见 [docs/SPEC_KIT_GUIDE.md](./docs/SPEC_KIT_GUIDE.md)。
+
+### Vibe Coding（增量改造）
 
 - 后端改动：`internal/`、`cmd/`
 - 前端改动：`web/`
 - 契约变更：先改 `docs/RFC-002-api-contract.md`
+- 路线图：按 `docs/RFC-004-implementation-roadmap.md` 逐步推进
