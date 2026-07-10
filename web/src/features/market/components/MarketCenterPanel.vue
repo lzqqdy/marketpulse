@@ -6,7 +6,6 @@ import { formatPct } from '@/utils/format'
 import type {
   ChgDiagram,
   FundflowGroup,
-  HeatmapItem,
   HeatmapSortKey,
   MarketCenterResponse,
   MarketCode,
@@ -17,8 +16,13 @@ import { HEATMAP_SORT_OPTIONS, MARKET_TABS } from '@/features/market/types/marke
 
 const { priceClass } = useTrendClass()
 
+const CHG_TRACK_HEIGHT = 100
+const FUND_TRACK_HEIGHT = 88
+const HEATMAP_COLLAPSED_COUNT = 9
+
 const market = ref<MarketCode>('ab')
 const expanded = ref(false)
+const heatmapExpanded = ref(false)
 const loading = ref(false)
 const heatmapLoading = ref(false)
 const error = ref('')
@@ -75,7 +79,7 @@ const chgRatio = computed(() => {
 function chgBarHeight(count: number) {
   if (count <= 0) return 0
   const ratio = count / maxChgCount.value
-  return Math.max(3, Math.round(ratio * 84))
+  return Math.max(16, Math.round(ratio * CHG_TRACK_HEIGHT))
 }
 
 function chgBarClass(status: string) {
@@ -84,32 +88,46 @@ function chgBarClass(status: string) {
   return 'flat'
 }
 
-function formatSharePct(value: number) {
-  return `${value.toFixed(1)}%`
+const fundflowInflowItems = computed(() => {
+  const items = activeFundflow.value?.items ?? []
+  return [...items]
+    .filter((i) => i.netAmount > 0)
+    .sort((a, b) => b.netAmount - a.netAmount)
+    .slice(0, 6)
+})
+
+const fundflowOutflowItems = computed(() => {
+  const items = activeFundflow.value?.items ?? []
+  return [...items]
+    .filter((i) => i.netAmount < 0)
+    .sort((a, b) => a.netAmount - b.netAmount)
+    .slice(0, 6)
+})
+
+const maxFundflowInflow = computed(() =>
+  Math.max(1, ...fundflowInflowItems.value.map((i) => i.netAmount)),
+)
+
+const maxFundflowOutflow = computed(() =>
+  Math.max(1, ...fundflowOutflowItems.value.map((i) => Math.abs(i.netAmount))),
+)
+
+function fundBarHeight(amount: number, side: 'in' | 'out') {
+  const abs = Math.abs(amount)
+  if (abs <= 0) return 0
+  const max = side === 'in' ? maxFundflowInflow.value : maxFundflowOutflow.value
+  return Math.max(4, Math.round((abs / max) * FUND_TRACK_HEIGHT))
 }
 
-const fundflowChartItems = computed(() => {
-  const items = activeFundflow.value?.items ?? []
-  const sorted = [...items].sort((a, b) => Math.abs(b.netAmount) - Math.abs(a.netAmount))
-  const inflow = sorted.filter((i) => i.netAmount > 0).slice(0, 6)
-  const outflow = sorted.filter((i) => i.netAmount < 0).slice(0, 6)
-  return [...inflow, ...outflow.reverse()]
-})
+const heatmapItems = computed(() => heatmap.value?.items ?? [])
 
-const maxFundflowAbs = computed(() => {
-  const vals = fundflowChartItems.value.map((i) => Math.abs(i.netAmount))
-  return Math.max(1, ...vals)
-})
+const visibleHeatmapItems = computed(() =>
+  heatmapExpanded.value
+    ? heatmapItems.value
+    : heatmapItems.value.slice(0, HEATMAP_COLLAPSED_COUNT),
+)
 
-const heatmapTiles = computed(() => {
-  const items = heatmap.value?.items ?? []
-  const weights = items.map((i) => parseMetricWeight(i.metricValue))
-  const total = weights.reduce((a, b) => a + b, 0) || 1
-  return items.map((item, idx) => ({
-    item,
-    flex: Math.max(0.08, weights[idx] / total),
-  }))
-})
+const canToggleHeatmap = computed(() => heatmapItems.value.length > HEATMAP_COLLAPSED_COUNT)
 
 const hasExtraSections = computed(() => {
   if (!data.value) return false
@@ -119,17 +137,6 @@ const hasExtraSections = computed(() => {
     overviewTabs.value.length > 0
   )
 })
-
-function parseMetricWeight(raw: string) {
-  const s = String(raw ?? '').trim()
-  if (!s) return 1
-  const num = parseFloat(s.replace(/[^0-9.+-]/g, ''))
-  if (Number.isNaN(num)) return 1
-  if (s.includes('万亿')) return num * 10000
-  if (s.includes('亿')) return num
-  if (s.includes('万')) return num / 10000
-  return num
-}
 
 async function loadCenter() {
   const hasData = !!data.value
@@ -159,6 +166,7 @@ async function loadCenter() {
 
 async function reloadHeatmap(sortKey: HeatmapSortKey) {
   heatmapSortKey.value = sortKey
+  heatmapExpanded.value = false
   heatmapLoading.value = true
   try {
     const resp = await fetchMarketCenterHeatmap(market.value, sortKey)
@@ -189,6 +197,7 @@ function trendPath(points: number[] | undefined) {
 }
 
 watch(market, () => {
+  heatmapExpanded.value = false
   void loadCenter()
 })
 
@@ -238,28 +247,33 @@ onUnmounted(() => {
             {{ chgdiagram.totalTitle || '成交额' }} {{ chgdiagram.totalValue }}
           </span>
         </div>
-        <div class="chg-bars">
-          <div v-for="bar in chgdiagram.bars" :key="bar.title" class="chg-bar-col">
-            <span class="chg-count">{{ bar.count }}</span>
-            <div class="chg-bar-track">
-              <div
-                class="chg-bar"
-                :class="chgBarClass(bar.status)"
-                :style="{ height: `${chgBarHeight(bar.count)}px` }"
-              />
+        <div class="chg-bars-wrap">
+          <div class="chg-bars">
+            <div v-for="bar in chgdiagram.bars" :key="bar.title" class="chg-bar-col">
+              <div class="chg-bar-track">
+                <div
+                  class="chg-bar"
+                  :class="chgBarClass(bar.status)"
+                  :style="{ height: `${chgBarHeight(bar.count)}px` }"
+                >
+                  <span class="chg-count">{{ bar.count }}</span>
+                </div>
+              </div>
+              <span class="chg-label">{{ bar.title }}</span>
             </div>
-            <span class="chg-label">{{ bar.title }}</span>
           </div>
         </div>
-        <div v-if="chgRatio" class="chg-ratio-bar" aria-hidden="true">
-          <span class="chg-ratio-seg up" :style="{ width: `${chgRatio.upPct}%` }" />
-          <span class="chg-ratio-seg flat" :style="{ width: `${chgRatio.balancePct}%` }" />
-          <span class="chg-ratio-seg down" :style="{ width: `${chgRatio.downPct}%` }" />
-        </div>
-        <div class="chg-summary">
-          <span class="up">上涨 {{ chgdiagram.up }} <em>{{ formatSharePct(chgRatio?.upPct ?? 0) }}</em></span>
-          <span class="flat">平盘 {{ chgdiagram.balance }} <em>{{ formatSharePct(chgRatio?.balancePct ?? 0) }}</em></span>
-          <span class="down">下跌 {{ chgdiagram.down }} <em>{{ formatSharePct(chgRatio?.downPct ?? 0) }}</em></span>
+        <div v-if="chgRatio" class="chg-ratio-wrap">
+          <div class="chg-ratio-bar" aria-hidden="true">
+            <span class="chg-ratio-seg up" :style="{ width: `${chgRatio.upPct}%` }" />
+            <span class="chg-ratio-seg flat" :style="{ width: `${chgRatio.balancePct}%` }" />
+            <span class="chg-ratio-seg down" :style="{ width: `${chgRatio.downPct}%` }" />
+          </div>
+          <div class="chg-summary">
+            <span class="chg-sum up">上涨 {{ chgdiagram.up }}</span>
+            <span class="chg-sum flat">平盘 {{ chgdiagram.balance }}</span>
+            <span class="chg-sum down">下跌 {{ chgdiagram.down }}</span>
+          </div>
         </div>
       </div>
 
@@ -282,18 +296,28 @@ onUnmounted(() => {
         <div v-if="heatmapLoading" class="mc-inline-loading">刷新中…</div>
         <div v-else class="heatmap-grid">
           <div
-            v-for="tile in heatmapTiles"
-            :key="tile.item.code"
+            v-for="item in visibleHeatmapItems"
+            :key="item.code"
             class="heatmap-tile"
-            :class="priceClass(tile.item.pxChangeRate)"
-            :style="{ '--hm-flex': tile.flex }"
-            :title="tile.item.name"
+            :class="priceClass(item.pxChangeRate)"
+            :title="item.name"
           >
-            <span class="hm-name">{{ tile.item.name }}</span>
-            <strong class="hm-metric">{{ tile.item.metricValue }}</strong>
-            <span class="hm-chg">{{ formatPct(tile.item.pxChangeRate) }}</span>
+            <span class="hm-name">{{ item.name }}</span>
+            <strong class="hm-metric">{{ item.metricValue }}</strong>
+            <span class="hm-chg">{{ formatPct(item.pxChangeRate) }}</span>
           </div>
         </div>
+        <button
+          v-if="canToggleHeatmap && !heatmapLoading"
+          type="button"
+          class="mc-toggle heatmap-toggle"
+          :aria-label="heatmapExpanded ? '收起热力图' : '展开热力图'"
+          @click="heatmapExpanded = !heatmapExpanded"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ expanded: heatmapExpanded }">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
       </div>
 
       <!-- 主力净流入 -->
@@ -307,17 +331,40 @@ onUnmounted(() => {
           </select>
           <span v-else class="mc-sub">{{ activeFundflow?.blockTypeName }}</span>
         </div>
-        <div class="fundflow-chart">
-          <div v-for="item in fundflowChartItems" :key="item.code" class="ff-row">
-            <span class="ff-name">{{ item.name }}</span>
-            <div class="ff-bar-wrap">
-              <div
-                class="ff-bar"
-                :class="item.netAmount >= 0 ? 'up' : 'down'"
-                :style="{ width: `${(Math.abs(item.netAmount) / maxFundflowAbs) * 100}%` }"
-              />
+        <div class="ff-legend">
+          <span class="ff-legend-item up"><i aria-hidden="true" />净流入</span>
+          <span class="ff-legend-item down"><i aria-hidden="true" />净流出</span>
+        </div>
+        <div class="ff-bars-wrap">
+          <div class="ff-bars">
+            <div
+              v-for="item in fundflowInflowItems"
+              :key="`in-${item.code}`"
+              class="ff-bar-col"
+            >
+              <span class="ff-val up">{{ item.mainNetTurnover }}</span>
+              <div class="ff-bar-track">
+                <div
+                  class="ff-vbar up"
+                  :style="{ height: `${fundBarHeight(item.netAmount, 'in')}px` }"
+                />
+              </div>
+              <span class="ff-name">{{ item.name }}</span>
             </div>
-            <span class="ff-val" :class="item.netAmount >= 0 ? 'up' : 'down'">{{ item.mainNetTurnover }}</span>
+            <div
+              v-for="item in fundflowOutflowItems"
+              :key="`out-${item.code}`"
+              class="ff-bar-col"
+            >
+              <span class="ff-val down">{{ item.mainNetTurnover }}</span>
+              <div class="ff-bar-track">
+                <div
+                  class="ff-vbar down"
+                  :style="{ height: `${fundBarHeight(item.netAmount, 'out')}px` }"
+                />
+              </div>
+              <span class="ff-name">{{ item.name }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -540,50 +587,68 @@ onUnmounted(() => {
   max-width: 100%;
 }
 
-.chg-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 104px;
+.chg-bars-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding-bottom: 2px;
+  padding: 2px 0;
 }
 
-.chg-bars::-webkit-scrollbar {
+.chg-bars-wrap::-webkit-scrollbar {
   display: none;
 }
 
+.chg-bars {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 4px;
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
 .chg-bar-col {
-  flex: 1 0 30px;
-  min-width: 26px;
-  height: 100%;
+  flex: 0 0 30px;
+  width: 30px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
-}
-
-.chg-count {
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1;
+  gap: 4px;
 }
 
 .chg-bar-track {
-  width: 100%;
-  max-width: 24px;
-  height: 84px;
+  width: 22px;
+  height: 100px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .chg-bar {
   width: 100%;
+  max-height: 100%;
   border-radius: 3px 3px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 3px;
+  overflow: hidden;
+}
+
+.chg-count {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+}
+
+.chg-bar.flat .chg-count {
+  color: var(--text);
+  text-shadow: none;
 }
 
 .chg-bar.up {
@@ -603,14 +668,20 @@ onUnmounted(() => {
   text-align: center;
   line-height: 1.2;
   color: var(--muted);
-  word-break: keep-all;
+  min-height: 22px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.chg-ratio-wrap {
+  margin-top: 10px;
 }
 
 .chg-ratio-bar {
   display: flex;
   width: 100%;
   height: 6px;
-  margin-top: 10px;
   border-radius: 999px;
   overflow: hidden;
   background: var(--hover);
@@ -636,42 +707,41 @@ onUnmounted(() => {
 
 .chg-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr auto 1fr;
   gap: 6px;
-  margin-top: 8px;
+  align-items: center;
+  margin-top: 6px;
   font-size: 11px;
+  line-height: 1.3;
 }
 
-.chg-summary em {
-  display: block;
-  margin-top: 2px;
-  font-style: normal;
-  font-size: 10px;
-  opacity: 0.82;
-}
-
-.chg-summary .up {
+.chg-sum.up {
+  justify-self: start;
+  text-align: left;
   color: var(--up);
 }
 
-.chg-summary .down {
+.chg-sum.flat {
+  justify-self: center;
+  text-align: center;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.chg-sum.down {
+  justify-self: end;
+  text-align: right;
   color: var(--down);
 }
 
-.chg-summary .flat {
-  color: var(--muted);
-}
-
 .heatmap-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-height: 108px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .heatmap-tile {
-  flex: var(--hm-flex, 0.1) 1 0;
-  min-width: 68px;
+  min-width: 0;
   min-height: 54px;
   padding: 6px 8px;
   border-radius: 4px;
@@ -726,52 +796,72 @@ onUnmounted(() => {
   color: var(--down);
 }
 
-.fundflow-chart {
+.ff-legend {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ff-row {
-  display: grid;
-  grid-template-columns: minmax(52px, 28%) 1fr minmax(48px, 22%);
-  gap: 6px;
   align-items: center;
-  font-size: 11px;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  color: var(--muted);
 }
 
-.ff-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text);
+.ff-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.ff-bar-wrap {
-  height: 8px;
-  background: var(--hover);
-  border-radius: 2px;
-  overflow: hidden;
+.ff-legend-item i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  font-style: normal;
 }
 
-.ff-bar {
-  height: 100%;
-  border-radius: 2px;
-  min-width: 2px;
-}
-
-.ff-bar.up {
+.ff-legend-item.up i {
   background: var(--up);
 }
 
-.ff-bar.down {
+.ff-legend-item.down i {
   background: var(--down);
 }
 
+.ff-bars-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.ff-bars-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.ff-bars {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 4px;
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.ff-bar-col {
+  flex: 0 0 52px;
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 .ff-val {
-  text-align: right;
+  font-size: 9px;
+  line-height: 1.2;
+  min-height: 11px;
   white-space: nowrap;
-  font-size: 10px;
+  text-align: center;
 }
 
 .ff-val.up {
@@ -780,6 +870,42 @@ onUnmounted(() => {
 
 .ff-val.down {
   color: var(--down);
+}
+
+.ff-bar-track {
+  width: 28px;
+  height: 88px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ff-vbar {
+  width: 100%;
+  max-height: 100%;
+  border-radius: 3px 3px 0 0;
+}
+
+.ff-vbar.up {
+  background: var(--up);
+}
+
+.ff-vbar.down {
+  background: var(--down);
+}
+
+.ff-name {
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--text);
+  text-align: center;
+  min-height: 22px;
+  max-width: 52px;
+  word-break: break-all;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
 }
 
 .overview-tabs {
@@ -920,27 +1046,27 @@ onUnmounted(() => {
   }
 
   .chg-bars {
-    height: 96px;
-    margin-inline: -2px;
-    padding-inline: 2px;
+    gap: 3px;
   }
 
   .chg-bar-col {
-    flex: 0 0 28px;
-    min-width: 28px;
+    flex-basis: 28px;
+    width: 28px;
   }
 
   .chg-bar-track {
-    height: 76px;
-    max-width: 20px;
+    width: 20px;
+    height: 92px;
   }
 
   .chg-count {
     font-size: 9px;
+    min-height: 11px;
   }
 
   .chg-label {
     font-size: 8px;
+    min-height: 20px;
     max-width: 30px;
     word-break: break-all;
   }
@@ -950,23 +1076,29 @@ onUnmounted(() => {
     gap: 4px;
   }
 
-  .heatmap-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-  }
-
   .heatmap-tile {
-    flex: unset;
-    min-width: 0;
-    min-height: 54px;
+    min-height: 52px;
     padding: 6px;
   }
 
-  .ff-row {
-    grid-template-columns: minmax(44px, 32%) 1fr minmax(40px, 24%);
-    gap: 4px;
-    font-size: 10px;
+  .ff-bar-col {
+    flex-basis: 44px;
+    width: 44px;
+  }
+
+  .ff-bar-track {
+    width: 24px;
+    height: 76px;
+  }
+
+  .ff-val {
+    font-size: 8px;
+  }
+
+  .ff-name {
+    font-size: 8px;
+    max-width: 44px;
+    min-height: 20px;
   }
 
   .overview-card {
