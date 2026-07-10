@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { fetchHealthz, fetchSnapshot, type HealthzResponse } from '@/features/market/api/http'
 import { connectMarketStream } from '@/features/market/api/marketWs'
 import { createEmptySnapshot, createMockSnapshot } from '@/features/market/mock/data'
-import type { AlphaSnapshot, IndexQuote, MarketSnapshot, Quote } from '@/features/market/types/market'
+import type { AlphaSnapshot, IndexQuote, MarketInternals, MarketSnapshot, Quote } from '@/features/market/types/market'
 import { formatNumber } from '@/utils/format'
 
 const COIN_ICONS: Record<string, string> = {
@@ -41,6 +41,15 @@ function normalizeAlpha(
   return { indices: [], stocks: [] }
 }
 
+function normalizeInternals(
+  next: MarketInternals | null | undefined,
+  prev: MarketInternals | null | undefined,
+): MarketInternals | undefined {
+  if (next?.cn?.breadth?.total) return next
+  if (prev?.cn?.breadth?.total) return prev
+  return next ?? prev
+}
+
 export const useMarketStore = defineStore('market', () => {
   const snapshot = ref<MarketSnapshot>(createEmptySnapshot())
   const wsStatus = ref<'mock' | 'connecting' | 'open' | 'closed'>('connecting')
@@ -61,6 +70,7 @@ export const useMarketStore = defineStore('market', () => {
   const macro = computed(() => snapshot.value.macro)
   const indices = computed(() => snapshot.value.indices ?? [])
   const alpha = computed(() => snapshot.value.alpha ?? { indices: [], stocks: [] })
+  const internals = computed(() => snapshot.value.internals)
 
   const updatedAtLabel = computed(() => {
     const t = snapshot.value.quotes[0]?.updatedAt
@@ -108,6 +118,7 @@ export const useMarketStore = defineStore('market', () => {
       indices: normalizeIndices(data.indices, prev.indices),
       alpha: normalizeAlpha(data.alpha, prev.alpha),
       macro: data.macro ?? prev.macro,
+      internals: normalizeInternals(data.internals, prev.internals),
     }
   }
 
@@ -368,6 +379,7 @@ export const useMarketStore = defineStore('market', () => {
     macro,
     indices,
     alpha,
+    internals,
     updatedAtLabel,
     marketCapLabel,
     applySnapshot,

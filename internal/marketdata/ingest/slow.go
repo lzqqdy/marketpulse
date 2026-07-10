@@ -24,6 +24,70 @@ func (s *Service) startSlowIngest(ctx context.Context) {
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "crypto_meta", s.pollCryptoMeta)
 	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "long_short", s.pollLongShort)
 	go runPoller(ctx, time.Minute, "liquidations", s.pollLiquidations)
+	go runDynamicPoller(ctx, "internals", s.nextInternalsPollInterval, s.pollInternals)
+}
+
+func (s *Service) nextInternalsPollInterval() time.Duration {
+	return equity.NextInternalsPollInterval(
+		time.Now(),
+		s.cfg.Ingest.Internals.Interval,
+		s.cfg.Ingest.Internals.IdleInterval,
+	)
+}
+
+func (s *Service) pollInternals(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	var indexChangePct float64
+	for _, idx := range s.store.GetSnapshot().Indices {
+		if idx.ID == "sh000001" {
+			indexChangePct = idx.ChangePct
+			break
+		}
+	}
+
+	start := time.Now()
+	breadth, err := equity.FetchAShareBreadth(nil)
+	if err != nil {
+		s.ingestStatus.set("internals", "error")
+		s.providerHealth.ReportFailure("eastmoney_a_breadth", err)
+		return err
+	}
+	s.providerHealth.ReportSuccess("eastmoney_a_breadth", time.Since(start))
+	s.providerHealth.ReportUsed("eastmoney_a_breadth", true)
+
+	start = time.Now()
+	industry, err := equity.FetchIndustrySectors(nil)
+	if err != nil {
+		s.ingestStatus.set("internals", "degraded")
+		s.providerHealth.ReportFailure("eastmoney_industry_sector", err)
+		return err
+	}
+	s.providerHealth.ReportSuccess("eastmoney_industry_sector", time.Since(start))
+	s.providerHealth.ReportUsed("eastmoney_industry_sector", true)
+
+	start = time.Now()
+	concept, err := equity.FetchConceptSectors(nil)
+	if err != nil {
+		s.ingestStatus.set("internals", "degraded")
+		s.providerHealth.ReportFailure("eastmoney_concept_sector", err)
+		return err
+	}
+	s.providerHealth.ReportSuccess("eastmoney_concept_sector", time.Since(start))
+	s.providerHealth.ReportUsed("eastmoney_concept_sector", true)
+
+	now := time.Now().UTC()
+	cn := store.CNInternals{
+		Breadth:   breadth,
+		Industry:  industry,
+		Concept:   concept,
+		Wind:      equity.BuildMarketWind(breadth, industry, concept, indexChangePct, now),
+		UpdatedAt: now,
+	}
+	s.store.SetInternals(store.MarketInternals{CN: cn})
+	s.ingestStatus.set("internals", "ok")
+	return nil
 }
 
 func (s *Service) nextEquityPollInterval() time.Duration {

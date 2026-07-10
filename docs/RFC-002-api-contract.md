@@ -70,9 +70,103 @@
     "fearGreed": { "value": 55, "label": "Neutral" },
     "btcDominancePct": 52.3,
     "ethDominancePct": 17.8
+  },
+  "internals": {
+    "cn": {
+      "breadth": {
+        "total": 5123,
+        "up": 3120,
+        "down": 1680,
+        "flat": 323,
+        "up_pct": 60.9,
+        "down_pct": 32.8,
+        "advance_decline_ratio": 1.86,
+        "median_change_pct": 0.42,
+        "equal_weight_change_pct": 0.38,
+        "up_turnover_pct": 58.2,
+        "limit_up": 45,
+        "limit_down": 12,
+        "updatedAt": "2026-05-16T12:00:00+08:00",
+        "source": "eastmoney"
+      },
+      "industry": [],
+      "concept": [],
+      "wind": {
+        "summary": "市场宽度偏强，赚钱效应较好",
+        "tags": ["宽度偏强"],
+        "updatedAt": "2026-05-16T12:00:00+08:00"
+      },
+      "updatedAt": "2026-05-16T12:00:00+08:00"
+    }
   }
 }
 ```
+
+---
+
+## 2a. GET /api/v1/market/internals
+
+A 股市场内部结构（宽度 + 板块 + 风向）。
+
+查询参数：
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `market` | `cn` | 当前仅支持 `cn` |
+
+### Response 200
+
+结构与 snapshot 中 `internals` 相同（`MarketInternals`）。
+
+---
+
+## 2b. GET /api/v1/market/breadth
+
+仅返回 `internals.cn.breadth`（`MarketBreadth`）。
+
+查询参数：同 internals（`market=cn`）。
+
+---
+
+## 2c. GET /api/v1/market/sectors
+
+行业或概念板块排行。
+
+查询参数：
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `market` | `cn` | 当前仅支持 `cn` |
+| `type` | 必填 | `industry` 或 `concept` |
+
+### Response 200
+
+```json
+{
+  "type": "industry",
+  "sectors": [
+    {
+      "code": "BK0475",
+      "name": "银行",
+      "change_pct": 1.23,
+      "turnover_rate": 0.85,
+      "up_count": 28,
+      "down_count": 4,
+      "leader_name": "招商银行",
+      "leader_change_pct": 2.1
+    }
+  ],
+  "updatedAt": "2026-05-16T12:00:00+08:00"
+}
+```
+
+---
+
+## 2d. GET /api/v1/market/wind
+
+规则化市场风向摘要（`MarketWind`）。
+
+查询参数：同 internals（`market=cn`）。
 
 ---
 
@@ -235,3 +329,4 @@ wss://{host}/ws/v1/market/stream?channels=quotes,indices,macro,rates
 |------|------|------|
 | 0.1 | 2026-05-16 | 草案 |
 | 0.2 | 2026-05-24 | 增加 market canonical namespace，保留旧路径兼容 |
+| 0.3 | 2026-06-24 | 增加 A 股 Market Internals（breadth/sectors/wind）接口与 snapshot 字段 |

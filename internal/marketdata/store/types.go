@@ -132,11 +132,63 @@ type Liquidations struct {
 
 // Snapshot is the full market state served to clients (RFC-002).
 type Snapshot struct {
-	Version uint64        `json:"version"`
-	Ts      int64         `json:"ts"`
-	Quotes  []Quote       `json:"quotes"`
-	Rates   Rates         `json:"rates"`
-	Indices []IndexQuote  `json:"indices"`
-	Alpha   AlphaSnapshot `json:"alpha"`
-	Macro   MacroSnapshot `json:"macro"`
+	Version   uint64           `json:"version"`
+	Ts        int64            `json:"ts"`
+	Quotes    []Quote          `json:"quotes"`
+	Rates     Rates            `json:"rates"`
+	Indices   []IndexQuote     `json:"indices"`
+	Alpha     AlphaSnapshot    `json:"alpha"`
+	Macro     MacroSnapshot    `json:"macro"`
+	Internals MarketInternals  `json:"internals,omitempty"`
+}
+
+// MarketInternals groups regional market-structure snapshots.
+type MarketInternals struct {
+	CN CNInternals `json:"cn,omitempty"`
+}
+
+// CNInternals is the A-share market internals read model.
+type CNInternals struct {
+	Breadth   MarketBreadth `json:"breadth"`
+	Industry  []SectorQuote `json:"industry"`
+	Concept   []SectorQuote `json:"concept"`
+	Wind      MarketWind    `json:"wind"`
+	UpdatedAt time.Time     `json:"updatedAt"`
+}
+
+// MarketBreadth summarizes A-share advance/decline structure.
+type MarketBreadth struct {
+	Total                 int       `json:"total"`
+	Up                    int       `json:"up"`
+	Down                  int       `json:"down"`
+	Flat                  int       `json:"flat"`
+	UpPct                 float64   `json:"up_pct"`
+	DownPct               float64   `json:"down_pct"`
+	AdvanceDeclineRatio   float64   `json:"advance_decline_ratio"`
+	MedianChangePct       float64   `json:"median_change_pct"`
+	EqualWeightChangePct  float64   `json:"equal_weight_change_pct"`
+	UpTurnoverPct         float64   `json:"up_turnover_pct"`
+	LimitUp               int       `json:"limit_up"`
+	LimitDown             int       `json:"limit_down"`
+	UpdatedAt             time.Time `json:"updatedAt"`
+	Source                string    `json:"source"`
+}
+
+// SectorQuote is a ranked industry or concept board row.
+type SectorQuote struct {
+	Code              string  `json:"code"`
+	Name              string  `json:"name"`
+	ChangePct         float64 `json:"change_pct"`
+	TurnoverRate      float64 `json:"turnover_rate"`
+	UpCount           int     `json:"up_count"`
+	DownCount         int     `json:"down_count"`
+	LeaderName        string  `json:"leader_name"`
+	LeaderChangePct   float64 `json:"leader_change_pct"`
+}
+
+// MarketWind is a rule-based market regime summary.
+type MarketWind struct {
+	Summary   string    `json:"summary"`
+	Tags      []string  `json:"tags,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }

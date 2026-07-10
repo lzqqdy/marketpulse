@@ -68,6 +68,7 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s.ingestStatus.set("liquidations", "starting")
 	s.ingestStatus.set("liquidations_ws", "starting")
 	s.ingestStatus.set("sge_gold", "starting")
+	s.ingestStatus.set("internals", "starting")
 	if cfg.Alpha.Enabled {
 		s.ingestStatus.set("alpha_poll", "starting")
 		s.seedAlphaDefaults()

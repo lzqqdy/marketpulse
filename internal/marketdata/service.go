@@ -31,6 +31,7 @@ var ServeWSUpgrader = stream.ServeWSUpgrader
 type ProviderStatusResponse = ingest.ProviderStatusResponse
 type Snapshot = store.Snapshot
 type Quote = store.Quote
+type MarketInternals = store.MarketInternals
 
 // KlineResponse is returned by market kline APIs.
 type KlineResponse struct {
@@ -55,6 +56,7 @@ type MarketDataService interface {
 	ServeKlineWS(conn *websocket.Conn, symbol string, interval string)
 	Klines(symbol string, interval string, limit int) (KlineResponse, error)
 	IndexKlines(id string, interval string, limit int) (KlineResponse, error)
+	Internals() MarketInternals
 }
 
 // Service wires the market data read model, ingestion, and streaming layers.
@@ -92,6 +94,10 @@ func (s *Service) Start(ctx context.Context) {
 
 func (s *Service) Snapshot() Snapshot {
 	return s.store.GetSnapshot()
+}
+
+func (s *Service) Internals() MarketInternals {
+	return s.store.GetInternals()
 }
 
 func (s *Service) Quote(symbol string) (Quote, bool) {

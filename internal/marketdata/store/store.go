@@ -16,6 +16,7 @@ type MarketStore struct {
 	indices   []IndexQuote
 	alpha     AlphaSnapshot
 	macro     MacroSnapshot
+	internals MarketInternals
 	symbols   []string // display order
 	listeners []ChangeListener
 }
@@ -266,6 +267,27 @@ func (s *MarketStore) SetIndices(indices []IndexQuote) uint64 {
 	return v
 }
 
+// SetInternals replaces the market internals snapshot.
+func (s *MarketStore) SetInternals(internals MarketInternals) uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.internals = internals
+	v := s.bump()
+	s.notifyLocked(v)
+	return v
+}
+
+// GetInternals returns a copy of the current internals snapshot.
+func (s *MarketStore) GetInternals() MarketInternals {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := s.internals
+	out.CN.Industry = append([]SectorQuote(nil), s.internals.CN.Industry...)
+	out.CN.Concept = append([]SectorQuote(nil), s.internals.CN.Concept...)
+	out.CN.Wind.Tags = append([]string(nil), s.internals.CN.Wind.Tags...)
+	return out
+}
+
 // SetMacro replaces macro snapshot.
 func (s *MarketStore) SetMacro(m MacroSnapshot) uint64 {
 	s.mu.Lock()
@@ -366,13 +388,18 @@ func (s *MarketStore) GetSnapshot() Snapshot {
 		UpdatedAt: s.alpha.UpdatedAt,
 		Source:    s.alpha.Source,
 	}
+	internals := s.internals
+	internals.CN.Industry = append([]SectorQuote(nil), s.internals.CN.Industry...)
+	internals.CN.Concept = append([]SectorQuote(nil), s.internals.CN.Concept...)
+	internals.CN.Wind.Tags = append([]string(nil), s.internals.CN.Wind.Tags...)
 	return Snapshot{
-		Version: s.version,
-		Ts:      time.Now().UnixMilli(),
-		Quotes:  quotes,
-		Rates:   s.rates,
-		Indices: indices,
-		Alpha:   alpha,
-		Macro:   s.macro,
+		Version:   s.version,
+		Ts:        time.Now().UnixMilli(),
+		Quotes:    quotes,
+		Rates:     s.rates,
+		Indices:   indices,
+		Alpha:     alpha,
+		Macro:     s.macro,
+		Internals: internals,
 	}
 }

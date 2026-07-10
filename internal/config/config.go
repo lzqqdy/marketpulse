@@ -37,8 +37,9 @@ type IngestConfig struct {
 	Binance BinanceConfig `yaml:"binance"`
 	OTC     OTCConfig     `yaml:"otc"`
 	Forex   ForexConfig   `yaml:"forex"`
-	Equity  EquityConfig  `yaml:"equity"`
-	Macro   MacroConfig   `yaml:"macro"`
+	Equity    EquityConfig    `yaml:"equity"`
+	Internals InternalsConfig `yaml:"internals"`
+	Macro     MacroConfig     `yaml:"macro"`
 }
 
 // BinanceConfig configures the Binance websocket feed.
@@ -80,6 +81,12 @@ type EquityConfig struct {
 	Interval  time.Duration `yaml:"interval"`
 	IndexIDs  []string      `yaml:"index_ids"`
 	Providers []string      `yaml:"providers"`
+}
+
+// InternalsConfig configures A-share market internals polling (breadth/sectors/wind).
+type InternalsConfig struct {
+	Interval     time.Duration `yaml:"interval"`
+	IdleInterval time.Duration `yaml:"idle_interval"`
 }
 
 // DefaultEquityIndexIDs is the production watchlist (中国5 + 香港1 + 日韩2 + 美国3 + 商品3).
@@ -205,6 +212,12 @@ func (c *Config) applyDefaults() {
 		normalizedProviders = []string{"tencent", "eastmoney"}
 	}
 	c.Ingest.Equity.Providers = normalizedProviders
+	if c.Ingest.Internals.Interval == 0 {
+		c.Ingest.Internals.Interval = 60 * time.Second
+	}
+	if c.Ingest.Internals.IdleInterval == 0 {
+		c.Ingest.Internals.IdleInterval = time.Hour
+	}
 	if c.Ingest.Macro.Interval == 0 {
 		c.Ingest.Macro.Interval = 5 * time.Minute
 	}

@@ -21,6 +21,10 @@ func RegisterMarketRoutes(r *gin.Engine, h *Handler) {
 	market.GET("/providers/status", h.ProviderStatus)
 	market.GET("/klines", h.Klines)
 	market.GET("/index-klines", h.IndexKlines)
+	market.GET("/internals", h.Internals)
+	market.GET("/breadth", h.Breadth)
+	market.GET("/sectors", h.Sectors)
+	market.GET("/wind", h.MarketWind)
 
 	ws := r.Group("/ws/v1/market")
 	ws.GET("/stream", h.StreamWS)

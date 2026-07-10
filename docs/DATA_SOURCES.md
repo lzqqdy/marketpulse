@@ -21,6 +21,7 @@ The market data boundary is `internal/marketdata`. Other future modules should c
 | Liquidations | Binance USD-M Futures | REST aggregate from memory | WS live + memory window | `internal/marketdata/ingest/derivatives` |
 | US stock reference quotes | Bitget USDT-FUTURES | Binance Alpha | REST bootstrap + WS live, REST fallback | `internal/marketdata/ingest/bitget`, `internal/marketdata/ingest/alpha` |
 | US stock reference K lines | Bitget USDT-FUTURES | Binance Alpha | REST history, WS/poll live | `internal/marketdata/service.go`, `internal/marketdata/stream/kline.go` |
+| A-share market internals | Eastmoney clist | None | REST poll | `internal/marketdata/ingest/equity` |
 
 ## Provider Health Names
 
@@ -46,6 +47,9 @@ Current provider names:
 | `binance_liquidations` | Binance Liquidations | Liquidation stream/aggregate |
 | `bitget_alpha` | Bitget USDT-FUTURES | US stock reference primary |
 | `binance_alpha` | Binance Alpha | US stock reference fallback |
+| `eastmoney_a_breadth` | Eastmoney A-share breadth | A-share full-market snapshot for breadth |
+| `eastmoney_industry_sector` | Eastmoney industry sectors | Industry board rankings |
+| `eastmoney_concept_sector` | Eastmoney concept sectors | Concept board rankings |
 
 The `alpha` category is a legacy internal/API name for the "US stock reference" panel. UI text should call it `美股参考`.
 
@@ -258,6 +262,50 @@ Fallback behavior:
 - Live K lines: Bitget WS for the latest candle when available; otherwise Bitget REST poll at `alpha.poll_interval`, then Binance Alpha REST poll as fallback.
 - Provider health marks `bitget_alpha` and `binance_alpha` separately and marks the currently used one.
 
+## A-Share Market Internals
+
+Market internals answer: advance/decline breadth, industry/concept sector rankings, and a rule-based wind summary. All upstream calls stay inside `internal/marketdata/ingest/equity`.
+
+### Eastmoney A-share full market (breadth)
+
+- Purpose: compute `MarketBreadth` from all Shanghai/Shenzhen/Beijing A-shares.
+- Endpoint: `GET https://push2.eastmoney.com/api/qt/clist/get`
+- Query: `fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048`, paginated `pn` / `pz=200`.
+- Fields used: `f12` code, `f14` name, `f2` price, `f3` change %, `f6` amount, `f5` volume, `f8` turnover rate, `f20` market cap, `f21` float market cap.
+- Poll interval: `ingest.internals.interval` (default `60s`) during CN equity session; `ingest.internals.idle_interval` (default `1h`) off-session.
+- Normalized output: `store.MarketBreadth` inside `CNInternals`.
+- Store field: `Snapshot.Internals.CN.Breadth`.
+- REST API: `GET /api/v1/market/breadth?market=cn`, also embedded in snapshot.
+- Health: `eastmoney_a_breadth`.
+
+### Eastmoney industry sectors
+
+- Purpose: ranked industry boards with leader stock.
+- Endpoint: same `clist/get` with `fs=m:90+t:2`.
+- Normalized output: `[]store.SectorQuote` in `CNInternals.Industry`.
+- REST API: `GET /api/v1/market/sectors?market=cn&type=industry`.
+- Health: `eastmoney_industry_sector`.
+
+### Eastmoney concept sectors
+
+- Purpose: ranked concept boards with leader stock.
+- Endpoint: same `clist/get` with `fs=m:90+t:3`.
+- Normalized output: `[]store.SectorQuote` in `CNInternals.Concept`.
+- REST API: `GET /api/v1/market/sectors?market=cn&type=concept`.
+- Health: `eastmoney_concept_sector`.
+
+### Market wind rules
+
+Computed in `ingest/equity/internals.go` (`BuildMarketWind`) from breadth + sector snapshots:
+
+- `up_pct > 65%` → breadth strong, good profit effect.
+- Index up but `up_pct < 40%` → index up on narrow breadth / weight pull.
+- Concept Top10 avg change clearly above industry Top10 → concept/theme active.
+- Large industry/concept dispersion → structural rotation warning.
+
+Normalized output: `store.MarketWind` in `CNInternals.Wind`.
+REST API: `GET /api/v1/market/wind?market=cn`, combined view at `GET /api/v1/market/internals?market=cn`.
+
 ## Normalized Output Contracts
 
 External provider data should be converted before reaching other modules:
@@ -269,6 +317,7 @@ External provider data should be converted before reaching other modules:
 | `IndexQuote` | Global overview and index K-line entry points |
 | `AlphaQuote` / `AlphaSnapshot` | US stock reference panel, legacy `alpha` API field |
 | `MacroSnapshot` | Market indicators |
+| `MarketInternals` / `CNInternals` | A-share breadth, sectors, wind summary |
 | `binance.Candle` | All K-line APIs after normalization |
 
 Do not expose raw provider payloads outside `internal/marketdata/ingest/*` or `internal/marketdata/binance`.

@@ -38,6 +38,9 @@ func TestLoad_example(t *testing.T) {
 	if cfg.Alpha.PollInterval != 30*time.Second || cfg.Alpha.ResolveInterval != 10*time.Minute {
 		t.Fatalf("alpha intervals: poll=%s resolve=%s", cfg.Alpha.PollInterval, cfg.Alpha.ResolveInterval)
 	}
+	if cfg.Ingest.Internals.Interval != 60*time.Second || cfg.Ingest.Internals.IdleInterval != time.Hour {
+		t.Fatalf("internals intervals: active=%s idle=%s", cfg.Ingest.Internals.Interval, cfg.Ingest.Internals.IdleInterval)
+	}
 	if strings.Join(cfg.AlphaBaseSymbols(), ",") != "QQQ,SPY,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA" {
 		t.Fatalf("alpha base symbols: %v", cfg.AlphaBaseSymbols())
 	}

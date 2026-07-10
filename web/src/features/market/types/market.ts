@@ -21,6 +21,53 @@ export interface MarketSnapshot {
   indices: IndexQuote[]
   alpha: AlphaSnapshot
   macro: MacroSnapshot
+  internals?: MarketInternals
+}
+
+export interface MarketInternals {
+  cn?: CNInternals
+}
+
+export interface CNInternals {
+  breadth: MarketBreadth
+  industry: SectorQuote[]
+  concept: SectorQuote[]
+  wind: MarketWind
+  updatedAt: string
+}
+
+export interface MarketBreadth {
+  total: number
+  up: number
+  down: number
+  flat: number
+  up_pct: number
+  down_pct: number
+  advance_decline_ratio: number
+  median_change_pct: number
+  equal_weight_change_pct: number
+  up_turnover_pct: number
+  limit_up: number
+  limit_down: number
+  updatedAt: string
+  source: string
+}
+
+export interface SectorQuote {
+  code: string
+  name: string
+  change_pct: number
+  turnover_rate: number
+  up_count: number
+  down_count: number
+  leader_name: string
+  leader_change_pct: number
+}
+
+export interface MarketWind {
+  summary: string
+  tags?: string[]
+  updatedAt: string
 }
 
 export interface IndexQuote {

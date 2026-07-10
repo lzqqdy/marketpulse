@@ -91,6 +91,9 @@ func defaultProviderDefs(alphaEnabled bool, alphaProvider string) []providerDef 
 		{Name: "coingecko_meta", Label: "CoinGecko Metadata", Category: "macro", Role: "auxiliary", StaleAfter: 20 * time.Minute},
 		{Name: "binance_derivatives", Label: "Binance Derivatives", Category: "derivatives", Role: "primary", StaleAfter: 3 * time.Minute},
 		{Name: "binance_liquidations", Label: "Binance Liquidations", Category: "derivatives", Role: "auxiliary", StaleAfter: 3 * time.Minute},
+		{Name: "eastmoney_a_breadth", Label: "Eastmoney A-Share Breadth", Category: "internals", Role: "primary", StaleAfter: 3 * time.Minute},
+		{Name: "eastmoney_industry_sector", Label: "Eastmoney Industry Sector", Category: "internals", Role: "primary", StaleAfter: 3 * time.Minute},
+		{Name: "eastmoney_concept_sector", Label: "Eastmoney Concept Sector", Category: "internals", Role: "primary", StaleAfter: 3 * time.Minute},
 	}
 	if alphaProvider == "binance" {
 		defs = append(defs, providerDef{Name: "binance_alpha", Label: "Binance Alpha", Category: "alpha", Role: "primary", StaleAfter: 90 * time.Second, Disabled: !alphaEnabled})

@@ -83,5 +83,8 @@ ingest:
       - gold
       - silver
       - crude
+  internals:
+    interval: 60s
+    idle_interval: 1h
   macro:
     interval: 5m
