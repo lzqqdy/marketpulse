@@ -4,6 +4,7 @@ package marketdata
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,8 +15,10 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/marketdata/binance"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/alpha"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/baidu"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/bitget"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/equity"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/marketcenter"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/store"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/stream"
 )
@@ -23,6 +26,7 @@ import (
 var (
 	ErrInvalidSymbol = errors.New("invalid symbol")
 	ErrInvalidIndex  = errors.New("invalid index")
+	ErrInvalidMarket = errors.New("invalid market")
 )
 
 // ServeWSUpgrader is the market data WebSocket upgrader used by API adapters.
@@ -55,15 +59,18 @@ type MarketDataService interface {
 	ServeKlineWS(conn *websocket.Conn, symbol string, interval string)
 	Klines(symbol string, interval string, limit int) (KlineResponse, error)
 	IndexKlines(id string, interval string, limit int) (KlineResponse, error)
+	MarketCenter(market string) (marketcenter.CenterResponse, error)
+	MarketCenterHeatmap(market, sortKey string) (marketcenter.Heatmap, error)
 }
 
 // Service wires the market data read model, ingestion, and streaming layers.
 type Service struct {
-	cfg       *config.Config
-	store     *store.MarketStore
-	streamHub *stream.StreamHub
-	klineHub  *stream.KlineHub
-	ingest    *ingest.Service
+	cfg           *config.Config
+	store         *store.MarketStore
+	streamHub     *stream.StreamHub
+	klineHub      *stream.KlineHub
+	ingest        *ingest.Service
+	marketCenter  *marketcenter.Client
 }
 
 // New creates a complete market data service.
@@ -77,17 +84,22 @@ func NewWithStore(cfg *config.Config, st *store.MarketStore) *Service {
 	streamHub := stream.NewStreamHub(st)
 	klineHub := stream.NewKlineHub(cfg)
 	ingestSvc := ingest.New(cfg, st)
+	center := marketcenter.NewClient(ingest.BaiduConfigFrom(cfg))
 	return &Service{
-		cfg:       cfg,
-		store:     st,
-		streamHub: streamHub,
-		klineHub:  klineHub,
-		ingest:    ingestSvc,
+		cfg:          cfg,
+		store:        st,
+		streamHub:    streamHub,
+		klineHub:     klineHub,
+		ingest:       ingestSvc,
+		marketCenter: center,
 	}
 }
 
 func (s *Service) Start(ctx context.Context) {
 	s.ingest.Start(ctx)
+	if s.marketCenter != nil {
+		s.marketCenter.Start(ctx)
+	}
 }
 
 func (s *Service) Snapshot() Snapshot {
@@ -225,9 +237,20 @@ func (s *Service) IndexKlines(id string, interval string, limit int) (KlineRespo
 		limit = binance.DefaultKlineLimit
 	}
 
-	candles, source, err := equity.FetchCachedEastmoneyKlines(nil, def, interval, limit)
-	if err != nil {
-		return KlineResponse{}, err
+	var candles []binance.Candle
+	var source string
+	var err error
+	if def.HasBaidu() && s.cfg.Ingest.Baidu.IsEnabled() {
+		candles, err = baidu.FetchKlines(nil, ingest.BaiduConfigFrom(s.cfg), def.BaiduRef(), interval, limit)
+		if err == nil && len(candles) > 0 {
+			source = "baidu"
+		}
+	}
+	if len(candles) == 0 {
+		candles, source, err = equity.FetchCachedEastmoneyKlines(nil, def, interval, limit)
+		if err != nil {
+			return KlineResponse{}, err
+		}
 	}
 	return KlineResponse{
 		Symbol:   def.ID,
@@ -255,6 +278,40 @@ func resolveAlphaPair(cfg *config.Config, symbol string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (s *Service) MarketCenter(market string) (marketcenter.CenterResponse, error) {
+	if s.marketCenter == nil {
+		return marketcenter.CenterResponse{}, fmt.Errorf("market center unavailable")
+	}
+	if !s.cfg.Ingest.Baidu.IsEnabled() {
+		return marketcenter.CenterResponse{}, fmt.Errorf("baidu: disabled")
+	}
+	resp, err := s.marketCenter.Center(market)
+	if err != nil {
+		if strings.Contains(err.Error(), "unsupported market") {
+			return marketcenter.CenterResponse{}, ErrInvalidMarket
+		}
+		return marketcenter.CenterResponse{}, err
+	}
+	return resp, nil
+}
+
+func (s *Service) MarketCenterHeatmap(market, sortKey string) (marketcenter.Heatmap, error) {
+	if s.marketCenter == nil {
+		return marketcenter.Heatmap{}, fmt.Errorf("market center unavailable")
+	}
+	if !s.cfg.Ingest.Baidu.IsEnabled() {
+		return marketcenter.Heatmap{}, fmt.Errorf("baidu: disabled")
+	}
+	resp, err := s.marketCenter.Heatmap(market, sortKey)
+	if err != nil {
+		if strings.Contains(err.Error(), "unsupported market") {
+			return marketcenter.Heatmap{}, ErrInvalidMarket
+		}
+		return marketcenter.Heatmap{}, err
+	}
+	return resp, nil
 }
 
 func formatLastQuote(ms int64) string {

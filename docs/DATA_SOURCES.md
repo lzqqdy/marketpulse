@@ -12,8 +12,8 @@ The market data boundary is `internal/marketdata`. Other future modules should c
 | Spot crypto K lines | Binance Spot REST + WS | None | REST history, WS live | `internal/marketdata/binance`, `internal/marketdata/stream` |
 | USDT/CNY | OKX C2C | None | REST poll | `internal/marketdata/ingest/otc` |
 | USD/CNY | Frankfurter | None | REST poll | `internal/marketdata/ingest/forex` |
-| Global indices and commodities | Tencent | Eastmoney | REST poll | `internal/marketdata/ingest/equity` |
-| Index K lines | Eastmoney | Cached retry | REST | `internal/marketdata/ingest/equity` |
+| Global indices and commodities | Baidu Finance | Tencent, Eastmoney | WS + REST poll | `internal/marketdata/ingest/baidu`, `internal/marketdata/ingest/equity` |
+| Index K lines | Baidu Finance | Eastmoney, Tencent | REST | `internal/marketdata/ingest/baidu`, `internal/marketdata/ingest/equity` |
 | Domestic gold | Shanghai Gold Exchange | SGE English delayed quote, daily report | REST/HTML poll | `internal/marketdata/ingest/metals` |
 | Macro | alternative.me, CoinGecko | Stablecoin market cap best-effort | REST poll | `internal/marketdata/ingest/macro` |
 | Crypto metadata | CoinGecko | None | REST poll | `internal/marketdata/ingest/crypto` |
@@ -37,7 +37,8 @@ Current provider names:
 | `binance_spot_ws` | Binance Spot WS | Crypto quote primary |
 | `okx_c2c` | OKX C2C | USDT/CNY primary |
 | `frankfurter_fx` | Frankfurter FX | USD/CNY primary |
-| `tencent_index` | Tencent | Index quote primary |
+| `baidu_index` | Baidu Finance | Index quote primary |
+| `tencent_index` | Tencent | Index quote fallback |
 | `eastmoney_index` | Eastmoney | Index quote fallback |
 | `sge_gold` | SGE Gold | Domestic gold auxiliary |
 | `coingecko_macro` | CoinGecko Macro | Macro primary |
@@ -105,12 +106,21 @@ gold, silver, crude
 
 `sge-au9999` is appended separately by the SGE domestic gold poller.
 
-### Tencent Index Quotes
+### Baidu Finance Index Quotes
 
 - Purpose: primary index and commodity quote source.
+- HTTP endpoint: `GET https://finance.pae.baidu.com/vapi/v1/getquotation`
+- WS endpoint: `wss://finance-ws.pae.baidu.com` (`product=snapshot`, `financeType=index`)
+- Provider role: primary.
+- Health: `baidu_index`.
+- Fallback inside Baidu: WS disconnects fall back to the existing HTTP poller in `pollEquity`.
+
+### Tencent Index Quotes
+
+- Purpose: fallback index and commodity quote source.
 - Endpoint: `GET https://qt.gtimg.cn/q={symbols}`
 - Request shape: batched by Tencent symbol, for example `s_sh000001,s_usIXIC,hf_GC`.
-- Provider role: primary.
+- Provider role: fallback.
 - Health: `tencent_index`.
 
 ### Eastmoney Index Quotes
@@ -127,14 +137,15 @@ gold, silver, crude
 - Open-market interval: `equity.ActiveTTL`, currently `1m`.
 - Closed-market interval: `equity.InactiveTTL`, currently `1h`.
 - Market windows are in `internal/marketdata/ingest/equity/window.go`.
-- Provider order comes from `ingest.equity.providers`, default `tencent`, then `eastmoney`.
+- Provider order comes from `ingest.equity.providers`, default `baidu`, then `tencent`, then `eastmoney`.
 - A circuit breaker can temporarily skip a failing provider.
 
 ### Index K Lines
 
-- Endpoint: `GET https://push2his.eastmoney.com/api/qt/stock/kline/get`
+- Primary endpoint: `GET https://finance.pae.baidu.com/selfselect/getstockquotation`
+- Fallback endpoint: `GET https://push2his.eastmoney.com/api/qt/stock/kline/get`
 - REST API: `GET /api/v1/market/index-klines?id=sh000001&interval=1d`
-- Supported intervals are normalized in the Eastmoney kline client.
+- Supported intervals: Baidu handles `1h`, `1d`, `1w`; `15m` falls back to Eastmoney.
 - K lines are cached by index/interval to avoid repeated upstream calls.
 
 ### Domestic Gold SGE

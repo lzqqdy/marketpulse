@@ -26,8 +26,11 @@ func TestLoad_example(t *testing.T) {
 	if !strings.Contains(cfg.BinanceStreamURL(), "btcusdt@miniTicker") {
 		t.Fatalf("stream url: %s", cfg.BinanceStreamURL())
 	}
-	if strings.Join(cfg.Ingest.Equity.Providers, ",") != "tencent,eastmoney" {
+	if strings.Join(cfg.Ingest.Equity.Providers, ",") != "baidu,tencent,eastmoney" {
 		t.Fatalf("providers: %v", cfg.Ingest.Equity.Providers)
+	}
+	if !cfg.Ingest.Baidu.IsEnabled() || !cfg.Ingest.Baidu.IsWSEnabled() {
+		t.Fatalf("baidu defaults: enabled=%v ws=%v", cfg.Ingest.Baidu.IsEnabled(), cfg.Ingest.Baidu.IsWSEnabled())
 	}
 	if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 7 {
 		t.Fatalf("alpha config: enabled=%v indices=%d stocks=%d", cfg.Alpha.Enabled, len(cfg.Alpha.Indices), len(cfg.Alpha.Stocks))

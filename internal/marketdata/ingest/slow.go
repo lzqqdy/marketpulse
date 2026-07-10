@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/baidu"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/crypto"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/derivatives"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/equity"
@@ -141,7 +142,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 				"duration_ms", elapsed.Milliseconds(),
 			)
 		}
-		if err != nil {
+		if err != nil && len(rows) == 0 {
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -211,6 +212,12 @@ func (s *Service) pollSGE(ctx context.Context) error {
 
 func (s *Service) fetchEquityProvider(provider string, defs []equity.IndexDef) (map[string]store.IndexQuote, error, bool) {
 	switch provider {
+	case "baidu":
+		if !s.cfg.Ingest.Baidu.IsEnabled() {
+			return nil, nil, true
+		}
+		rows, err := baidu.FetchQuotes(httpClient, BaiduConfigFrom(s.cfg), equity.BaiduRefs(defs))
+		return rows, err, false
 	case "eastmoney":
 		rows, err := equity.FetchEastmoneyQuotes(httpClient, defs)
 		return rows, err, false
@@ -356,6 +363,8 @@ func (s *Service) ProviderStatus() ProviderStatusResponse {
 
 func equityProviderHealthName(provider string) string {
 	switch provider {
+	case "baidu":
+		return "baidu_index"
 	case "eastmoney":
 		return "eastmoney_index"
 	case "tencent":

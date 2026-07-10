@@ -1,0 +1,2738 @@
+openapi: 3.0.3
+info:
+  title: Baidu Finance (FinScope) Public API
+  description: |
+    百度财经 PC Web 公开 HTTP API 规范，供 MarketPulse 数据源接入参考。
+
+    - 调研时间：2026-07-10
+    - 来源：`finance.baidu.com` / `finance.pae.baidu.com` 前端 JS Bundle 静态扫描 + 匿名 curl 探测
+    - 约束：仅记录浏览器正常访问时的公开接口；不含登录破解、App 专用接口
+
+    **重要**：`/sapi/v1/get_candlestick_event` 为技术形态事件，**不是 K 线 OHLCV**。
+    K 线/分时请使用 `/selfselect/getstockquotation`。
+
+    WebSocket 实时推送：`wss://finance-ws.pae.baidu.com`（见文档 `x-websocket` 扩展）。
+  version: 1.0.0
+  contact:
+    name: MarketPulse
+  license:
+    name: Internal Reference Only
+    url: https://finance.baidu.com
+
+servers:
+  - url: https://finance.pae.baidu.com
+    description: 核心 API 网关
+  - url: https://sp0.baidu.com/5LMDcjW6BwF3otqbppnN2DJv/finance.pae.baidu.com
+    description: 百度 CDN 代理（部分接口可选，非必须）
+
+tags:
+  - name: Quote
+    description: 实时行情、盘口、简版报价
+  - name: Chart
+    description: K 线、分时、五日图
+  - name: Market
+    description: 市场状态、指数 Banner、全球概览
+  - name: Ranking
+    description: 排行榜、热搜、机构持股
+  - name: Sector
+    description: 行业/概念/地域板块、成分股
+  - name: FundFlow
+    description: 资金流向
+  - name: News
+    description: 快讯、新闻、公告
+  - name: Finance
+    description: 财务、分析、Widget、主营构成
+  - name: Technical
+    description: 技术分析事件与指标图形
+  - name: ETF
+    description: ETF 持仓
+  - name: Fund
+    description: 基金排行
+  - name: Futures
+    description: 期货
+  - name: Forex
+    description: 外汇
+  - name: Bond
+    description: 债券
+  - name: Calendar
+    description: 财经日历、宏观矩阵
+  - name: Search
+    description: 搜索建议与推荐
+  - name: Community
+    description: 股评、投票、舆情
+  - name: Watchlist
+    description: 自选股（多数需登录）
+  - name: Meta
+    description: 应用元数据、异步聚合
+  - name: OpenData
+    description: OpenData 聚合接口
+
+security: []
+
+paths:
+  # ─── Quote ───────────────────────────────────────────────────────────
+  /vapi/v1/getquotation:
+    get:
+      tags: [Quote]
+      operationId: getQuotation
+      summary: 实时行情快照（盘口、买卖五档、分时入口）
+      description: |
+        返回当前价格、盘口指标、买卖五档等。`group` 通常设为 `quotation_minute_{market}`。
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/marketType'
+        - $ref: '#/components/parameters/financeType'
+        - name: group
+          in: query
+          required: true
+          schema:
+            type: string
+            example: quotation_minute_ab
+          description: 数据分组，如 `quotation_minute_ab`、`quotation_index_ab`
+        - name: pointType
+          in: query
+          schema:
+            type: string
+            default: string
+        - $ref: '#/components/parameters/newFormat'
+        - $ref: '#/components/parameters/finClientType'
+        - name: query
+          in: query
+          schema:
+            type: string
+          description: 通常与 code 相同
+        - name: name
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 行情数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotationResponse'
+      x-stability: 5
+      x-auth-required: false
+
+  /vapi/stockshort:
+    get:
+      tags: [Quote]
+      operationId: getStockShort
+      summary: 股票简版行情
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 名称 + 价格 + 涨跌幅
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/quotation:
+    get:
+      tags: [Quote]
+      operationId: getSapiQuotation
+      summary: SAPI 行情（参数敏感，实测常空返回）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 行情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── Chart ───────────────────────────────────────────────────────────
+  /selfselect/getstockquotation:
+    get:
+      tags: [Chart]
+      operationId: getStockQuotation
+      summary: K 线 / 分时 / 五日图（核心图表接口）
+      description: |
+        统一图表数据入口。通过 `group` 区分场景：
+
+        | group | 说明 |
+        | --- | --- |
+        | `quotation_minute_{market}` | 分时 |
+        | `quotation_kline_{market}` | K 线（需 eprop + ktype） |
+        | `quotation_fiveday_{market}` | 五日 |
+        | `quotation_index_{type}` | 指数（+ isIndex=1） |
+        | `quotation_block_{type}` | 板块（+ isBlock=1） |
+        | `quotation_futures_{type}` | 期货（+ isFutures=1） |
+      parameters:
+        - name: group
+          in: query
+          required: true
+          schema:
+            type: string
+            example: quotation_kline_ab
+        - $ref: '#/components/parameters/marketType'
+        - $ref: '#/components/parameters/code'
+        - name: newFormat
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: all
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - $ref: '#/components/parameters/eprop'
+        - $ref: '#/components/parameters/ktype'
+        - name: isIndex
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: isBlock
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: isFutures
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: isStock
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: isEtf
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: is_kc
+          in: query
+          schema:
+            type: integer
+            description: 科创板标记
+        - name: isPaged
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: count
+          in: query
+          schema:
+            type: integer
+            description: 分页时每页 K 线根数
+        - name: start_time
+          in: query
+          schema:
+            type: integer
+            format: int64
+            description: Unix 秒，向前翻页
+      responses:
+        '200':
+          description: 图表数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartResponse'
+              examples:
+                kline:
+                  summary: 日 K 示例
+                  value:
+                    QueryID: '4258857025'
+                    ResultCode: '0'
+                    Result:
+                      newMarketData:
+                        headers: ['时间戳', '时间', '开盘', '收盘', '成交量', '最高', '最低', '成交额']
+                        keys: [timestamp, time, open, close, volume, high, low, amount]
+                        marketData: '1523462400,2018-04-12,419.20,409.40,3071361,422.08,407.42,2139139504.00'
+      x-stability: 5
+      x-auth-required: false
+
+  # ─── Market ──────────────────────────────────────────────────────────
+  /sapi/v1/marketquote:
+    get:
+      tags: [Market]
+      operationId: getMarketQuote
+      summary: 市场交易状态
+      parameters:
+        - name: bizType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [marketStatus]
+      responses:
+        '200':
+          description: 各市场开闭市状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketStatusResponse'
+      x-stability: 5
+
+  /api/indexbanner:
+    get:
+      tags: [Market]
+      operationId: getIndexBanner
+      summary: 首页指数行情条
+      responses:
+        '200':
+          description: 上证/深证等指数实时价 + 分时点序列 p
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /api/getbanner:
+    get:
+      tags: [Market]
+      operationId: getBanner
+      summary: 首页行情 Banner（含 tabs）
+      responses:
+        '200':
+          description: 指数行情 + 分时
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /api/getforeignbanner:
+    get:
+      tags: [Market, Forex]
+      operationId: getForeignBanner
+      summary: 外汇 Banner（如 USDCNY）
+      responses:
+        '200':
+          description: 外汇对实时行情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /vapi/index/overview:
+    get:
+      tags: [Market]
+      operationId: getIndexOverview
+      summary: 全球市场指数地图
+      parameters:
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: index_map 全球市场指数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /vapi/v1/globalindexrank:
+    get:
+      tags: [Market, Ranking]
+      operationId: getGlobalIndexRank
+      summary: 全球指数排行
+      parameters:
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+        - name: area
+          in: query
+          schema:
+            type: string
+            enum: [all, asia, america, europeafrica, other]
+      responses:
+        '200':
+          description: 全球指数列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /vapi/v1/gettradeinfo:
+    get:
+      tags: [Market]
+      operationId: getTradeInfo
+      summary: 沪深港通交易信息
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 沪股通/深股通/港股通指数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /api/stockwidget:
+    get:
+      tags: [Market]
+      operationId: getStockWidget
+      summary: 股票 Widget 数据
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: Widget 数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /api/relatedindex:
+    get:
+      tags: [Market, Sector]
+      operationId: getRelatedIndex
+      summary: 关联指数列表
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/code'
+      responses:
+        '200':
+          description: 相关指数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /api/getrelatedblock:
+    get:
+      tags: [Sector]
+      operationId: getRelatedBlock
+      summary: 关联板块
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 关联板块列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── Ranking ─────────────────────────────────────────────────────────
+  /vapi/v1/hotrank:
+    get:
+      tags: [Ranking]
+      operationId: getHotRank
+      summary: 热搜股票榜
+      parameters:
+        - name: tn
+          in: query
+          schema:
+            type: string
+            default: wisexmlnew
+        - name: dsp
+          in: query
+          schema:
+            type: string
+            default: iphone
+        - name: product
+          in: query
+          schema:
+            type: string
+            default: stock
+      responses:
+        '200':
+          description: 热搜股票 body/header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /sapi/v1/ranks:
+    get:
+      tags: [Ranking]
+      operationId: getRanks
+      summary: 综合排行（需 bizType）
+      parameters:
+        - name: bizType
+          in: query
+          schema:
+            type: string
+            enum: [marketStatus, chgdiagram, fund_rank, mainFundflow]
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 排行数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/stock_ranks:
+    get:
+      tags: [Ranking]
+      operationId: getStockRanks
+      summary: 股票排行
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - name: sortKey
+          in: query
+          schema:
+            type: string
+            example: pxChangeRate
+        - name: sortType
+          in: query
+          schema:
+            type: string
+            enum: [up, down]
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 股票排行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/analysisrank:
+    get:
+      tags: [Ranking, Finance]
+      operationId: getAnalysisRank
+      summary: 技术面分析评分排行
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 分析评分排行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /vapi/sentimentrank:
+    get:
+      tags: [Ranking, Community]
+      operationId: getSentimentRank
+      summary: AI 舆情热度排行
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 舆情排行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/getinsthotstock:
+    get:
+      tags: [Ranking]
+      operationId: getInstHotStock
+      summary: 机构热门持股/增减持
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - name: holdingType
+          in: query
+          schema:
+            type: string
+            enum: [all, inc, dec, new, out]
+      responses:
+        '200':
+          description: 机构持股变动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /api/getforeignrank:
+    get:
+      tags: [Ranking, Forex]
+      operationId: getForeignRank
+      summary: 外汇涨跌幅排行
+      responses:
+        '200':
+          description: 外汇排行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /selfselect/listsugrecomm:
+    get:
+      tags: [Ranking, Search]
+      operationId: getListSugRecomm
+      summary: 搜索/板块综合热度推荐榜
+      parameters:
+        - name: tn
+          in: query
+          schema:
+            type: string
+            default: wisexmlnew
+        - name: dsp
+          in: query
+          schema:
+            type: string
+            default: iphone
+        - name: product
+          in: query
+          schema:
+            type: string
+            enum: [search, plate]
+        - name: wd
+          in: query
+          schema:
+            type: string
+          description: 搜索关键词（product=search 时）
+      responses:
+        '200':
+          description: 热度推荐列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /selfselect/getmarketrank:
+    get:
+      tags: [Ranking, Watchlist]
+      operationId: getMarketRank
+      summary: 自选市场排行（需登录）
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 市场排行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 1
+      x-auth-required: true
+
+  # ─── Sector ──────────────────────────────────────────────────────────
+  /vapi/v1/blocks/overview:
+    get:
+      tags: [Sector]
+      operationId: getBlocksOverview
+      summary: 板块概览（行业/概念/地域）
+      parameters:
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 板块概览
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /vapi/v2/blocks:
+    get:
+      tags: [Sector]
+      operationId: getBlocksV2
+      summary: 板块列表 v2
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - name: blockType
+          in: query
+          schema:
+            $ref: '#/components/schemas/BlockType'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 板块列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /vapi/v3/blocks:
+    get:
+      tags: [Sector, FundFlow]
+      operationId: getBlocksV3
+      summary: 板块排行 v3（支持资金流排序）
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - name: type_code
+          in: query
+          schema:
+            $ref: '#/components/schemas/BlockType'
+        - name: sort_key
+          in: query
+          schema:
+            type: string
+            enum: [pxChangeRate, exmainIn, mainIn, mainOut]
+            default: pxChangeRate
+        - name: sort_type
+          in: query
+          schema:
+            type: string
+            enum: [up, down]
+            default: down
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 板块排行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /sapi/v1/constituents:
+    get:
+      tags: [Sector]
+      operationId: getConstituents
+      summary: 指数/ETF 成分股
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+        - name: style
+          in: query
+          schema:
+            type: string
+            enum: [heatmap]
+      responses:
+        '200':
+          description: 成分股列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /vapi/v1/getindustrylist:
+    get:
+      tags: [Sector]
+      operationId: getIndustryList
+      summary: 行业分类树
+      responses:
+        '200':
+          description: 行业层级列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /sapi/v1/index/main:
+    get:
+      tags: [Sector]
+      operationId: getIndexMain
+      summary: 指数主页数据
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 指数主页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/index/fluctuation:
+    get:
+      tags: [Sector]
+      operationId: getIndexFluctuation
+      summary: 指数波动分布
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 波动分布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/index/marketvalue:
+    get:
+      tags: [Sector]
+      operationId: getIndexMarketValue
+      summary: 指数市值分布
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 市值分布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/index/related:
+    get:
+      tags: [Sector]
+      operationId: getIndexRelated
+      summary: 指数关联标的
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 关联标的
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/index/main-fundflow:
+    get:
+      tags: [Sector, FundFlow]
+      operationId: getIndexMainFundflow
+      summary: 指数主力资金流（行业/概念）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 指数关联板块资金流
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  # ─── FundFlow ────────────────────────────────────────────────────────
+  /vapi/v1/fundflow:
+    get:
+      tags: [FundFlow]
+      operationId: getFundFlow
+      summary: 个股资金流向
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - name: type
+          in: query
+          schema:
+            type: string
+            default: fundflow
+      responses:
+        '200':
+          description: 资金流向
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/main-flow-direction:
+    get:
+      tags: [FundFlow]
+      operationId: getMainFlowDirection
+      summary: 主力资金方向
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 主力流向
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── News ────────────────────────────────────────────────────────────
+  /selfselect/expressnews:
+    get:
+      tags: [News]
+      operationId: getExpressNews
+      summary: 7×24 财经快讯
+      parameters:
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 快讯列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /selfselect/news:
+    get:
+      tags: [News]
+      operationId: getStockNews
+      summary: 个股新闻
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 新闻列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  /sapi/v1/announcement:
+    get:
+      tags: [News]
+      operationId: getAnnouncement
+      summary: 公司公告
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+        - name: classifiKey
+          in: query
+          schema:
+            type: string
+            enum: [all, issuance, dividend, report, personnel, sales, other]
+      responses:
+        '200':
+          description: 公告列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/stock_notice:
+    get:
+      tags: [News]
+      operationId: getStockNotice
+      summary: 个股提示/异动
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 个股提示
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/news_detail:
+    get:
+      tags: [News]
+      operationId: getNewsDetail
+      summary: 新闻详情
+      parameters:
+        - name: nid
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 新闻正文
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/getfuturesnews:
+    get:
+      tags: [News, Futures]
+      operationId: getFuturesNews
+      summary: 期货新闻
+      parameters:
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 期货新闻
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── Finance ─────────────────────────────────────────────────────────
+  /vapi/v1/analysis:
+    get:
+      tags: [Finance]
+      operationId: getAnalysis
+      summary: 个股综合分析评分
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 技术/市场/财务/资金评分
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /vapi/v1/widgets:
+    get:
+      tags: [Finance]
+      operationId: getWidgets
+      summary: 个股 Widget 聚合面板
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: analysis/basicinfo/sentiment/talk 等模块
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /vapi/v1/overviewwidget:
+    get:
+      tags: [Finance]
+      operationId: getOverviewWidget
+      summary: 概览 Widget（按类型）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - name: widgetType
+          in: query
+          schema:
+            type: string
+            enum: [profit, basicinfo, analysis, forecast, talk, sentiment]
+      responses:
+        '200':
+          description: 指定 Widget
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /vapi/v1/mainop:
+    get:
+      tags: [Finance]
+      operationId: getMainOp
+      summary: 主营构成（行业/产品/地区）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [industry, product, region]
+        - name: classification
+          in: query
+          schema:
+            type: integer
+        - name: ff_segment_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 主营构成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /vapi/v1/stockrelatedobjects:
+    get:
+      tags: [Finance]
+      operationId: getStockRelatedObjects
+      summary: 相关基金/股票/行业
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 相关标的
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/basicinfo:
+    get:
+      tags: [Finance]
+      operationId: getBasicInfo
+      summary: 基本信息（实测常空返回）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 基本信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/global/fundamental/widget:
+    get:
+      tags: [Finance]
+      operationId: getGlobalFundamentalWidget
+      summary: 美股/港股财务 Widget
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 全球财务 Widget
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/global/fundamental/industry:
+    get:
+      tags: [Finance]
+      operationId: getGlobalFundamentalIndustry
+      summary: 全球财务行业对比
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 行业对比
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  /sapi/v1/global/fundamental/statement:
+    get:
+      tags: [Finance]
+      operationId: getGlobalFundamentalStatement
+      summary: 全球财务报表
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - name: statementType
+          in: query
+          schema:
+            type: string
+            enum: [balance, income, cashflow]
+      responses:
+        '200':
+          description: 资产负债表/利润表/现金流量表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  /vapi/v1/getreportbasics:
+    get:
+      tags: [Finance]
+      operationId: getReportBasics
+      summary: 研报基础信息
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 研报
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/financial_briefing:
+    get:
+      tags: [Finance]
+      operationId: getFinancialBriefing
+      summary: 财务简报
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 财务简报
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/financelsegtranscript/detail:
+    get:
+      tags: [Finance]
+      operationId: getFinanceSegTranscript
+      summary: 电话会议纪要详情
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 会议纪要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/stock_analyse:
+    get:
+      tags: [Finance]
+      operationId: getStockAnalyse
+      summary: 股票分析
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 股票分析
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/rating:
+    get:
+      tags: [Finance]
+      operationId: getRating
+      summary: 评级
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 评级
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/metrictrend:
+    get:
+      tags: [Finance]
+      operationId: getMetricTrend
+      summary: 指标趋势
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 指标趋势
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/assetmgmt:
+    get:
+      tags: [Finance]
+      operationId: getAssetMgmt
+      summary: 资产管理相关
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 资产管理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/getanalysisquotation:
+    get:
+      tags: [Finance, Technical]
+      operationId: getAnalysisQuotationVapi
+      summary: 分析行情（压力位/支撑位）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 分析行情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/quotes_knowledge:
+    get:
+      tags: [Finance]
+      operationId: getQuotesKnowledge
+      summary: 行情知识
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 行情知识
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── Technical ───────────────────────────────────────────────────────
+  /sapi/v1/get_candlestick_event:
+    get:
+      tags: [Technical]
+      operationId: getCandlestickEvent
+      summary: 蜡烛图技术形态事件（非 K 线 OHLCV）
+      description: |
+        返回 MA/BOLL/MACD/RSI 等技术事件信号列表，**不是 K 线数据**。
+        K 线请使用 `getStockQuotation`。
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/period'
+        - $ref: '#/components/parameters/finClientType'
+        - name: count
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 技术事件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/get_event_list:
+    get:
+      tags: [Technical]
+      operationId: getEventList
+      summary: 技术事件列表
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/period'
+      responses:
+        '200':
+          description: 事件列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/get_event_stocks:
+    get:
+      tags: [Technical]
+      operationId: getEventStocks
+      summary: 同市场技术事件股票列表
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/period'
+      responses:
+        '200':
+          description: 事件股票
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/get_event_graph:
+    get:
+      tags: [Technical]
+      operationId: getEventGraph
+      summary: 技术事件图形
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/period'
+        - name: eventType
+          in: query
+          schema:
+            type: string
+          description: 如 1004=MACD
+      responses:
+        '200':
+          description: 事件图形
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  /sapi/v1/get_indicators_graph:
+    get:
+      tags: [Technical]
+      operationId: getIndicatorsGraph
+      summary: 技术指标图形（MACD/RSI/BOLL 等）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/period'
+        - name: eventType
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '1004=MACD, 1003=RSI, 1017=BOLL, 1000-1002=MA'
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 指标时序数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/get_stock_filter:
+    get:
+      tags: [Technical]
+      operationId: getStockFilter
+      summary: 技术事件筛选器配置
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 筛选器选项
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/get_analyse:
+    get:
+      tags: [Technical]
+      operationId: getAnalyse
+      summary: 综合分析（支撑/压力位、评级）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 分析结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/get_analysis_quotation:
+    get:
+      tags: [Technical]
+      operationId: getAnalysisQuotation
+      summary: 分析行情（压力位/支撑位）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 分析行情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/kline_event_info:
+    get:
+      tags: [Technical]
+      operationId: getKlineEventInfo
+      summary: K 线图上的事件数量
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/period'
+      responses:
+        '200':
+          description: 事件数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/indicators_explain:
+    get:
+      tags: [Technical]
+      operationId: getIndicatorsExplain
+      summary: 技术指标说明文档
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 指标说明
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  # ─── ETF ─────────────────────────────────────────────────────────────
+  /sapi/v1/etf_holdings:
+    get:
+      tags: [ETF]
+      operationId: getEtfHoldings
+      summary: ETF 持仓/股东
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: ETF 持仓
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  # ─── Fund ────────────────────────────────────────────────────────────
+  /vapi/v1/getfundrank:
+    get:
+      tags: [Fund]
+      operationId: getFundRank
+      summary: 基金排行榜
+      responses:
+        '200':
+          description: 基金排行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  /vapi/v1/fundsortlist:
+    get:
+      tags: [Fund]
+      operationId: getFundSortList
+      summary: 基金排序列表
+      parameters:
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 基金列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── Futures ─────────────────────────────────────────────────────────
+  /vapi/v1/futuresoverview:
+    get:
+      tags: [Futures]
+      operationId: getFuturesOverview
+      summary: 期货概览
+      responses:
+        '200':
+          description: 期货市场概览
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  /vapi/v1/futures/recommend:
+    get:
+      tags: [Futures]
+      operationId: getFuturesRecommend
+      summary: 期货推荐
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 期货推荐
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/getfutureslist:
+    get:
+      tags: [Futures]
+      operationId: getFuturesList
+      summary: 期货列表
+      parameters:
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 期货列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/contracts:
+    get:
+      tags: [Futures, Bond]
+      operationId: getContracts
+      summary: 合约列表（国债期货等）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 合约
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  # ─── Forex ───────────────────────────────────────────────────────────
+  /sapi/v1/forex/matrix:
+    get:
+      tags: [Forex]
+      operationId: getForexMatrix
+      summary: 外汇矩阵
+      parameters:
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 外汇矩阵
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/getforeignexchange:
+    get:
+      tags: [Forex]
+      operationId: getForeignExchange
+      summary: 外汇行情列表
+      responses:
+        '200':
+          description: 外汇列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/exchangebycode:
+    get:
+      tags: [Forex]
+      operationId: getExchangeByCode
+      summary: 货币兑换器
+      parameters:
+        - name: from_code
+          in: query
+          schema:
+            type: string
+            example: USD
+        - name: to_code
+          in: query
+          schema:
+            type: string
+            example: CNY
+      responses:
+        '200':
+          description: 汇率
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /api/getforeignew:
+    get:
+      tags: [Forex]
+      operationId: getForeignEw
+      summary: 外汇 EW 数据
+      responses:
+        '200':
+          description: 外汇数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /api/getrevforeigndata:
+    get:
+      tags: [Forex]
+      operationId: getRevForeignData
+      summary: 外汇反向数据
+      parameters:
+        - name: corrCode
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 反向汇率
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  # ─── Bond ────────────────────────────────────────────────────────────
+  /sapi/v1/bond/meta:
+    get:
+      tags: [Bond]
+      operationId: getBondMeta
+      summary: 债券元数据
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 债券元数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/bond/related:
+    get:
+      tags: [Bond]
+      operationId: getBondRelated
+      summary: 债券关联标的
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 关联债券
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  # ─── Calendar ────────────────────────────────────────────────────────
+  /sapi/v1/financecalendar:
+    get:
+      tags: [Calendar]
+      operationId: getFinanceCalendar
+      summary: 财经日历
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+            example: '2026-07-10'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 日历事件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/matrix:
+    get:
+      tags: [Calendar]
+      operationId: getMatrix
+      summary: 市场矩阵/宏观数据
+      parameters:
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 矩阵数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /sapi/v1/nasdaqdata:
+    get:
+      tags: [Calendar]
+      operationId: getNasdaqData
+      summary: 纳斯达克宏观数据
+      parameters:
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 纳斯达克数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── Search ──────────────────────────────────────────────────────────
+  /vapi/v1/sug:
+    get:
+      tags: [Search]
+      operationId: getSug
+      summary: 证券搜索建议
+      parameters:
+        - name: wd
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 搜索关键词
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 搜索建议列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SugResponse'
+      x-stability: 5
+
+  /sapi/v1/sug_recommendations:
+    get:
+      tags: [Search]
+      operationId: getSugRecommendations
+      summary: 搜索推荐
+      parameters:
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 推荐
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  /vapi/v1/search/history:
+    get:
+      tags: [Search]
+      operationId: getSearchHistory
+      summary: 搜索历史（需登录）
+      parameters:
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 搜索历史
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+      x-auth-required: true
+
+  /vapi/v1/stock/recommend:
+    get:
+      tags: [Search]
+      operationId: getStockRecommend
+      summary: 股票推荐
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 推荐股票
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── Community ───────────────────────────────────────────────────────
+  /vapi/sentimentlist:
+    get:
+      tags: [Community]
+      operationId: getSentimentList
+      summary: 个股舆情列表
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 舆情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/stocktalklist:
+    get:
+      tags: [Community]
+      operationId: getStockTalkList
+      summary: 股评列表
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - name: method
+          in: query
+          schema:
+            type: string
+            default: taglist
+        - name: sub_tab
+          in: query
+          schema:
+            type: string
+            enum: [all, hot]
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: 股评
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /vapi/v1/stocktalkcomment:
+    get:
+      tags: [Community]
+      operationId: getStockTalkComment
+      summary: 股评评论
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 评论
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  /vapi/v1/stockvoterecords:
+    get:
+      tags: [Community]
+      operationId: getStockVoteRecords
+      summary: 看多看空投票记录
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 投票统计
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 4
+
+  /sapi/v1/bulletscreen:
+    get:
+      tags: [Community]
+      operationId: getBulletScreen
+      summary: 弹幕
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 弹幕列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── Watchlist ───────────────────────────────────────────────────────
+  /selfselect/gethomeinfo:
+    get:
+      tags: [Watchlist]
+      operationId: getHomeInfo
+      summary: 自选股首页（需登录）
+      parameters:
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: 自选股列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 1
+      x-auth-required: true
+
+  /selfselect/gettrenddata:
+    get:
+      tags: [Watchlist]
+      operationId: getTrendData
+      summary: 自选趋势数据
+      parameters:
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 趋势数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+  /selfselect/addstock:
+    get:
+      tags: [Watchlist]
+      operationId: addStock
+      summary: 添加自选股（需登录）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/financeType'
+      responses:
+        '200':
+          description: 添加结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  /selfselect/delstock:
+    get:
+      tags: [Watchlist]
+      operationId: delStock
+      summary: 删除自选股（需登录）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  /selfselect/sortstock:
+    get:
+      tags: [Watchlist]
+      operationId: sortStock
+      summary: 自选股排序（需登录）
+      responses:
+        '200':
+          description: 排序结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  /selfselect/recstock:
+    get:
+      tags: [Watchlist]
+      operationId: recStock
+      summary: 推荐自选股（需登录）
+      responses:
+        '200':
+          description: 推荐
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  /selfselect/stockisfollowed:
+    get:
+      tags: [Watchlist]
+      operationId: stockIsFollowed
+      summary: 是否已加自选（需登录）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 关注状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  /selfselect/selfsortstatus:
+    get:
+      tags: [Watchlist]
+      operationId: getSelfSortStatus
+      summary: 自选排序状态（需登录）
+      responses:
+        '200':
+          description: 排序状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  /selfselect/openapi:
+    get:
+      tags: [Watchlist]
+      operationId: getSelfselectOpenapi
+      summary: 自选 OpenAPI 聚合（需登录）
+      parameters:
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+      responses:
+        '200':
+          description: 聚合数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  # ─── Meta ────────────────────────────────────────────────────────────
+  /sapi/v1/appinfo:
+    get:
+      tags: [Meta]
+      operationId: getAppInfo
+      summary: 应用信息
+      responses:
+        '200':
+          description: FinScope 元数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /vapi/getpcdesc:
+    get:
+      tags: [Meta]
+      operationId: getPcDesc
+      summary: PC 页面 SEO 描述
+      responses:
+        '200':
+          description: 页面标题/关键词/描述
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 5
+
+  /vapi/async:
+    get:
+      tags: [Meta]
+      operationId: getAsync
+      summary: 异步聚合加载
+      parameters:
+        - name: srcid
+          in: query
+          schema:
+            type: string
+        - name: group
+          in: query
+          schema:
+            type: string
+            description: 如 huilv_minute, huilv_kline_day
+        - name: tab_id
+          in: query
+          schema:
+            type: string
+        - name: query
+          in: query
+          schema:
+            type: string
+        - name: cb
+          in: query
+          schema:
+            type: string
+          description: JSONP 回调（外汇场景）
+      responses:
+        '200':
+          description: 异步数据（可能为 JSONP）
+          content:
+            application/json:
+              schema:
+                type: object
+      x-stability: 2
+
+  /vapi/v1/record:
+    get:
+      tags: [Meta]
+      operationId: getRecord
+      summary: 用户操作记录（需登录）
+      responses:
+        '200':
+          description: 记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  /vapi/v1/userinfo:
+    get:
+      tags: [Meta]
+      operationId: getUserInfo
+      summary: 用户信息（需登录）
+      responses:
+        '200':
+          description: 用户
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-auth-required: true
+
+  /sapi/v1/agent/interaction:
+    get:
+      tags: [Meta]
+      operationId: getAgentInteraction
+      summary: AI Agent 交互
+      parameters:
+        - $ref: '#/components/parameters/finClientType'
+      responses:
+        '200':
+          description: Agent 配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 2
+
+  # ─── OpenData ────────────────────────────────────────────────────────
+  /opendata:
+    get:
+      tags: [OpenData]
+      operationId: getOpenData
+      summary: OpenData 聚合接口
+      description: 基金详情、同行业对比、研报等通过 resource_id 区分
+      parameters:
+        - name: resource_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            enum: [50742, 51171]
+          description: '51171=同行业对比, 50742=其他'
+        - $ref: '#/components/parameters/code'
+        - $ref: '#/components/parameters/market'
+        - $ref: '#/components/parameters/pn'
+        - $ref: '#/components/parameters/rn'
+      responses:
+        '200':
+          description: OpenData 结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+      x-stability: 3
+
+components:
+  parameters:
+    code:
+      name: code
+      in: query
+      required: true
+      schema:
+        type: string
+      description: 证券代码
+      example: '600519'
+
+    market:
+      name: market
+      in: query
+      schema:
+        $ref: '#/components/schemas/Market'
+      description: 市场
+
+    marketType:
+      name: market_type
+      in: query
+      schema:
+        $ref: '#/components/schemas/Market'
+      description: 市场（getquotation 使用 market_type）
+
+    financeType:
+      name: financeType
+      in: query
+      schema:
+        $ref: '#/components/schemas/FinanceType'
+      description: 资产类型
+
+    finClientType:
+      name: finClientType
+      in: query
+      schema:
+        type: string
+        default: pc
+      description: 客户端类型
+
+    newFormat:
+      name: new_Format
+      in: query
+      schema:
+        type: integer
+        default: 1
+
+    eprop:
+      name: eprop
+      in: query
+      schema:
+        $ref: '#/components/schemas/KlinePeriod'
+      description: K 线周期
+
+    ktype:
+      name: ktype
+      in: query
+      schema:
+        type: integer
+        enum: [1, 2, 3, 4]
+      description: '1=dayK, 2=weekK, 3=monthK, 4=yearK'
+
+    period:
+      name: period
+      in: query
+      schema:
+        $ref: '#/components/schemas/KlinePeriod'
+      description: K 线/技术事件周期
+
+    pn:
+      name: pn
+      in: query
+      schema:
+        type: integer
+        default: 0
+      description: 页码（从 0 开始）
+
+    rn:
+      name: rn
+      in: query
+      schema:
+        type: integer
+        default: 20
+      description: 每页条数
+
+  schemas:
+    Market:
+      type: string
+      enum: [ab, hk, us, sg, foreign, global]
+      description: |
+        - `ab` A 股（沪深）
+        - `hk` 港股
+        - `us` 美股
+        - `sg` 新加坡
+        - `foreign` 外汇
+        - `global` 全球
+
+    FinanceType:
+      type: string
+      enum: [stock, etf, index, block, bk, futures, foreign, global, bond]
+
+    KlinePeriod:
+      type: string
+      enum:
+        - dayK
+        - weekK
+        - monthK
+        - yearK
+        - 30minK
+        - 60minK
+        - 120minK
+        - quarterK
+        - halfYearK
+        - 3yearK
+
+    BlockType:
+      type: string
+      enum: [HY, GN, DY]
+      description: HY=行业, GN=概念, DY=地域
+
+    ResultCode:
+      type: string
+      description: |
+        - `0` 成功
+        - `-1` 服务端错误
+        - `10003` 参数错误
+        - `10006` 未登录
+        - `3001` 权限不足
+
+    APIResponse:
+      type: object
+      properties:
+        QueryID:
+          type: string
+        ResultCode:
+          $ref: '#/components/schemas/ResultCode'
+        ResultMsg:
+          type: string
+        Result:
+          type: object
+          additionalProperties: true
+        ResultNum:
+          type: integer
+
+    QuotationResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            Result:
+              type: object
+              properties:
+                cur:
+                  $ref: '#/components/schemas/CurrentPrice'
+                pankouinfos:
+                  type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/PankouItem'
+                askinfos:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrderBookLevel'
+                buyinfos:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrderBookLevel'
+                priceinfo:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MinutePoint'
+                useWS:
+                  type: string
+                  enum: ['0', '1']
+
+    ChartResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            Result:
+              type: object
+              properties:
+                newMarketData:
+                  $ref: '#/components/schemas/KlineMarketData'
+                priceinfo:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MinutePoint'
+                cur:
+                  $ref: '#/components/schemas/CurrentPrice'
+
+    MarketStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            Result:
+              type: object
+              properties:
+                stock:
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/MarketStatusItem'
+                futures:
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/MarketStatusItem'
+                foreign:
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/MarketStatusItem'
+                index:
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/MarketStatusItem'
+
+    SugResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            Result:
+              type: object
+              properties:
+                list:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/SugItem'
+
+    CurrentPrice:
+      type: object
+      properties:
+        price:
+          type: string
+        ratio:
+          type: string
+          description: 涨跌幅，如 +1.93%
+        increase:
+          type: string
+          description: 涨跌额
+        volume:
+          type: string
+        amount:
+          type: string
+        unit:
+          type: string
+        time:
+          type: string
+        timeKey:
+          type: string
+
+    PankouItem:
+      type: object
+      properties:
+        ename:
+          type: string
+          description: 字段英文名（open/high/low/volume/turnoverRatio 等）
+        name:
+          type: string
+        value:
+          type: string
+        originValue:
+          type: string
+        status:
+          type: string
+          enum: [up, down]
+
+    OrderBookLevel:
+      type: object
+      properties:
+        price:
+          type: string
+        volume:
+          type: string
+
+    MinutePoint:
+      type: object
+      properties:
+        time:
+          type: string
+          description: Unix 时间戳
+        timeKey:
+          type: string
+          example: '0930'
+        datetime:
+          type: string
+        price:
+          type: string
+        ratio:
+          type: string
+        increase:
+          type: string
+        volume:
+          type: string
+        avgPrice:
+          type: string
+        amount:
+          type: string
+        totalVolume:
+          type: string
+        totalAmount:
+          type: string
+
+    KlineMarketData:
+      type: object
+      properties:
+        headers:
+          type: array
+          items:
+            type: string
+        keys:
+          type: array
+          items:
+            type: string
+          example: [timestamp, time, open, close, volume, high, low, amount, range, ratio, turnoverratio, preClose]
+        marketData:
+          type: string
+          description: 分号分隔的多行 CSV，字段顺序与 keys 一致
+        maxPoints:
+          type: integer
+        cx:
+          type: string
+        cxData:
+          type: object
+
+    MarketStatusItem:
+      type: object
+      properties:
+        market:
+          type: string
+        marketName:
+          type: string
+        marketDate:
+          type: string
+          format: date
+        tradeStatus:
+          type: string
+          enum: [TRADE, ENDTR, PRETR, POSTR]
+        tradeStatusCN:
+          type: string
+        websocketEnabled:
+          type: string
+          enum: ['0', '1']
+
+    SugItem:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        market:
+          $ref: '#/components/schemas/Market'
+        type:
+          $ref: '#/components/schemas/FinanceType'
+        price:
+          type: string
+        ratio:
+          type: string
+        exchange:
+          type: string
+          enum: [SH, SZ]
+
+    WebSocketSubscribeMessage:
+      type: object
+      description: WebSocket 订阅消息（发送至 wss://finance-ws.pae.baidu.com）
+      required: [source, method, product, items]
+      properties:
+        source:
+          type: string
+          default: pc-web
+        method:
+          type: string
+          enum: [subscribe, unsubscribe, patch]
+        product:
+          type: string
+          enum: [snapshot, tick, adr]
+        items:
+          type: array
+          items:
+            type: object
+            required: [code, name, market, financeType]
+            properties:
+              code:
+                type: string
+              name:
+                type: string
+              market:
+                $ref: '#/components/schemas/Market'
+              financeType:
+                $ref: '#/components/schemas/FinanceType'
+
+  headers:
+    Referer:
+      description: 建议设置为 https://finance.baidu.com/
+      schema:
+        type: string
+        default: https://finance.baidu.com/
+    User-Agent:
+      description: 浏览器 User-Agent
+      schema:
+        type: string
+
+x-websocket:
+  url: wss://finance-ws.pae.baidu.com
+  heartbeat_seconds: 6
+  reconnect:
+    max_attempts: 5
+    delay_ms: 3000
+  polling_fallback_seconds: 30
+  products:
+    snapshot: 快照（价格/盘口）
+    tick: 逐笔（A 股/美股）
+    adr: ADR 行情
+  subscribe_example:
+    source: pc-web
+    method: subscribe
+    product: snapshot
+    items:
+      - code: '600519'
+        name: 贵州茅台
+        market: ab
+        financeType: stock
+
+x-endpoint-index:
+  total_paths: 111
+  by_prefix:
+    sapi_v1: 42
+    vapi: 38
+    selfselect: 12
+    api: 9
+    opendata: 1
+    other: 9
+  excluded:
+    - agent/api/* (AI Agent 内部，非行情)
+    - vapi/rightpaddle/* (付费会员)
+    - finance/stockaccountlist (开户)

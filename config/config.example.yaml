@@ -59,6 +59,14 @@ ingest:
   binance:
     # 合并流示例，实现时按 symbols 生成
     ws_base: "wss://stream.binance.com:9443/stream"
+  baidu:
+    enabled: true
+    base_url: "https://finance.pae.baidu.com"
+    ws_url: "wss://finance-ws.pae.baidu.com"
+    ws_enabled: true
+    ws_reconnect_max: 5
+    ws_reconnect_delay: 3s
+    ws_patch_interval: 60s
   otc:
     usdt_cny_interval: 30s
   forex:
@@ -66,6 +74,7 @@ ingest:
   equity:
     interval: 60s
     providers:
+      - baidu
       - tencent
       - eastmoney
     index_ids:

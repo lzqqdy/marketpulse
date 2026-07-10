@@ -2,6 +2,11 @@ package equity
 
 import "fmt"
 
+// ValidateIndexPrice checks whether a parsed index price is within configured bounds.
+func ValidateIndexPrice(def IndexDef, price float64) error {
+	return validatePrice(def, price)
+}
+
 func validatePrice(def IndexDef, price float64) error {
 	if price <= 0 {
 		return fmt.Errorf("%s: empty quote", def.ID)

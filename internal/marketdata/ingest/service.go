@@ -11,8 +11,10 @@ import (
 
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/alpha"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/baidu"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/binance"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/bitget"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/equity"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/store"
 )
 
@@ -56,6 +58,8 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s.ingestStatus.set("otc", "starting")
 	s.ingestStatus.set("forex", "starting")
 	s.ingestStatus.set("equity", "starting")
+	s.ingestStatus.set("equity_baidu", "starting")
+	s.ingestStatus.set("equity_baidu_ws", "starting")
 	s.ingestStatus.set("equity_eastmoney", "starting")
 	s.ingestStatus.set("equity_tencent", "starting")
 	s.ingestStatus.set("macro", "starting")
@@ -121,6 +125,66 @@ func (s *Service) Start(ctx context.Context) {
 	go s.runAlphaWithRetry(ctx)
 	go s.runLiquidationsWithRetry(ctx)
 	s.startSlowIngest(ctx)
+	if s.cfg.Ingest.Baidu.IsEnabled() {
+		go s.runBaiduIndexWSWithRetry(ctx)
+	} else {
+		s.ingestStatus.set("equity_baidu_ws", "disabled")
+		s.providerHealth.ReportDisabled("baidu_index")
+	}
+}
+
+func (s *Service) runBaiduIndexWSWithRetry(ctx context.Context) {
+	cfg := BaiduConfigFrom(s.cfg)
+	if !cfg.WSEnabled {
+		s.ingestStatus.set("equity_baidu_ws", "disabled")
+		return
+	}
+
+	backoff := time.Second
+	const maxBackoff = 30 * time.Second
+	for {
+		if ctx.Err() != nil {
+			s.ingestStatus.set("equity_baidu_ws", "disconnected")
+			return
+		}
+
+		defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
+		refs := equity.BaiduRefs(defs)
+		s.ingestStatus.set("equity_baidu_ws", "connecting")
+		slog.Info("baidu index ws connect", "url", cfg.WSURL, "symbols", len(refs))
+
+		err := baidu.RunIndexSnapshotWS(ctx, cfg, refs, s.onBaiduIndexQuotes)
+		if ctx.Err() != nil {
+			s.ingestStatus.set("equity_baidu_ws", "disconnected")
+			return
+		}
+
+		s.ingestStatus.set("equity_baidu_ws", "reconnecting")
+		if err != nil {
+			slog.Warn("baidu index ws disconnected", "err", err, "retry_in", backoff)
+		}
+		select {
+		case <-ctx.Done():
+			s.ingestStatus.set("equity_baidu_ws", "disconnected")
+			return
+		case <-time.After(backoff):
+		}
+		backoff = growBackoff(backoff, maxBackoff)
+	}
+}
+
+func (s *Service) onBaiduIndexQuotes(rows map[string]store.IndexQuote) {
+	if len(rows) == 0 {
+		return
+	}
+	now := time.Now().UTC()
+	s.equityCache.merge(rows, now)
+	defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
+	s.store.SetIndices(s.indicesWithSGE(s.equityCache.snapshot(defs, false)))
+	s.providerHealth.ReportSuccess("baidu_index", 0)
+	s.providerHealth.ReportUsed("baidu_index", true)
+	s.ingestStatus.set("equity_baidu", "ok")
+	s.ingestStatus.set("equity_baidu_ws", "connected")
 }
 
 // BinanceStatus returns connected | reconnecting | disconnected | starting.

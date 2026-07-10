@@ -5,6 +5,7 @@ import ProviderStatusWidget from '@/features/market/components/ProviderStatusWid
 import QuoteTable from '@/features/market/components/QuoteTable.vue'
 import MacroGrid from '@/features/market/components/MacroGrid.vue'
 import IndexGrid from '@/features/market/components/IndexGrid.vue'
+import MarketCenterPanel from '@/features/market/components/MarketCenterPanel.vue'
 import AlphaStockPanel from '@/features/market/components/AlphaStockPanel.vue'
 import KlineDrawer from '@/features/market/components/KlineDrawer.vue'
 import { useMarketStore } from '@/features/market/stores/market'
@@ -39,6 +40,7 @@ onUnmounted(() => {
       <aside class="side-column">
         <MacroGrid />
         <IndexGrid />
+        <MarketCenterPanel />
         <AlphaStockPanel />
       </aside>
     </main>

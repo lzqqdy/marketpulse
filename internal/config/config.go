@@ -35,8 +35,9 @@ type CORSConfig struct {
 // IngestConfig holds poller / websocket intervals (used from Phase B onward).
 type IngestConfig struct {
 	Binance BinanceConfig `yaml:"binance"`
+	Baidu   BaiduConfig   `yaml:"baidu"`
 	OTC     OTCConfig     `yaml:"otc"`
-	Forex   ForexConfig   `yaml:"forex"`
+	Forex   ForexConfig     `yaml:"forex"`
 	Equity  EquityConfig  `yaml:"equity"`
 	Macro   MacroConfig   `yaml:"macro"`
 }
@@ -80,6 +81,31 @@ type EquityConfig struct {
 	Interval  time.Duration `yaml:"interval"`
 	IndexIDs  []string      `yaml:"index_ids"`
 	Providers []string      `yaml:"providers"`
+}
+
+// BaiduConfig configures Baidu Finance index ingest.
+type BaiduConfig struct {
+	Enabled          *bool         `yaml:"enabled"`
+	BaseURL          string        `yaml:"base_url"`
+	WSURL            string        `yaml:"ws_url"`
+	WSEnabled        *bool         `yaml:"ws_enabled"`
+	WSReconnectMax   int           `yaml:"ws_reconnect_max"`
+	WSReconnectDelay time.Duration `yaml:"ws_reconnect_delay"`
+	WSPatchInterval  time.Duration `yaml:"ws_patch_interval"`
+}
+
+func (c *BaiduConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
+}
+
+func (c *BaiduConfig) IsWSEnabled() bool {
+	if c.WSEnabled == nil {
+		return true
+	}
+	return *c.WSEnabled
 }
 
 // DefaultEquityIndexIDs is the production watchlist (中国5 + 香港1 + 日韩2 + 美国3 + 商品3).
@@ -144,6 +170,21 @@ func (c *Config) applyDefaults() {
 	if c.Ingest.Binance.WSBase == "" {
 		c.Ingest.Binance.WSBase = "wss://stream.binance.com:9443/stream"
 	}
+	if c.Ingest.Baidu.BaseURL == "" {
+		c.Ingest.Baidu.BaseURL = "https://finance.pae.baidu.com"
+	}
+	if c.Ingest.Baidu.WSURL == "" {
+		c.Ingest.Baidu.WSURL = "wss://finance-ws.pae.baidu.com"
+	}
+	if c.Ingest.Baidu.WSReconnectMax == 0 {
+		c.Ingest.Baidu.WSReconnectMax = 5
+	}
+	if c.Ingest.Baidu.WSReconnectDelay == 0 {
+		c.Ingest.Baidu.WSReconnectDelay = 3 * time.Second
+	}
+	if c.Ingest.Baidu.WSPatchInterval == 0 {
+		c.Ingest.Baidu.WSPatchInterval = 60 * time.Second
+	}
 	if c.Alpha.QuoteAsset == "" {
 		c.Alpha.QuoteAsset = "USDT"
 	}
@@ -183,7 +224,11 @@ func (c *Config) applyDefaults() {
 		c.Ingest.Equity.IndexIDs = append([]string(nil), DefaultEquityIndexIDs...)
 	}
 	if len(c.Ingest.Equity.Providers) == 0 {
-		c.Ingest.Equity.Providers = []string{"tencent", "eastmoney"}
+		if c.Ingest.Baidu.IsEnabled() {
+			c.Ingest.Equity.Providers = []string{"baidu", "tencent", "eastmoney"}
+		} else {
+			c.Ingest.Equity.Providers = []string{"tencent", "eastmoney"}
+		}
 	}
 	normalizedIDs := make([]string, 0, len(c.Ingest.Equity.IndexIDs))
 	for _, id := range c.Ingest.Equity.IndexIDs {
@@ -197,12 +242,28 @@ func (c *Config) applyDefaults() {
 	for _, name := range c.Ingest.Equity.Providers {
 		name = strings.ToLower(strings.TrimSpace(name))
 		switch name {
-		case "eastmoney", "tencent":
+		case "baidu", "eastmoney", "tencent":
 			normalizedProviders = append(normalizedProviders, name)
 		}
 	}
 	if len(normalizedProviders) == 0 {
-		normalizedProviders = []string{"tencent", "eastmoney"}
+		if c.Ingest.Baidu.IsEnabled() {
+			normalizedProviders = []string{"baidu", "tencent", "eastmoney"}
+		} else {
+			normalizedProviders = []string{"tencent", "eastmoney"}
+		}
+	}
+	if c.Ingest.Baidu.IsEnabled() {
+		hasBaidu := false
+		for _, name := range normalizedProviders {
+			if name == "baidu" {
+				hasBaidu = true
+				break
+			}
+		}
+		if !hasBaidu {
+			normalizedProviders = append([]string{"baidu"}, normalizedProviders...)
+		}
 	}
 	c.Ingest.Equity.Providers = normalizedProviders
 	if c.Ingest.Macro.Interval == 0 {

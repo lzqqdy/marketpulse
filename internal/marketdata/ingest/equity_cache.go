@@ -69,6 +69,9 @@ func (c *equityCache) merge(rows map[string]store.IndexQuote, now time.Time) {
 		if row.UpdatedAt.IsZero() {
 			row.UpdatedAt = row.FetchedAt
 		}
+		if prev, ok := c.rows[row.ID]; ok && row.ChangePct == 0 && prev.ChangePct != 0 {
+			row.ChangePct = prev.ChangePct
+		}
 		row.Stale = false
 		c.rows[row.ID] = row
 	}

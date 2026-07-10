@@ -91,6 +91,12 @@ func fetchIndexKlines(client *http.Client, def IndexDef, interval string, limit 
 		interval = "1d"
 	}
 	if interval == "1d" {
+		if _, ok := yahooKlineSymbol(def.ID); ok {
+			candles, err := fetchYahooKlinesCtx(ctx, client, def, interval, limit)
+			if err == nil && len(candles) > 0 {
+				return candles, "yahoo", nil
+			}
+		}
 		if _, ok := tencentKlineSymbol(def); ok {
 			return raceDailyIndexKlines(ctx, client, def, limit)
 		}
