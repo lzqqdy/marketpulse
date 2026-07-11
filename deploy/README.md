@@ -44,4 +44,4 @@ make ship SHIP_NO_SOURCE=1
 make check-binance-remote
 ```
 
-Windows 本地开发无需 make，见 [docs/RFC-003-deployment.md](../docs/RFC-003-deployment.md) §4。
+Windows 本地开发无需 make，见 `scripts/dev.ps1` 或 [docs/RFC-003-deployment.md](../docs/RFC-003-deployment.md) §4。

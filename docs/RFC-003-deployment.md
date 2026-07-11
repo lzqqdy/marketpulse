@@ -218,24 +218,15 @@ make dev-web      # :5173，代理 /api、/ws
 make test
 ```
 
-### Windows（PowerShell，无需 make）
+### Windows（PowerShell）
 
 ```powershell
-# 首次：生成配置
-if (-not (Test-Path config\config.yaml)) {
-    Copy-Item config\config.example.yaml config\config.yaml
-}
-
-# 终端 1：后端
-go run -buildvcs=false ./cmd/marketd -config config/config.yaml
-
-# 终端 2：前端
-cd web
-npm install
-npm run dev
+.\scripts\dev.ps1 setup-config
+.\scripts\dev.ps1 api            # :8080
+.\scripts\dev.ps1 web            # :5173，代理 /api、/ws
+.\scripts\dev.ps1 dev              # 同时启动前后端
+.\scripts\dev.ps1 test
 ```
-
-浏览器打开 `http://localhost:5173`。
 
 ---
 

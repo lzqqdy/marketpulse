@@ -34,23 +34,20 @@ make dev-api        # Gin :8080
 make dev-web        # Vite :5173
 ```
 
-### Windows（PowerShell，无需 make）
+### Windows（PowerShell）
 
 ```powershell
 cd F:\lzqqdy\marketpulse
 
-# 首次：生成配置
-if (-not (Test-Path config\config.yaml)) {
-    Copy-Item config\config.example.yaml config\config.yaml
-}
+# 推荐：用 .cmd 包装，无需改执行策略
+.\scripts\dev.cmd help
+.\scripts\dev.cmd setup-config
+.\scripts\dev.cmd api            # 终端 1：后端 :8080
+.\scripts\dev.cmd web            # 终端 2：前端 :5173
+.\scripts\dev.cmd dev            # 同时启动前后端
 
-# 终端 1：后端
-go run -buildvcs=false ./cmd/marketd -config config/config.yaml
-
-# 终端 2：前端
-cd web
-npm install
-npm run dev
+# 或直接运行 .ps1（需先放开执行策略，见下方说明）
+.\scripts\dev.ps1 api
 ```
 
 ```bash
