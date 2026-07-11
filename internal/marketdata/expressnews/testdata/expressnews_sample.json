@@ -1,0 +1,68 @@
+{
+  "title": "7x24",
+  "type": "expressnews",
+  "content": {
+    "list": [
+      {
+        "loc": "http://dps.baidu.com/data/finance_stock_express_news/test1",
+        "title": "腾讯洽谈Manus相关事宜",
+        "content": {
+          "items": [
+            {
+              "type": "text",
+              "data": "7月11日，有消息称腾讯正在洽谈成为Manus股东。(Finscope)"
+            }
+          ]
+        },
+        "publish_time": "1783758335",
+        "third_url": "http://example.com/1",
+        "important": "0",
+        "tag": "腾讯$港股$美股",
+        "provider": "Finscope",
+        "entity": [
+          {
+            "code": "00700",
+            "type": "stock",
+            "name": "腾讯控股",
+            "market": "hk",
+            "price": "460.200",
+            "ratio": "-2.00%",
+            "exchange": "HK",
+            "logo": {
+              "logo": "https://baidu-finance.cdn.bcebos.com/imgs/logo/stocks/stock_hk_00700.svg"
+            }
+          },
+          {
+            "code": "META",
+            "type": "stock",
+            "name": "Meta Platforms Inc Class A",
+            "market": "us",
+            "price": "669.210",
+            "ratio": "+5.97%",
+            "exchange": "US",
+            "logo": {
+              "logo": "https://baidu-finance.cdn.bcebos.com/imgs/logo/stocks/stock_us_META.svg"
+            }
+          }
+        ]
+      },
+      {
+        "loc": "http://dps.baidu.com/data/finance_stock_express_news/test2",
+        "title": "上海地铁运营调整通知",
+        "content": {
+          "items": [
+            {
+              "type": "text",
+              "data": "为确保运营安全，7月11日18时起部分线路停运。(上海地铁)"
+            }
+          ]
+        },
+        "publish_time": "1783750000",
+        "third_url": "https://example.com/2",
+        "important": "1",
+        "tag": "A股",
+        "provider": "同花顺"
+      }
+    ]
+  }
+}

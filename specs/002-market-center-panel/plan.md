@@ -48,7 +48,7 @@
 
 ### Phase 3 — 打磨（部分）
 
-- [ ] Provider 健康 `baidu_market_center`（未注册独立 provider）
+- [x] Provider 健康 `baidu_market_center`
 - [x] 热力图 sortKey 交互
 - [x] 移动端布局
 

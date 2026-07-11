@@ -8,10 +8,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/baidu"
 )
+
+const providerName = "baidu_market_center"
 
 const (
 	defaultHeatmapRN   = 20
@@ -31,18 +35,74 @@ type Client struct {
 	cfg    baidu.Config
 	http   *http.Client
 	cache  *responseCache
+	health ingest.ProviderReporter
+	status atomic.Value // string
 }
 
 // NewClient creates a market center client.
-func NewClient(cfg baidu.Config) *Client {
+func NewClient(cfg baidu.Config, health ingest.ProviderReporter) *Client {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = baidu.DefaultBaseURL
 	}
-	return &Client{
-		cfg:   cfg,
-		http:  &http.Client{Timeout: 12 * time.Second},
-		cache: newResponseCache(),
+	c := &Client{
+		cfg:    cfg,
+		http:   &http.Client{Timeout: 12 * time.Second},
+		cache:  newResponseCache(),
+		health: health,
 	}
+	if !cfg.Enabled {
+		c.status.Store("disabled")
+		if health != nil {
+			health.ReportDisabled(providerName)
+		}
+	} else {
+		c.status.Store("starting")
+	}
+	return c
+}
+
+// IngestStatus returns a coarse status string for /healthz.
+func (c *Client) IngestStatus() string {
+	if !c.cfg.Enabled {
+		return "disabled"
+	}
+	if v, ok := c.status.Load().(string); ok && v != "" {
+		return v
+	}
+	return "starting"
+}
+
+func (c *Client) reportCacheHit() {
+	if c.health == nil || !c.cfg.Enabled {
+		return
+	}
+	c.health.ReportSuccess(providerName, 0)
+	c.health.ReportUsed(providerName, true)
+	c.status.Store("ok")
+}
+
+func (c *Client) reportResult(start time.Time, err error) {
+	if c.health == nil {
+		if err != nil {
+			c.status.Store("error")
+		} else {
+			c.status.Store("ok")
+		}
+		return
+	}
+	if !c.cfg.Enabled {
+		c.health.ReportDisabled(providerName)
+		c.status.Store("disabled")
+		return
+	}
+	if err != nil {
+		c.health.ReportFailure(providerName, err)
+		c.status.Store("error")
+		return
+	}
+	c.health.ReportSuccess(providerName, time.Since(start))
+	c.health.ReportUsed(providerName, true)
+	c.status.Store("ok")
 }
 
 // Center loads aggregated market center data (heatmap defaults to amount).
@@ -53,8 +113,10 @@ func (c *Client) Center(market string) (CenterResponse, error) {
 	}
 	key := "center:" + market
 	if v, ok := c.cache.get(key); ok {
+		c.reportCacheHit()
 		return v.(CenterResponse), nil
 	}
+	start := time.Now()
 	now := time.Now().UTC()
 	var (
 		chg      ChgDiagram
@@ -114,6 +176,7 @@ func (c *Client) Center(market string) (CenterResponse, error) {
 	}()
 	wg.Wait()
 	if fetchErr != nil {
+		c.reportResult(start, fetchErr)
 		return CenterResponse{}, fetchErr
 	}
 	out := CenterResponse{
@@ -126,6 +189,7 @@ func (c *Client) Center(market string) (CenterResponse, error) {
 		Overview:   overview,
 	}
 	c.cache.set(key, out, CacheTTLForMarket(market, now))
+	c.reportResult(start, nil)
 	return out, nil
 }
 
@@ -138,13 +202,17 @@ func (c *Client) Heatmap(market, sortKey string) (Heatmap, error) {
 	sortKey = normalizeSortKey(sortKey)
 	key := fmt.Sprintf("heatmap:%s:%s", market, sortKey)
 	if v, ok := c.cache.get(key); ok {
+		c.reportCacheHit()
 		return v.(Heatmap), nil
 	}
+	start := time.Now()
 	heatmap, err := c.fetchHeatmap(market, sortKey)
 	if err != nil {
+		c.reportResult(start, err)
 		return Heatmap{}, err
 	}
 	c.cache.set(key, heatmap, CacheTTLForMarket(market, time.Now()))
+	c.reportResult(start, nil)
 	return heatmap, nil
 }
 

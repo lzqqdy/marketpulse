@@ -6,6 +6,7 @@ import QuoteTable from '@/features/market/components/QuoteTable.vue'
 import MacroGrid from '@/features/market/components/MacroGrid.vue'
 import IndexGrid from '@/features/market/components/IndexGrid.vue'
 import MarketCenterPanel from '@/features/market/components/MarketCenterPanel.vue'
+import ExpressNewsPanel from '@/features/market/components/ExpressNewsPanel.vue'
 import AlphaStockPanel from '@/features/market/components/AlphaStockPanel.vue'
 import KlineDrawer from '@/features/market/components/KlineDrawer.vue'
 import { useMarketStore } from '@/features/market/stores/market'
@@ -44,6 +45,7 @@ onUnmounted(() => {
         <AlphaStockPanel />
       </aside>
     </main>
+    <ExpressNewsPanel />
     <p class="footer-note">点击币种行查看 K 线 · 行情 Binance WS 实时</p>
     <KlineDrawer />
   </div>

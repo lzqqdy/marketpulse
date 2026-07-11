@@ -79,12 +79,12 @@ func newProviderHealthStore(defs []providerDef) *ProviderHealthStore {
 	return h
 }
 
-func defaultProviderDefs(alphaEnabled bool, alphaProvider string) []providerDef {
+func defaultProviderDefs(alphaEnabled bool, alphaProvider string, baiduEnabled bool) []providerDef {
 	defs := []providerDef{
 		{Name: "binance_spot_ws", Label: "Binance Spot WS", Category: "crypto", Role: "primary", StaleAfter: 45 * time.Second},
 		{Name: "okx_c2c", Label: "OKX C2C", Category: "forex", Role: "primary", StaleAfter: 3 * time.Minute},
 		{Name: "frankfurter_fx", Label: "Frankfurter FX", Category: "forex", Role: "primary", StaleAfter: 15 * time.Minute},
-		{Name: "baidu_index", Label: "Baidu Finance", Category: "index", Role: "primary", StaleAfter: 3 * time.Minute},
+		{Name: "baidu_index", Label: "Baidu Finance", Category: "index", Role: "primary", StaleAfter: 3 * time.Minute, Disabled: !baiduEnabled},
 		{Name: "tencent_index", Label: "Tencent", Category: "index", Role: "fallback", StaleAfter: 3 * time.Minute},
 		{Name: "eastmoney_index", Label: "Eastmoney", Category: "index", Role: "fallback", StaleAfter: 3 * time.Minute},
 		{Name: "sge_gold", Label: "SGE Gold", Category: "index", Role: "auxiliary", StaleAfter: 90 * time.Minute},
@@ -92,6 +92,8 @@ func defaultProviderDefs(alphaEnabled bool, alphaProvider string) []providerDef 
 		{Name: "coingecko_meta", Label: "CoinGecko Metadata", Category: "macro", Role: "auxiliary", StaleAfter: 20 * time.Minute},
 		{Name: "binance_derivatives", Label: "Binance Derivatives", Category: "derivatives", Role: "primary", StaleAfter: 3 * time.Minute},
 		{Name: "binance_liquidations", Label: "Binance Liquidations", Category: "derivatives", Role: "auxiliary", StaleAfter: 3 * time.Minute},
+		{Name: "baidu_market_center", Label: "Baidu Market Center", Category: "market", Role: "auxiliary", StaleAfter: 5 * time.Minute, Disabled: !baiduEnabled},
+		{Name: "baidu_expressnews", Label: "Baidu Express News", Category: "news", Role: "auxiliary", StaleAfter: 3 * time.Minute, Disabled: !baiduEnabled},
 	}
 	if alphaProvider == "binance" {
 		defs = append(defs, providerDef{Name: "binance_alpha", Label: "Binance Alpha", Category: "alpha", Role: "primary", StaleAfter: 90 * time.Second, Disabled: !alphaEnabled})

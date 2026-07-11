@@ -18,6 +18,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/baidu"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/bitget"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/equity"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/expressnews"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/marketcenter"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/store"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/stream"
@@ -61,6 +62,7 @@ type MarketDataService interface {
 	IndexKlines(id string, interval string, limit int) (KlineResponse, error)
 	MarketCenter(market string) (marketcenter.CenterResponse, error)
 	MarketCenterHeatmap(market, sortKey string) (marketcenter.Heatmap, error)
+	ExpressNews(tag string, pn, rn, filterByUserStocks int) (expressnews.Response, error)
 }
 
 // Service wires the market data read model, ingestion, and streaming layers.
@@ -71,6 +73,7 @@ type Service struct {
 	klineHub      *stream.KlineHub
 	ingest        *ingest.Service
 	marketCenter  *marketcenter.Client
+	expressNews   *expressnews.Client
 }
 
 // New creates a complete market data service.
@@ -84,7 +87,9 @@ func NewWithStore(cfg *config.Config, st *store.MarketStore) *Service {
 	streamHub := stream.NewStreamHub(st)
 	klineHub := stream.NewKlineHub(cfg)
 	ingestSvc := ingest.New(cfg, st)
-	center := marketcenter.NewClient(ingest.BaiduConfigFrom(cfg))
+	reporter := ingestSvc.ProviderReporter()
+	center := marketcenter.NewClient(ingest.BaiduConfigFrom(cfg), reporter)
+	news := expressnews.NewClient(ingest.BaiduConfigFrom(cfg), reporter)
 	return &Service{
 		cfg:          cfg,
 		store:        st,
@@ -92,6 +97,7 @@ func NewWithStore(cfg *config.Config, st *store.MarketStore) *Service {
 		klineHub:     klineHub,
 		ingest:       ingestSvc,
 		marketCenter: center,
+		expressNews:  news,
 	}
 }
 
@@ -142,6 +148,12 @@ func (s *Service) IngestStatus() map[string]string {
 	}
 	for k, v := range s.ingest.IngestStatus() {
 		out[k] = v
+	}
+	if s.marketCenter != nil {
+		out["market_center"] = s.marketCenter.IngestStatus()
+	}
+	if s.expressNews != nil {
+		out["expressnews"] = s.expressNews.IngestStatus()
 	}
 	return out
 }
@@ -312,6 +324,16 @@ func (s *Service) MarketCenterHeatmap(market, sortKey string) (marketcenter.Heat
 		return marketcenter.Heatmap{}, err
 	}
 	return resp, nil
+}
+
+func (s *Service) ExpressNews(tag string, pn, rn, filterByUserStocks int) (expressnews.Response, error) {
+	if s.expressNews == nil {
+		return expressnews.Response{}, fmt.Errorf("express news unavailable")
+	}
+	if !s.cfg.Ingest.Baidu.IsEnabled() {
+		return expressnews.Response{}, expressnews.ErrDisabled
+	}
+	return s.expressNews.List(tag, pn, rn, filterByUserStocks)
 }
 
 func formatLastQuote(ms int64) string {

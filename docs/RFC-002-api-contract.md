@@ -266,7 +266,54 @@ K 线历史。支持 crypto 和 alpha 标的。
 
 ---
 
-## 8. GET /healthz
+## 8. GET /api/v1/market/expressnews
+
+7×24 财经快讯（按需转发百度 `expressnews`，服务端缓存）。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `tag` | `""` | `""` `A股` `港股` `美股` `异动` |
+| `pn` | `0` | 页码，从 0 起 |
+| `rn` | `20` | 每页条数，最大 50 |
+| `filterByUserStocks` | `0` | `1` 时仅返回自选股相关快讯 |
+
+```json
+{
+  "tag": "",
+  "pn": 0,
+  "rn": 20,
+  "source": "baidu",
+  "fetchedAt": 1783758335,
+  "hasMore": true,
+  "items": [
+    {
+      "id": "http://dps.baidu.com/data/finance_stock_express_news/...",
+      "title": "腾讯洽谈Manus相关事宜",
+      "body": "7月11日，有消息称腾讯正在洽谈成为Manus股东。(Finscope)",
+      "publishTime": 1783758335,
+      "provider": "Finscope",
+      "entities": [
+        {
+          "code": "00700",
+          "name": "腾讯控股",
+          "market": "hk",
+          "ratio": "-2.00%",
+          "changePct": -2,
+          "logoUrl": "https://..."
+        }
+      ]
+    }
+  ]
+}
+```
+
+缓存 TTL：首页有新快讯 30s；首页无变化 2min；历史页 10min。
+
+前置条件：`ingest.baidu.enabled=true`，否则返回 `UPSTREAM_ERROR`。
+
+---
+
+## 9. GET /healthz
 
 ```json
 {
@@ -292,6 +339,8 @@ K 线历史。支持 crypto 和 alpha 标的。
     "liquidations": "ok",
     "liquidations_ws": "connected",
     "sge_gold": "ok",
+    "market_center": "ok",
+    "expressnews": "ok",
     "alpha_poll": "ok"
   }
 }
@@ -301,7 +350,7 @@ K 线历史。支持 crypto 和 alpha 标的。
 
 ---
 
-## 9. WebSocket /ws/v1/market/stream
+## 10. WebSocket /ws/v1/market/stream
 
 兼容路径：`WS /ws/v1/stream`
 
@@ -430,4 +479,4 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 |------|------|------|
 | 0.1 | 2026-05-16 | 草案 |
 | 0.2 | 2026-05-24 | 增加 market canonical namespace，保留旧路径兼容 |
-| 1.0 | 2026-07-11 | 对齐实现：alpha、macro 衍生品、providers/status、index-klines、market/center、healthz 字段 |
+| 1.0 | 2026-07-11 | 对齐实现：alpha、macro 衍生品、providers/status、index-klines、market/center、expressnews、healthz 字段 |

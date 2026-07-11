@@ -26,9 +26,11 @@ export const useProviderStore = defineStore('providers', () => {
       macro: '宏观指标',
       derivatives: '衍生品',
       alpha: '美股参考',
+      market: '行情中心',
+      news: '财经快讯',
       other: '其他',
     }
-    const order = ['crypto', 'index', 'forex', 'macro', 'derivatives', 'alpha', 'other']
+    const order = ['crypto', 'index', 'forex', 'macro', 'derivatives', 'alpha', 'market', 'news', 'other']
     const bucket = new Map<string, ProviderHealth[]>()
     for (const provider of providers.value) {
       const key = provider.category || 'other'

@@ -50,7 +50,7 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 		equityCache:    newEquityCache(),
 		equityBreaker:  newEquityBreakers(),
 		ingestStatus:   newStatusTracker(),
-		providerHealth: newProviderHealthStore(defaultProviderDefs(cfg.Alpha.Enabled, cfg.Alpha.Provider)),
+		providerHealth: newProviderHealthStore(defaultProviderDefs(cfg.Alpha.Enabled, cfg.Alpha.Provider, cfg.Ingest.Baidu.IsEnabled())),
 		liquidations:   newLiquidationWindow(time.Hour),
 	}
 	s.binanceStatus.Store("starting")
@@ -72,12 +72,18 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s.ingestStatus.set("liquidations", "starting")
 	s.ingestStatus.set("liquidations_ws", "starting")
 	s.ingestStatus.set("sge_gold", "starting")
+	s.ingestStatus.set("market_center", "starting")
+	s.ingestStatus.set("expressnews", "starting")
 	if cfg.Alpha.Enabled {
 		s.ingestStatus.set("alpha_poll", "starting")
 		s.seedAlphaDefaults()
 	} else {
 		s.providerHealth.ReportDisabled("bitget_alpha")
 		s.providerHealth.ReportDisabled("binance_alpha")
+	}
+	if !cfg.Ingest.Baidu.IsEnabled() {
+		s.ingestStatus.set("market_center", "disabled")
+		s.ingestStatus.set("expressnews", "disabled")
 	}
 	return s
 }
