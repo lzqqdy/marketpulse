@@ -6,7 +6,7 @@ MarketPulse is evolving from a single market dashboard into a modular product. T
 
 | Module | Purpose | Current Code | Owns |
 | --- | --- | --- | --- |
-| `marketdata` | Collect, normalize, cache, and stream market data | `internal/marketdata`, market routes in `internal/api` | Quotes, rates, indices, macro, derivatives, klines, provider health |
+| `marketdata` | Collect, normalize, cache, and stream market data | `internal/marketdata`, market routes in `internal/api` | Quotes, rates, indices, macro, derivatives, klines, alpha, market center, provider health |
 | `alerts` | Price and market-condition monitoring | Planned | Alert rules, trigger history, notification delivery |
 | `portfolio` | Assets, positions, transactions, valuation | Planned | User holdings, cost basis, PnL, portfolio snapshots |
 | `ai` | Market analysis and assistant workflows | Planned | Analysis jobs, prompts, model responses, cached insights |
@@ -38,6 +38,7 @@ The market data module is responsible for:
 - Publishing REST snapshots and WebSocket streams.
 - Reporting provider health.
 - Serving kline data.
+- Serving market center data (on-demand, not in snapshot).
 
 Provider details are documented in [`DATA_SOURCES.md`](./DATA_SOURCES.md). New providers should be added there before or alongside implementation.
 
@@ -106,6 +107,8 @@ GET /api/v1/market/snapshot
 GET /api/v1/market/providers/status
 GET /api/v1/market/klines
 GET /api/v1/market/index-klines
+GET /api/v1/market/center
+GET /api/v1/market/center/heatmap
 WS  /ws/v1/market/stream
 WS  /ws/v1/market/kline
 ```
@@ -136,12 +139,14 @@ Keep feature code grouped by domain as the UI grows:
 
 ```text
 web/src/features/
-  market/
-  alerts/
-  portfolio/
-  ai/
-  auth/
-web/src/shared/
+  market/          # QuoteTable, MacroGrid, IndexGrid, MarketCenterPanel, AlphaStockPanel, KlineDrawer
+  alerts/          # (planned)
+  portfolio/       # (planned)
+  ai/              # (planned)
+  auth/            # (planned)
+web/src/shared/    # (planned)
+web/src/stores/
+  theme.ts         # global theme (not market-specific)
 ```
 
 Market files now live under `web/src/features/market`. New feature work should avoid adding unrelated business logic to `web/src/features/market/stores/market.ts` or `DashboardView.vue`.

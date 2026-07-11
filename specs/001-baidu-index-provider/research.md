@@ -1,15 +1,23 @@
 # Research: 百度财经指数数据源
 
 **Feature**: 001-baidu-index-provider  
-**Date**: 2026-07-10
+**Date**: 2026-07-10  
+**Status**: ✅ 已实现（2026-07-11）
 
-## 现有实现摘要
+## 实现后摘要
 
-| 能力 | 当前 Primary | 当前 Fallback | 代码入口 |
+| 能力 | Primary | Fallback | 代码入口 |
 | --- | --- | --- | --- |
-| 指数行情 | Tencent | Eastmoney | `slow.go` → `pollEquity` → `fetchEquityProvider` |
-| 指数 K 线 | Eastmoney | Tencent（日 K 竞速） | `kline_cache.go` → `fetchIndexKlines` |
-| Provider 链配置 | `ingest.equity.providers` 默认 `tencent,eastmoney` | — | `config.go` |
+| 指数行情 | **Baidu**（WS + REST） | Tencent → Eastmoney | `slow.go` → `pollEquity` + `baidu/websocket.go` |
+| 指数 K 线 | **Baidu** | Eastmoney → Tencent | `kline_cache.go` → `fetchIndexKlines` |
+| Provider 链 | `baidu,tencent,eastmoney` | — | `config.go` |
+
+## 调研时现有实现（已替换）
+
+| 能力 | 当时 Primary | 当时 Fallback |
+| --- | --- | --- |
+| 指数行情 | Tencent | Eastmoney |
+| 指数 K 线 | Eastmoney | Tencent（日 K 竞速） |
 
 Provider 降级模式（已有）：按 `providers` 列表顺序，只拉 `equityCache` 中过期的指数；熔断器 `equityBreaker` 按 provider 隔离。
 

@@ -48,21 +48,19 @@ specify init --here --force --integration cursor-agent
 | 6 | `/speckit-implement` | 按 tasks 执行实现 |
 | 7 | `/speckit-converge` | 评估完成度，补充遗漏任务 |
 
-### 示例：开发 K 线增强功能
+### 示例：开发排行榜功能
 
 ```
-/speckit-specify 为 MarketPulse 添加 K 线多周期切换（1m/5m/1h/1d），
-支持在行情看板侧边抽屉中查看，数据来自已有 kline API，要求切换周期时
-保留当前交易对选择，加载中显示骨架屏。
+/speckit-specify 为 MarketPulse 添加加密货币排行榜页面，展示 CoinGecko markets
+全量排行，支持按市值/成交量/涨跌幅排序，数据来自已有 snapshot 或新增 REST 端点。
 ```
 
 plan 阶段补充技术上下文：
 
 ```
-/speckit-plan 后端已有 internal/api/kline.go 和 eastmoney/tencent kline provider。
-前端使用 Vue 3 + Pinia chart store + lightweight-charts。
-遵循 docs/RFC-002-api-contract.md 中 kline 路由定义。
-改动范围：web/src/features/market/ 和必要的 API 适配。
+/speckit-plan 后端已有 internal/marketdata/ingest/crypto/coingecko.go。
+前端使用 Vue 3 + Pinia，新组件放在 web/src/features/market/components/。
+遵循 docs/MODULES.md 模块边界和 docs/RFC-002-api-contract.md。
 ```
 
 ## 与 RFC-004 路线图配合

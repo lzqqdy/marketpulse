@@ -261,12 +261,15 @@ GET /api/v1/market/center/overview?market=ab
 - 路由：`/block/:market-:code` 或 drawer
 - 上游：成分股 `sapi/v1/constituents`、板块资金流、板块 K 线等（调研已有）
 
-### 3.4 代码落点
+### 3.4 代码落点（已实现）
 
 ```
-internal/marketdata/ingest/baidu/
-  market_center.go      # FetchChgDiagram / FetchHeatmap / FetchFundflow / FetchOverview
-  market_center_cache.go # 短 TTL cache
+internal/marketdata/marketcenter/
+  client.go             # 聚合 Baidu API 数据
+  cache.go              # 短 TTL cache
+  refresher.go          # 后台预热 ab/hk/us
+  types.go              # 响应结构
+  market.go             # 市场代码规范化
 
 internal/marketdata/
   service.go            # MarketCenter(market) 门面
@@ -274,9 +277,14 @@ internal/marketdata/
 internal/api/
   market_center.go      # Handler
   routes.go             # 注册路由
+
+web/src/features/market/
+  components/MarketCenterPanel.vue
+  api/marketCenter.ts
+  types/marketCenter.ts
 ```
 
-复用 `baidu.getJSON()` + CDN fallback，**不新建 ingest goroutine**。
+复用 `baidu/client.go` CDN fallback，**不新建 ingest goroutine**。
 
 ### 3.5 Provider 健康
 
@@ -288,21 +296,19 @@ internal/api/
 
 ## 4. 前端方案
 
-### 4.1 组件结构
+### 4.1 组件结构（已实现）
 
 ```
 web/src/features/market/
   components/
-    MarketCenterPanel.vue       # 容器 + Tab
-    MarketChgDiagram.vue        # 涨跌分布
-    MarketHeatmap.vue             # 热力图 treemap
-    MarketFundflow.vue            # 主力净流入
-    MarketHotBlocks.vue           # 热门板块
+    MarketCenterPanel.vue       # 容器 + Tab + 四模块内联
   api/
     marketCenter.ts
   types/
     marketCenter.ts
 ```
+
+> 初版将四个子模块内联在 `MarketCenterPanel.vue` 中，未拆分为独立子组件。
 
 ### 4.2 交互
 
@@ -353,11 +359,11 @@ web/src/features/market/
 
 ---
 
-## 8. 结论（给用户）
+## 8. 结论
 
-1. **四个百度接口均已验证可用**（经 CDN），三市场均支持，参数有差异（尤其港股 `HSHY`）。
-2. **后端建议：Typed 转发 + 15~30s 短缓存**，不建议 ingest 轮询进 snapshot，也不建议裸 proxy。
-3. **前端 Tab 切换** 建议打 **1 个聚合 API**，热力图排序单独刷新。
-4. **插入位置**：全球速览（`IndexGrid`）正下方。
+1. ✅ 四个百度接口均已验证可用（经 CDN），三市场均支持。
+2. ✅ 后端采用 Typed Fetch + 短 TTL 缓存，未纳入 ingest 轮询。
+3. ✅ 前端 Tab 切换打 1 个聚合 API，热力图排序单独刷新。
+4. ✅ 已插入 `IndexGrid` 下方，见 `MarketDashboard.vue`。
 
-确认后可进入 `/speckit-specify` 或 `plan.md` → 你确认后再编码。
+**状态**: 已实现（2026-07-11）。详见 `plan.md`。

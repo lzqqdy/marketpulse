@@ -1,6 +1,7 @@
 # Contract: 指数 Provider 降级链
 
-**Scope**: 内部 ingest 契约，不改变 RFC-002 对外 API。
+**Scope**: 内部 ingest 契约，不改变 RFC-002 对外 API。  
+**Status**: ✅ 已实现（2026-07-11）
 
 ## 行情 Provider 链
 

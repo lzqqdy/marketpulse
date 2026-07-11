@@ -1,9 +1,11 @@
 # MarketPulse
 
-个人加密货币行情看板：实时币价（WebSocket）、股指、宏观指标。
+个人加密货币行情看板：实时币价（WebSocket）、全球股指、宏观指标、衍生品数据、美股参考、行情中心。
 
 - 设计文档：[docs/README.md](./docs/README.md)
 - 架构 RFC：[docs/RFC-001-architecture.md](./docs/RFC-001-architecture.md)
+- API 契约：[docs/RFC-002-api-contract.md](./docs/RFC-002-api-contract.md)
+- 数据源：[docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md)
 
 ## 仓库结构
 
@@ -11,28 +13,64 @@
 marketpulse/
 ├── cmd/marketd/      # Go 后端入口
 ├── internal/         # 后端实现
-├── web/              # Vue 前端
+├── web/              # Vue 3 前端
 ├── docs/             # RFC 与设计
+├── specs/            # Spec Kit 功能规格
 ├── deploy/           # 部署模板
-└── Makefile          # 构建 / 部署命令
+└── Makefile          # 构建 / 部署命令（Linux/macOS/Git Bash）
 ```
 
 ## 快速开始
 
+### Linux / macOS / Git Bash
+
 ```bash
 make help
 make setup-config   # 首次：生成 config/config.yaml
-make test           # Phase A 单元测试
+make test           # Go 单元测试
 make dev-api        # Gin :8080
 
-# 另一个终端（前端占位）
-make dev-web
+# 另一个终端
+make dev-web        # Vite :5173
+```
+
+### Windows（PowerShell，无需 make）
+
+```powershell
+cd F:\lzqqdy\marketpulse
+
+# 首次：生成配置
+if (-not (Test-Path config\config.yaml)) {
+    Copy-Item config\config.example.yaml config\config.yaml
+}
+
+# 终端 1：后端
+go run -buildvcs=false ./cmd/marketd -config config/config.yaml
+
+# 终端 2：前端
+cd web
+npm install
+npm run dev
 ```
 
 ```bash
-curl -s http://127.0.0.1:8080/healthz | jq .
-curl -s http://127.0.0.1:8080/api/v1/snapshot | jq .
+curl -s http://127.0.0.1:8080/healthz
+curl -s http://127.0.0.1:8080/api/v1/market/snapshot
 ```
+
+浏览器打开 `http://localhost:5173`。
+
+## 当前功能
+
+| 模块 | 说明 |
+|------|------|
+| 币价表 | Binance WS 实时推送，USDT/¥ 双价 |
+| 宏观指标 | 总市值、恐惧贪婪、多空比、资金费率、爆仓等 |
+| 全球速览 | 14 个指数/商品（百度主源，腾讯/东财备用） |
+| 行情中心 | A股/港股/美股涨跌分布、热力图、资金流、热门板块 |
+| 美股参考 | Bitget USDT-FUTURES 代币化美股（Binance Alpha 备用） |
+| K 线抽屉 | lightweight-charts，crypto/alpha WS 实时，指数 REST |
+| 数据源健康 | Provider 状态面板，30s 轮询 |
 
 ## 部署（HK VPS）
 
@@ -60,6 +98,6 @@ make ship SHIP_GIT_COMMIT=1   # 单次自动提交
 ### Vibe Coding（增量改造）
 
 - 后端改动：`internal/`、`cmd/`
-- 前端改动：`web/`
+- 前端改动：`web/src/features/market/`
 - 契约变更：先改 `docs/RFC-002-api-contract.md`
 - 路线图：按 `docs/RFC-004-implementation-roadmap.md` 逐步推进

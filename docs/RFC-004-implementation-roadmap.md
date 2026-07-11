@@ -5,6 +5,7 @@
 | 状态 | Active |
 | 依赖 | RFC-001、RFC-002、RFC-003 |
 | 日期 | 2026-05-16 |
+| 最后对齐 | 2026-07-11 |
 
 > **用法**：每次只做一个 Step，完成「验收标准」后再进入下一步。  
 > 对 AI 说：「做 Step X」或「继续 Step X+1」即可。
@@ -13,14 +14,15 @@
 
 ## 总览
 
-| 阶段 | Steps | 目标 |
-|------|-------|------|
-| **A 地基** | 0–2 | 配置、目录包、开发环境跑通 |
-| **B 后端行情** | 3–8 | WS 入站 → 内存 → REST/WS 出站 |
-| **C 前端看板** | 9–14 | 首屏 + 实时 UI，对齐旧站核心效果 |
-| **D 慢数据** | 15–17 | 汇率、股指、宏观 |
-| **E 部署** | 18–19 | HK 上线、连通性 |
-| **F 增强** | 20+ | 排行榜、K 线、设置（可选） |
+| 阶段 | Steps | 目标 | 状态 |
+|------|-------|------|------|
+| **A 地基** | 0–2 | 配置、目录包、开发环境跑通 | ✅ |
+| **B 后端行情** | 3–6 | WS 入站 → 内存 → REST/WS 出站 | ✅ |
+| **C 前端看板** | 7–14 | 首屏 + 实时 UI | ✅ |
+| **D 慢数据** | 15–17 | 汇率、股指、宏观 | ✅ |
+| **E 部署** | 18–19 | HK 上线、连通性 | ✅ |
+| **F 增强** | 20–25 | K 线、美股参考、行情中心、Provider 健康 | ✅ 大部分 |
+| **G 后续** | 26+ | 排行榜、设置页、板块钻取 | 规划中 |
 
 预估：**MVP（A+B+C 核心）≈ Step 0–14**；完整看板 + 慢数据 ≈ Step 0–19。
 
@@ -32,11 +34,9 @@
 
 **做什么**
 
-- [ ] `cd marketpulse && git init`（若未初始化）
 - [x] `make setup-config` → `config/config.yaml`
-- [ ] 运行 `make check`（HK 或本机）
 - [x] `make test` / `go build -buildvcs=false -o bin/marketd ./cmd/marketd`
-- [ ] `cd web && npm ci`（需网络，前端 Phase C 再做）
+- [x] `cd web && npm ci && npm run dev`
 
 **验收**
 
@@ -164,231 +164,164 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 ---
 
-### Step 7：前端 API 层 `web/src/features/market/api`
+### Step 7：前端 API 层 `web/src/features/market/api` ✅
 
 **做什么**
 
-- [ ] `fetchSnapshot(): Promise<MarketSnapshot>`
-- [ ] `createMarketSocket(channels): WebSocket` 封装
-- [ ] 自动重连、解析 RFC-002 消息类型
-- [ ] 类型使用 `src/types/market.ts`（已有则核对字段）
+- [x] `fetchSnapshot()` → `/api/v1/market/snapshot`
+- [x] `connectMarketStream()` → `/ws/v1/market/stream`
+- [x] 自动重连、解析 RFC-002 消息类型
+- [x] 类型在 `features/market/types/market.ts`
 
 **验收**
 
-- 浏览器控制台能打印 snapshot 与 WS quotes 消息
-
-**Vibe 提示词**
-
-> 实现 Step 7：web/src/features/market/api/http.ts 和 ws.ts，对齐 RFC-002。
+- [x] 浏览器控制台能打印 snapshot 与 WS quotes 消息
 
 ---
 
-### Step 8：Pinia Store `web/src/features/market/stores/market.ts`
+### Step 8：Pinia Store `web/src/features/market/stores/market.ts` ✅
 
 **做什么**
 
-- [ ] state：`quotes`、`rates`、`indices`、`macro`、`wsStatus`、`version`
-- [ ] actions：`applySnapshot`、`applyWsMessage`
-- [ ] `useMarketStream` composable：onMounted 拉 snapshot + 连 WS
+- [x] state：`snapshot`（quotes/rates/indices/alpha/macro）、`wsStatus`、`version`
+- [x] actions：`initLive()`、`teardown()`、WS 消息处理
+- [x] mock 降级：`initMock()` + 2.5s 随机波动
 
 **验收**
 
-- `App.vue` 里能 `console.log(store.quotes)` 且数字随 WS 变
-
-**Vibe 提示词**
-
-> 实现 Step 8：Pinia store + useMarketStream composable。
+- [x] Dashboard 实时跳动，断线自动重连
 
 ---
 
 ## Phase C — 前端看板（对齐旧站 P0）
 
-### Step 9：布局与主题 `styles` + `App.vue`
+### Step 9：布局与主题 `styles` + `App.vue` ✅
 
 **做什么**
 
-- [ ] CSS 变量：背景、涨 `#f6465d`、跌 `#0ecb81`（大陆习惯）
-- [ ] 移动端：`max-width: 420px` 居中
-- [ ] `StatusBar`：连接状态、最后更新时间
-- [ ] `localStorage` 切换红涨绿跌 / 绿涨红跌（可选）
-
-**验收**
-
-- 深色页面，风格接近旧 `index.html`
+- [x] CSS 变量：背景、涨红跌绿（大陆习惯）
+- [x] 响应式布局
+- [x] `StatusBar`：连接状态、最后更新时间
+- [x] `localStorage` 深浅色主题切换
 
 ---
 
-### Step 10：币价表 `QuoteTable.vue`
+### Step 10：币价表 `QuoteTable.vue` ✅
 
 **做什么**
 
-- [ ] 列：图标占位、COIN、USDT/¥、当日%、24h%
-- [ ] 从 store 渲染；WS 更新只改对应行
-- [ ] 价格变动闪动动画（200ms）
-- [ ] 数字格式化（千分位、小数位）
-
-**验收**
-
-- 与旧站表格信息密度类似，无需 1s 轮询接口
-
-**Vibe 提示词**
-
-> 实现 Step 10 QuoteTable，数据来自 Pinia，不要 axios 轮询。
+- [x] 列：图标、COIN、USDT/¥、当日%、24h%
+- [x] 从 store 渲染；WS 更新
+- [x] 点击行打开 K 线抽屉
 
 ---
 
-### Step 11：宏观卡片 `MacroGrid.vue`
+### Step 11：宏观卡片 `MacroGrid.vue` ✅
 
 **做什么**
 
-- [ ] 4×2 栅格：总市值、24h 成交额、恐惧贪婪、BTC 占比等
-- [ ] MVP：宏观数据可先 mock 或等 Step 16 再接真数据
-- [ ] 涨跌颜色 class
-
-**验收**
-
-- 布局与旧站 `layui-col-xs3` 卡片一致
+- [x] 横向滚动卡片：总市值、恐惧贪婪、多空比、资金费率、爆仓等 14 项
+- [x] 接真数据（CoinGecko + Binance 衍生品）
+- [x] 部分字段 mock 兜底
 
 ---
 
-### Step 12：股指条 `IndexGrid.vue`
+### Step 12：股指条 `IndexGrid.vue` ✅
 
 **做什么**
 
-- [ ] 三列卡片：名称、现价、涨跌幅
-- [ ] MVP：可 mock；Step 16 接 REST
-- [ ] 响应式换行
-
-**验收**
-
-- 与旧 `#stock_price` 区域等价
+- [x] 地图气泡 / 方块双视图
+- [x] 百度主源 + 腾讯/东财备用
+- [x] 点击指数开 K 线（sge-au9999 除外）
 
 ---
 
-### Step 13：联调与降级
+### Step 13：联调与降级 ✅
 
 **做什么**
 
-- [ ] Vite proxy 确认 `/api`、`/ws` 指向 8080
-- [ ] WS 断开显示「重连中」；3 次失败后 `setInterval` 拉 snapshot（5s）并提示「非实时」
-- [ ] 页面可见性：后台 tab 可选择暂停 WS（可选）
-
-**验收**
-
-- `make dev-api` + `make dev-web` 同时开，看板实时跳动
-- 停后端再启，前端能恢复
-
-**Vibe 提示词**
-
-> 完成 Step 13：前后端联调与 WS 降级策略。
+- [x] Vite proxy 确认 `/api`、`/ws` 指向 8080
+- [x] WS 断开显示「重连中」；5s 无数据降级 mock
+- [x] 页面恢复时刷新 snapshot 并重连 WS
 
 ---
 
-### Step 14：MVP 里程碑验收
+### Step 14：MVP 里程碑验收 ✅
 
 **检查清单**
 
-- [ ] 5 个币种 USDT 价实时更新
-- [ ] 无 PHP、无 Redis、无 1s 轮询
-- [ ] 文档 RFC-002 与实现字段一致
-- [ ] README 补充「如何 dev」
-
-**庆祝 🎉** — 可部署一版到 HK（Step 18）
+- [x] 5 个币种 USDT 价实时更新
+- [x] 无 PHP、无 Redis、无 1s 轮询
+- [x] 文档 RFC-002 与实现字段一致
+- [x] README 补充「如何 dev」
 
 ---
 
 ## Phase D — 慢数据补齐
 
-### Step 15：USDT/CNY + USD/CNY Ingest
+### Step 15：USDT/CNY + USD/CNY Ingest ✅
 
 **做什么**
 
-- [ ] `internal/marketdata/ingest/otc`：OKX C2C REST，30s
-- [ ] `internal/marketdata/ingest/forex`：Frankfurter，1h
-- [ ] 写入 `store.UpdateRates`
-- [ ] `QuoteTable` 中 `priceCny = priceUsdt * usdtCny`
-- [ ] WS 推送 `type: rates`
-
-**验收**
-
-- snapshot 含 `rates.usdtCny`，CNY 列正确
+- [x] `internal/marketdata/ingest/otc`：OKX C2C REST，30s
+- [x] `internal/marketdata/ingest/forex`：Frankfurter，1h
+- [x] 写入 `store.UpdateRates`
+- [x] WS 推送 `type: rates`
 
 ---
 
-### Step 16：股指 + 黄金 Ingest
+### Step 16：股指 + 黄金 Ingest ✅
 
 **做什么**
 
-- [ ] `internal/marketdata/ingest/equity`：Yahoo symbols 映射（上证、恒生、道指等）
-- [ ] 90s 轮询，休市仍返回昨收
-- [ ] `IndexGrid` 接真实数据
-- [ ] WS `type: indices` 或仅 REST 刷新（低频可只 snapshot）
-
-**验收**
-
-- `curl /api/v1/snapshot` 中 `indices` 长度 ≥ 10
+- [x] `internal/marketdata/ingest/baidu`：百度主源（WS + REST）
+- [x] `internal/marketdata/ingest/equity`：腾讯/东财备用
+- [x] `internal/marketdata/ingest/metals`：上金所国内黄金
+- [x] WS `type: indices`
 
 ---
 
-### Step 17：宏观 Ingest
+### Step 17：宏观 Ingest ✅
 
 **做什么**
 
-- [ ] `alternative.me` 恐惧贪婪
-- [ ] CoinGecko `/global` 市值、成交量、BTC 占比
-- [ ] `MacroGrid` 接真数据
-- [ ] Ahr999：二期或显示 `--`
-
-**验收**
-
-- 宏观卡片与旧站字段大致对应
+- [x] `alternative.me` 恐惧贪婪
+- [x] CoinGecko `/global` 市值、成交量、BTC 占比
+- [x] Binance 衍生品：多空比、资金费率、OI、爆仓
+- [x] `MacroGrid` 接真数据
 
 ---
 
 ## Phase E — 部署
 
-### Step 18：HK 部署
+### Step 18：HK 部署 ✅
 
-**推荐：ship（IP + 端口 + Git 仓库）**
-
-- [ ] `cp deploy/deploy.local.yaml.example deploy/deploy.local.yaml`
-- [ ] `remote_dir` 指向服务器仓库，如 `/home/lzqqdy/github/marketpulse`
-- [ ] 安全组放行 `8080`
-- [ ] `make ship` 或 `make ship-commit`
-- [ ] 详见 `docs/RFC-003-deployment.md`
-
-**可选：nginx + 域名**
-
-- [ ] `make deploy-api` / `make deploy-web` + `deploy/nginx.conf.example`
-- [ ] systemd `marketpulse.service`
-
-**验收**
-
-- `curl http://<IP>:8080/healthz` → `binance_ws: connected`
-- 手机浏览器打开，币价与指数正常更新
+- [x] `deploy/deploy.local.yaml` 配置
+- [x] `make ship` / `make ship-commit`
+- [x] 详见 `docs/RFC-003-deployment.md`
 
 ---
 
-### Step 19：运维小闭环
+### Step 19：运维小闭环 ✅
 
-**做什么**
-
-- [ ] `check-connectivity.sh` 加入 cron 或手动巡检文档
-- [ ] `/healthz` 监控（可选 Uptime Kuma）
-- [ ] 日志：slog JSON 到 journal
+- [x] `check-connectivity.sh` / `check-binance.sh`
+- [x] `/healthz` + `/api/v1/market/providers/status` 监控
+- [x] 日志：slog + 文件日志
 
 ---
 
-## Phase F — 增强（可选）
+## Phase F — 增强
 
-| Step | 内容 |
-|------|------|
-| 20 | 排行榜：CoinGecko markets + `RankTable.vue` |
-| 21 | K 线抽屉：TradingView Widget |
-| 22 | 自选币种：`config.yaml` + 设置页写回 |
-| 23 | embed 单二进制模式（`DEPLOY_MODE=embed`） |
-| 24 | Huobi WS 作为第二 `ExchangeFeed` |
-| 25 | 价格预警（内存触发 + 通知） |
+| Step | 内容 | 状态 |
+|------|------|------|
+| 20 | K 线抽屉：lightweight-charts + WS/REST | ✅ |
+| 21 | 美股参考：Bitget alpha + AlphaStockPanel | ✅ |
+| 22 | Provider 健康：providers/status + ProviderStatusWidget | ✅ |
+| 23 | 行情中心：market/center API + MarketCenterPanel | ✅ |
+| 24 | 百度指数主源切换（specs/001） | ✅ |
+| 25 | 排行榜：CoinGecko markets + RankTable | 规划中 |
+| 26 | 自选币种：config.yaml + 设置页 | 规划中 |
+| 27 | 板块详情钻取 | 规划中 |
 
 ---
 
@@ -422,3 +355,4 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 0.1 | 2026-05-16 | 初稿 |
+| 0.2 | 2026-07-11 | 对齐实现：Step 7–24 完成状态、新增行情中心/美股参考/Provider 健康 |

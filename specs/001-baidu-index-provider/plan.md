@@ -1,6 +1,6 @@
 # Implementation Plan: 百度财经指数数据源切换
 
-**Branch**: `001-baidu-index-provider` | **Date**: 2026-07-10 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-baidu-index-provider` | **Date**: 2026-07-10 | **Status**: ✅ 已实现 | **Spec**: [spec.md](./spec.md)
 
 ## Summary
 

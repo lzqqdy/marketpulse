@@ -37,8 +37,11 @@ git_auto_commit: false
 ## 命令速查
 
 ```bash
+# Linux/macOS/Git Bash
 make ship
 make ship SHIP_GIT_COMMIT=1 SHIP_GIT_MSG="feat: xxx"
 make ship SHIP_NO_SOURCE=1
 make check-binance-remote
 ```
+
+Windows 本地开发无需 make，见 [docs/RFC-003-deployment.md](../docs/RFC-003-deployment.md) §4。

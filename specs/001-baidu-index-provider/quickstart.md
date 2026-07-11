@@ -3,8 +3,11 @@
 ## 验证 Provider 切换
 
 ```bash
-cd marketpulse
+# Linux/macOS/Git Bash
 make dev-api
+
+# Windows PowerShell
+go run -buildvcs=false ./cmd/marketd -config config/config.yaml
 
 # 指数快照
 curl -s http://127.0.0.1:8080/api/v1/market/snapshot | jq '.indices[:3]'
@@ -13,7 +16,7 @@ curl -s http://127.0.0.1:8080/api/v1/market/snapshot | jq '.indices[:3]'
 curl -s http://127.0.0.1:8080/api/v1/market/providers/status | jq '.providers[] | select(.category=="index")'
 
 # 指数 K 线
-curl -s 'http://127.0.0.1:8080/api/v1/market/index/klines?id=sh000001&interval=1d&limit=5' | jq '{source, count: (.candles|length)}'
+curl -s 'http://127.0.0.1:8080/api/v1/market/index-klines?id=sh000001&interval=1d&limit=5' | jq '{source, count: (.candles|length)}'
 ```
 
 期望：`baidu_index` role=primary 且 current_used=true；K 线 source 含 `baidu`。

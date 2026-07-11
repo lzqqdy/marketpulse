@@ -21,6 +21,7 @@ The market data boundary is `internal/marketdata`. Other future modules should c
 | Liquidations | Binance USD-M Futures | REST aggregate from memory | WS live + memory window | `internal/marketdata/ingest/derivatives` |
 | US stock reference quotes | Bitget USDT-FUTURES | Binance Alpha | REST bootstrap + WS live, REST fallback | `internal/marketdata/ingest/bitget`, `internal/marketdata/ingest/alpha` |
 | US stock reference K lines | Bitget USDT-FUTURES | Binance Alpha | REST history, WS/poll live | `internal/marketdata/service.go`, `internal/marketdata/stream/kline.go` |
+| Market center (A/HK/US) | Baidu Finance | None | REST on-demand + TTL cache | `internal/marketdata/marketcenter` |
 
 ## Provider Health Names
 
@@ -269,6 +270,37 @@ Fallback behavior:
 - Live K lines: Bitget WS for the latest candle when available; otherwise Bitget REST poll at `alpha.poll_interval`, then Binance Alpha REST poll as fallback.
 - Provider health marks `bitget_alpha` and `binance_alpha` separately and marks the currently used one.
 
+## Market Center
+
+行情中心为按需 API，不纳入全局 snapshot 或 WS 推送。
+
+- Package: `internal/marketdata/marketcenter`
+- Upstream: Baidu Finance（经 CDN 代理）
+- Cache: 服务端短 TTL 内存缓存（对齐 equity 轮询节奏）
+- REST API:
+  - `GET /api/v1/market/center?market=ab|hk|us`
+  - `GET /api/v1/market/center/heatmap?market=&sortKey=amount|volume|marketValue`
+- 前置条件: `ingest.baidu.enabled=true`
+- 后台预热: `refresher.go` 在交易时段预热 ab/hk/us 缓存
+- 前端: `MarketCenterPanel.vue`，60s 轮询
+
+Baidu 上游端点:
+
+| 模块 | 端点 |
+| --- | --- |
+| 涨跌分布 | `/sapi/v1/marketquote?bizType=chgdiagram` |
+| 热力图 | `/vapi/v2/blocks?style=heatmap` |
+| 主力净流入 | `/sapi/v1/marketquote?bizType=fundflow` |
+| 热门板块 | `/vapi/v1/blocks/overview?hasTrend=1` |
+
+市场参数映射:
+
+| UI Tab | market | 热力图 typeCode |
+| --- | --- | --- |
+| A股 | `ab` | `HY` |
+| 港股 | `hk` | `HSHY` |
+| 美股 | `us` | `HY` |
+
 ## Normalized Output Contracts
 
 External provider data should be converted before reaching other modules:
@@ -281,6 +313,7 @@ External provider data should be converted before reaching other modules:
 | `AlphaQuote` / `AlphaSnapshot` | US stock reference panel, legacy `alpha` API field |
 | `MacroSnapshot` | Market indicators |
 | `binance.Candle` | All K-line APIs after normalization |
+| `marketcenter.CenterResponse` | Market center panel (on-demand, not in snapshot) |
 
 Do not expose raw provider payloads outside `internal/marketdata/ingest/*` or `internal/marketdata/binance`.
 

@@ -1,5 +1,8 @@
 # Baidu Finance API Research
 
+> **注意**：本文档为 2026-07-10 早期调研版本。百度财经已成为指数主源（specs/001 已实现）。
+> 最新调研报告见 [providers/baidu_finance.md](./providers/baidu_finance.md)，数据源接入见 [DATA_SOURCES.md](./DATA_SOURCES.md)。
+
 Target page:
 
 ```text
@@ -15,10 +18,10 @@ MarketPulse backend currently uses Go `net/http` plus stdlib JSON parsing for up
 Recommended integration location:
 
 ```text
-internal/marketdata/ingest/equity/baidu
+internal/marketdata/ingest/baidu/
 ```
 
-Use Baidu Finance as an auxiliary A-share index detail source, not as the primary quote/K-line source. Existing Tencent/Eastmoney feeds are better for normalized real-time index quotes and K-lines.
+> **已更新（2026-07-11）**：Baidu Finance 已成为指数行情与 K 线的主数据源（primary），腾讯/东财为 fallback。见 `specs/001-baidu-index-provider/`。
 
 ## Common Request Shape
 

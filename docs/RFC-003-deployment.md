@@ -14,7 +14,7 @@
 |------|------|----------|
 | **ship**（推荐） | `make ship` | 香港/海外 VPS，**IP + 端口** 访问；`marketd` 单进程托管 API + 前端 |
 | **nginx** | `make deploy` | 域名 + Nginx 反代；前后端目录分离，可只发一端 |
-| **embed 构建** | 本地 `DEPLOY_MODE=embed` | 历史方案：静态打进二进制（当前 ship 更常用「外置 dist」） |
+| **embed 构建** | 本地 `DEPLOY_MODE=embed` | 历史方案；当前使用 `app.static_dir` 文件系统挂载，非 Go embed |
 
 日常个人 VPS：**用 ship**，配置写在 `deploy/deploy.local.yaml`（已 gitignore）。
 
@@ -209,12 +209,33 @@ make deploy DEPLOY_HOST=user@host        # 全量
 
 ## 4. 本地开发
 
+### Linux / macOS / Git Bash
+
 ```bash
 make setup-config
 make dev-api      # :8080
 make dev-web      # :5173，代理 /api、/ws
 make test
 ```
+
+### Windows（PowerShell，无需 make）
+
+```powershell
+# 首次：生成配置
+if (-not (Test-Path config\config.yaml)) {
+    Copy-Item config\config.example.yaml config\config.yaml
+}
+
+# 终端 1：后端
+go run -buildvcs=false ./cmd/marketd -config config/config.yaml
+
+# 终端 2：前端
+cd web
+npm install
+npm run dev
+```
+
+浏览器打开 `http://localhost:5173`。
 
 ---
 
@@ -247,3 +268,4 @@ make test
 |------|------|------|
 | 0.1 | 2026-05-16 | 草案（nginx / embed） |
 | 0.2 | 2026-05-16 | 增加 ship、Git 仓库目录、源码同步与可选 git commit |
+| 0.3 | 2026-07-11 | 增加 Windows 开发说明；embed 改为 static_dir |

@@ -30,7 +30,7 @@ Prefer explicit module packages over generic names. Keep provider clients small 
 | Layer | Stack |
 |-------|-------|
 | Backend | Go, Gin, in-memory store (market read model) |
-| Frontend | Vue 3, Pinia, Vite, lightweight-charts |
+| Frontend | Vue 3, Pinia, Vite 6, lightweight-charts, TypeScript |
 | Deploy | Single-port `marketd`, `make ship` to HK VPS |
 | Docs | RFC series in `docs/`, feature specs in `specs/` |
 
@@ -55,4 +55,4 @@ Canonical market routes: `/api/v1/market/*` and `/ws/v1/market/*`. Legacy routes
 
 This constitution supersedes ad-hoc development practices. Amendments require updating this file and noting the change in commit messages. Runtime development guidance lives in `docs/VIBE_GUIDE.md` and `docs/SPEC_KIT_GUIDE.md`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.0.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-11
