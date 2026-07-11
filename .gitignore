@@ -1,6 +1,8 @@
 # Go
 .cache/
 bin/
+marketd
+marketd.exe
 *.exe
 *.test
 vendor/
