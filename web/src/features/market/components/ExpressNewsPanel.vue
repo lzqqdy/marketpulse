@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue'
 import { fetchExpressNews } from '@/features/market/api/expressNews'
 import { useInfiniteScroll } from '@/features/market/composables/useInfiniteScroll'
 import { useTrendClass } from '@/features/market/composables/useTrendClass'
@@ -12,7 +12,7 @@ const PAGE_SIZE = 20
 const { priceClass } = useTrendClass()
 
 const activeTag = ref<ExpressNewsTag>('')
-const pn = ref(0)
+const page = ref(0)
 const hasMore = ref(true)
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -141,8 +141,8 @@ let lastDateKey = ''
 
 const seenIds = new Set<string>()
 
-async function loadPage(page: number, append: boolean) {
-  if (page === 0) {
+async function loadPage(pageNum: number, append: boolean) {
+  if (pageNum === 0) {
     loading.value = true
     error.value = ''
   } else {
@@ -152,12 +152,12 @@ async function loadPage(page: number, append: boolean) {
   try {
     const resp = await fetchExpressNews({
       tag: activeTag.value,
-      pn: page,
+      pn: pageNum,
       rn: PAGE_SIZE,
     })
     fetchedAt.value = resp.fetchedAt
     hasMore.value = resp.hasMore
-    pn.value = page
+    page.value = pageNum
 
     if (append) {
       const fresh = resp.items.filter((item) => !seenIds.has(item.id))
@@ -165,6 +165,11 @@ async function loadPage(page: number, append: boolean) {
       const nextRows = displayRows.value.slice()
       lastDateKey = appendRows(nextRows, fresh, lastDateKey)
       displayRows.value = nextRows
+
+      // Overlap at page boundaries should be rare; skip empty pages instead of stalling.
+      if (fresh.length === 0 && resp.hasMore) {
+        return loadPage(pageNum + 1, true)
+      }
     } else {
       seenIds.clear()
       for (const item of resp.items) seenIds.add(item.id)
@@ -188,14 +193,16 @@ async function loadPage(page: number, append: boolean) {
 }
 
 function resetAndLoad() {
-  pn.value = 0
+  page.value = 0
   hasMore.value = true
   void loadPage(0, false)
 }
 
-function loadMore() {
+async function loadMore() {
   if (loading.value || loadingMore.value || !hasMore.value) return
-  return loadPage(pn.value + 1, true)
+  await loadPage(page.value + 1, true)
+  await nextTick()
+  reconnect()
 }
 
 function canLoadMore() {
@@ -203,7 +210,7 @@ function canLoadMore() {
 }
 
 const { reconnect } = useInfiniteScroll(sentinel, loadMore, canLoadMore, {
-  rootMargin: 160,
+  rootMargin: 320,
 })
 
 watch(activeTag, () => resetAndLoad())
@@ -485,9 +492,10 @@ onMounted(() => {
 }
 
 .en-sentinel {
-  height: 4px;
+  height: 1px;
   width: 100%;
   pointer-events: none;
+  margin-top: 8px;
 }
 
 @media (max-width: 640px) {

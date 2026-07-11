@@ -158,7 +158,8 @@ func cacheKey(tag string, pn, rn, filterByUserStocks int) string {
 func (c *Client) fetch(tag string, pn, rn, filterByUserStocks int) (Response, string, error) {
 	q := url.Values{}
 	q.Set("rn", strconv.Itoa(rn))
-	q.Set("pn", strconv.Itoa(pn))
+	// Baidu uses pn as item offset (0, rn, 2*rn...), not page index.
+	q.Set("pn", strconv.Itoa(pageOffset(pn, rn)))
 	q.Set("tag", tag)
 	q.Set("filterByUserStocks", strconv.Itoa(filterByUserStocks))
 	q.Set("finClientType", "pc")
@@ -196,6 +197,17 @@ func (c *Client) fetch(tag string, pn, rn, filterByUserStocks int) (Response, st
 		Items:     items,
 	}
 	return out, latestID, nil
+}
+
+// pageOffset maps API page index to Baidu's pn offset parameter.
+func pageOffset(pn, rn int) int {
+	if pn < 0 {
+		return 0
+	}
+	if rn <= 0 {
+		rn = defaultRN
+	}
+	return pn * rn
 }
 
 // NormalizeTag trims and validates the tag query value.

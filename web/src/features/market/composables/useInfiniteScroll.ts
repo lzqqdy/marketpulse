@@ -33,6 +33,7 @@ export function useInfiniteScroll(
       .catch(() => undefined)
       .finally(() => {
         pending = false
+        // Chain while sentinel remains near viewport (fast scroll / short pages).
         scheduleCheck()
       })
   }

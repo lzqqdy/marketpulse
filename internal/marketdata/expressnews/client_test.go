@@ -83,6 +83,18 @@ func TestNormalizeTag(t *testing.T) {
 	}
 }
 
+func TestPageOffset(t *testing.T) {
+	if got := pageOffset(0, 20); got != 0 {
+		t.Fatalf("page0=%d", got)
+	}
+	if got := pageOffset(2, 20); got != 40 {
+		t.Fatalf("page2=%d", got)
+	}
+	if got := pageOffset(3, 15); got != 45 {
+		t.Fatalf("page3=%d", got)
+	}
+}
+
 func loadFixture(t *testing.T) []byte {
 	t.Helper()
 	path := filepath.Join("testdata", "expressnews_sample.json")
