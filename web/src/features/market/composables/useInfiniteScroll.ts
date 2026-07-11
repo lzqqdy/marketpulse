@@ -1,13 +1,13 @@
 import { onMounted, onUnmounted, watch, type Ref } from 'vue'
 
 interface InfiniteScrollOptions {
-  rootMargin?: string
+  rootMargin?: number
   enabled?: () => boolean
 }
 
 /**
- * Observes a sentinel and loads the next page when it enters the viewport.
- * Unobserves during fetch to avoid chain-loading that causes scroll jank.
+ * Scroll-based infinite loader. More reliable than IntersectionObserver on mobile,
+ * especially when list rows use content-visibility or dynamic heights.
  */
 export function useInfiniteScroll(
   sentinel: Ref<HTMLElement | null>,
@@ -15,43 +15,51 @@ export function useInfiniteScroll(
   canLoad: () => boolean,
   options: InfiniteScrollOptions = {},
 ) {
-  const rootMargin = options.rootMargin ?? '0px 0px 120px 0px'
-  let observer: IntersectionObserver | null = null
+  const rootMargin = options.rootMargin ?? 120
   let pending = false
+  let rafId = 0
 
-  function observe() {
-    observer?.disconnect()
+  function check() {
+    rafId = 0
+    if (options.enabled && !options.enabled()) return
+    if (pending || !canLoad()) return
     const el = sentinel.value
     if (!el) return
+    const rect = el.getBoundingClientRect()
+    if (rect.top - rootMargin > window.innerHeight) return
 
-    observer = new IntersectionObserver(
-      (entries) => {
-        if (options.enabled && !options.enabled()) return
-        const hit = entries.some((entry) => entry.isIntersecting)
-        if (!hit || pending || !canLoad()) return
-
-        pending = true
-        observer?.unobserve(el)
-
-        void Promise.resolve(onLoadMore())
-          .catch(() => undefined)
-          .finally(() => {
-            pending = false
-            requestAnimationFrame(() => {
-              if (!canLoad() || !sentinel.value) return
-              observer?.observe(sentinel.value)
-            })
-          })
-      },
-      { root: null, rootMargin, threshold: 0 },
-    )
-    observer.observe(el)
+    pending = true
+    void Promise.resolve(onLoadMore())
+      .catch(() => undefined)
+      .finally(() => {
+        pending = false
+        scheduleCheck()
+      })
   }
 
-  onMounted(() => observe())
+  function scheduleCheck() {
+    if (rafId) return
+    rafId = requestAnimationFrame(check)
+  }
+
+  function onScroll() {
+    scheduleCheck()
+  }
+
+  function observe() {
+    scheduleCheck()
+  }
+
+  onMounted(() => {
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll, { passive: true })
+    observe()
+  })
+
   onUnmounted(() => {
-    observer?.disconnect()
-    observer = null
+    window.removeEventListener('scroll', onScroll)
+    window.removeEventListener('resize', onScroll)
+    if (rafId) cancelAnimationFrame(rafId)
   })
 
   watch(sentinel, (el) => {

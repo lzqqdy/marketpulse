@@ -4,7 +4,6 @@ export interface FetchExpressNewsParams {
   tag?: ExpressNewsTag
   pn?: number
   rn?: number
-  filterByUserStocks?: boolean
 }
 
 export async function fetchExpressNews(
@@ -14,7 +13,6 @@ export async function fetchExpressNews(
   if (params.tag) q.set('tag', params.tag)
   q.set('pn', String(params.pn ?? 0))
   q.set('rn', String(params.rn ?? 20))
-  if (params.filterByUserStocks) q.set('filterByUserStocks', '1')
 
   const res = await fetch(`/api/v1/market/expressnews?${q}`)
   if (!res.ok) {

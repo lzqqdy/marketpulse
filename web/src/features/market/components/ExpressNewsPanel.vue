@@ -12,7 +12,6 @@ const PAGE_SIZE = 20
 const { priceClass } = useTrendClass()
 
 const activeTag = ref<ExpressNewsTag>('')
-const filterWatchlist = ref(false)
 const pn = ref(0)
 const hasMore = ref(true)
 const loading = ref(false)
@@ -155,7 +154,6 @@ async function loadPage(page: number, append: boolean) {
       tag: activeTag.value,
       pn: page,
       rn: PAGE_SIZE,
-      filterByUserStocks: filterWatchlist.value,
     })
     fetchedAt.value = resp.fetchedAt
     hasMore.value = resp.hasMore
@@ -205,10 +203,10 @@ function canLoadMore() {
 }
 
 const { reconnect } = useInfiniteScroll(sentinel, loadMore, canLoadMore, {
-  rootMargin: '0px 0px 80px 0px',
+  rootMargin: 160,
 })
 
-watch([activeTag, filterWatchlist], () => resetAndLoad())
+watch(activeTag, () => resetAndLoad())
 
 onMounted(() => {
   void loadPage(0, false)
@@ -222,8 +220,7 @@ onMounted(() => {
         <h2>7*24快讯</h2>
         <p v-if="updatedLabel" class="en-meta">更新于 {{ updatedLabel }}</p>
       </div>
-      <div class="en-toolbar">
-        <div class="en-tabs" role="tablist" aria-label="快讯分类">
+      <div class="en-tabs" role="tablist" aria-label="快讯分类">
           <button
             v-for="tab in EXPRESS_NEWS_TABS"
             :key="tab.label"
@@ -235,11 +232,6 @@ onMounted(() => {
           >
             {{ tab.label }}
           </button>
-        </div>
-        <label class="en-watchlist">
-          <input v-model="filterWatchlist" type="checkbox" :disabled="loading" />
-          <span>自选</span>
-        </label>
       </div>
     </header>
 
@@ -329,13 +321,6 @@ onMounted(() => {
   color: var(--muted);
 }
 
-.en-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
 .en-tabs {
   display: flex;
   gap: 4px;
@@ -366,17 +351,6 @@ onMounted(() => {
   cursor: default;
 }
 
-.en-watchlist {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  user-select: none;
-}
-
 .en-table-head,
 .en-row {
   display: grid;
@@ -404,8 +378,6 @@ onMounted(() => {
   font-weight: 600;
   color: var(--text-strong);
   border-top: 1px solid var(--line);
-  content-visibility: auto;
-  contain-intrinsic-size: auto 36px;
 }
 
 .en-list > .en-date-row:first-child {
@@ -416,9 +388,6 @@ onMounted(() => {
 .en-row {
   padding: 10px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  content-visibility: auto;
-  contain-intrinsic-size: auto 72px;
-  contain: layout style paint;
 }
 
 .en-col-time {
@@ -516,7 +485,7 @@ onMounted(() => {
 }
 
 .en-sentinel {
-  height: 1px;
+  height: 4px;
   width: 100%;
   pointer-events: none;
 }
