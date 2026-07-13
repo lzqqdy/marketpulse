@@ -12,6 +12,15 @@ var marketIndexRef = map[string]string{
 	MarketUS: "dji",
 }
 
+// MarketActiveForMarket reports whether the tab's reference index is in session.
+func MarketActiveForMarket(market string, now time.Time) bool {
+	id, ok := marketIndexRef[market]
+	if !ok {
+		return false
+	}
+	return equity.IsMarketActive(id, now)
+}
+
 // CacheTTLForMarket mirrors equity index cache cadence for the given market tab.
 func CacheTTLForMarket(market string, now time.Time) time.Duration {
 	id, ok := marketIndexRef[market]

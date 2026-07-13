@@ -34,16 +34,12 @@ onUnmounted(() => {
   <div class="dashboard">
     <StatusBar />
     <ProviderStatusWidget />
-    <main class="dashboard-grid">
-      <section class="market-column">
-        <QuoteTable />
-      </section>
-      <aside class="side-column">
-        <MacroGrid />
-        <IndexGrid />
-        <MarketCenterPanel />
-        <AlphaStockPanel />
-      </aside>
+    <main class="dashboard-panels">
+      <QuoteTable />
+      <MacroGrid />
+      <IndexGrid />
+      <MarketCenterPanel />
+      <AlphaStockPanel />
     </main>
     <ExpressNewsPanel />
     <p class="footer-note">点击币种行查看 K 线 · 行情 Binance WS 实时</p>
@@ -56,27 +52,15 @@ onUnmounted(() => {
   width: 100%;
 }
 
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 1fr;
+.dashboard-panels {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-items: start;
   width: 100%;
 }
 
-.market-column,
-.side-column {
+.dashboard-panels > * {
   min-width: 0;
-}
-
-.market-column {
-  display: flex;
-  justify-content: center;
-}
-
-.side-column {
-  display: grid;
-  gap: 12px;
 }
 
 .footer-note {
@@ -87,9 +71,11 @@ onUnmounted(() => {
 }
 
 @media (min-width: 900px) {
-  .dashboard-grid {
-    grid-template-columns: minmax(400px, 1.2fr) minmax(300px, 0.8fr);
+  .dashboard-panels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
+    align-items: start;
   }
 
   .footer-note {
@@ -98,8 +84,7 @@ onUnmounted(() => {
 }
 
 @media (min-width: 1040px) {
-  .dashboard-grid {
-    grid-template-columns: minmax(520px, 1.25fr) minmax(420px, 0.75fr);
+  .dashboard-panels {
     gap: 20px;
   }
 }

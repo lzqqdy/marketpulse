@@ -105,6 +105,11 @@ func (c *Client) reportResult(start time.Time, err error) {
 	c.status.Store("ok")
 }
 
+func (c *Client) enrichCenter(market string, resp CenterResponse) CenterResponse {
+	resp.MarketActive = MarketActiveForMarket(market, time.Now())
+	return resp
+}
+
 // Center loads aggregated market center data (heatmap defaults to amount).
 func (c *Client) Center(market string) (CenterResponse, error) {
 	market, err := NormalizeMarket(market)
@@ -114,7 +119,7 @@ func (c *Client) Center(market string) (CenterResponse, error) {
 	key := "center:" + market
 	if v, ok := c.cache.getIfFresh(key, CacheTTLForMarket(market, time.Now())); ok {
 		c.reportCacheHit()
-		return v.(CenterResponse), nil
+		return c.enrichCenter(market, v.(CenterResponse)), nil
 	}
 	start := time.Now()
 	now := time.Now().UTC()
@@ -190,7 +195,7 @@ func (c *Client) Center(market string) (CenterResponse, error) {
 	}
 	c.cache.set(key, out)
 	c.reportResult(start, nil)
-	return out, nil
+	return c.enrichCenter(market, out), nil
 }
 
 // Heatmap loads heatmap for a specific sort key.

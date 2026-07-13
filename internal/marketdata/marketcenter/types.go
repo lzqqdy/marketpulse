@@ -2,10 +2,11 @@ package marketcenter
 
 // CenterResponse is the aggregated market center payload.
 type CenterResponse struct {
-	Market    string     `json:"market"`
-	Source    string     `json:"source"`
-	FetchedAt int64      `json:"fetchedAt"`
-	ChgDiagram ChgDiagram `json:"chgdiagram"`
+	Market       string     `json:"market"`
+	Source       string     `json:"source"`
+	FetchedAt    int64      `json:"fetchedAt"`
+	MarketActive bool       `json:"marketActive"`
+	ChgDiagram   ChgDiagram `json:"chgdiagram"`
 	Heatmap   Heatmap    `json:"heatmap"`
 	Fundflow  Fundflow   `json:"fundflow"`
 	Overview  Overview   `json:"overview"`

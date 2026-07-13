@@ -37,13 +37,17 @@ func TestCacheFreshWithinInactiveTTL(t *testing.T) {
 	}
 }
 
-func TestCacheTTLForMarketAt940Monday(t *testing.T) {
-	at940 := cst(2026, time.July, 13, 9, 40) // Monday
-	if got := CacheTTLForMarket(MarketAB, at940); got != equity.ActiveTTL {
-		t.Fatalf("A-share tab at 9:40 should use active ttl, got %s", got)
+func TestMarketActiveForMarket(t *testing.T) {
+	// Monday 21:43 CST — A-share closed, US active.
+	at2143 := cst(2026, time.July, 13, 21, 43)
+	if MarketActiveForMarket(MarketAB, at2143) {
+		t.Fatal("A-share should be closed at 21:43")
+	}
+	if !MarketActiveForMarket(MarketUS, at2143) {
+		t.Fatal("US should be active at 21:43")
 	}
 	at911 := cst(2026, time.July, 13, 9, 11)
-	if got := CacheTTLForMarket(MarketAB, at911); got != equity.InactiveTTL {
-		t.Fatalf("A-share tab at 9:11 should use inactive ttl, got %s", got)
+	if MarketActiveForMarket(MarketAB, at911) {
+		t.Fatal("A-share should be closed before 9:15")
 	}
 }

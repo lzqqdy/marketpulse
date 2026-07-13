@@ -76,6 +76,7 @@ export interface MarketCenterResponse {
   market: MarketCode
   source: string
   fetchedAt: number
+  marketActive?: boolean
   chgdiagram: ChgDiagram
   heatmap: Heatmap
   fundflow: Fundflow

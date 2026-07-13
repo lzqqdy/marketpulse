@@ -21,17 +21,21 @@ const FUND_TRACK_HEIGHT = 88
 const HEATMAP_COLLAPSED_COUNT = 9
 
 const market = ref<MarketCode>('ab')
-const expanded = ref(false)
+const expanded = ref(true)
 const heatmapExpanded = ref(false)
 const loading = ref(false)
 const heatmapLoading = ref(false)
 const error = ref('')
+const refreshError = ref('')
 const data = ref<MarketCenterResponse | null>(null)
 const heatmapSortKey = ref<HeatmapSortKey>('amount')
 const fundflowType = ref('')
 const overviewTab = ref('')
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null
+let resumeListenerInstalled = false
+
+const ACTIVE_STALE_MS = 90_000
 
 const chgdiagram = computed<ChgDiagram | null>(() => data.value?.chgdiagram ?? null)
 const heatmap = computed(() => data.value?.heatmap ?? null)
@@ -56,6 +60,26 @@ const updatedLabel = computed(() => {
   const ts = data.value?.fetchedAt
   if (!ts) return ''
   return new Date(ts * 1000).toLocaleTimeString('zh-CN', { hour12: false })
+})
+
+const dataStale = computed(() => {
+  const d = data.value
+  if (!d?.fetchedAt || !d.marketActive) return false
+  return Date.now() - d.fetchedAt * 1000 > ACTIVE_STALE_MS
+})
+
+const metaWarn = computed(() => refreshError.value !== '' || dataStale.value)
+
+const metaLabel = computed(() => {
+  const d = data.value
+  if (!d?.fetchedAt) return ''
+  const session = d.marketActive ? '交易中' : '休市'
+  const time = updatedLabel.value
+  const source = d.source || 'baidu'
+  if (metaWarn.value) {
+    return `${session} · 缓存数据 · 更新于 ${time} · ${source} · 后台重试中`
+  }
+  return `${session} · 更新于 ${time} · ${source}`
 })
 
 const maxChgCount = computed(() => {
@@ -147,6 +171,7 @@ async function loadCenter() {
   try {
     const resp = await fetchMarketCenter(market.value)
     data.value = resp
+    refreshError.value = ''
     heatmapSortKey.value = resp.heatmap.sortKey as HeatmapSortKey
     if (!fundflowType.value || !resp.fundflow.groups.some((g) => g.blockType === fundflowType.value)) {
       fundflowType.value = resp.fundflow.groups[0]?.blockType ?? ''
@@ -155,8 +180,9 @@ async function loadCenter() {
       overviewTab.value = resp.overview.tabs[0]?.type ?? ''
     }
   } catch (e) {
+    refreshError.value = e instanceof Error ? e.message : '刷新失败'
     if (!hasData) {
-      error.value = e instanceof Error ? e.message : '加载失败'
+      error.value = refreshError.value
       data.value = null
     }
   } finally {
@@ -198,18 +224,47 @@ function trendPath(points: number[] | undefined) {
 
 watch(market, () => {
   heatmapExpanded.value = false
+  refreshError.value = ''
   void loadCenter()
 })
+
+function handleResume() {
+  void loadCenter()
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    void loadCenter()
+  }
+}
+
+function installResumeListeners() {
+  if (resumeListenerInstalled) return
+  resumeListenerInstalled = true
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('focus', handleResume)
+  window.addEventListener('pageshow', handleResume)
+}
+
+function removeResumeListeners() {
+  if (!resumeListenerInstalled) return
+  resumeListenerInstalled = false
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('focus', handleResume)
+  window.removeEventListener('pageshow', handleResume)
+}
 
 onMounted(() => {
   void loadCenter()
   refreshTimer = setInterval(() => {
     void loadCenter()
   }, 60_000) // 与指数 ActiveTTL 对齐
+  installResumeListeners()
 })
 
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
+  removeResumeListeners()
 })
 </script>
 
@@ -218,7 +273,7 @@ onUnmounted(() => {
     <header class="mc-head">
       <div class="mc-title">
         <h2>行情中心</h2>
-        <p v-if="updatedLabel" class="mc-meta">更新于 {{ updatedLabel }} · {{ data?.source ?? 'baidu' }}</p>
+        <p v-if="metaLabel" class="mc-meta" :class="{ stale: metaWarn }">{{ metaLabel }}</p>
       </div>
       <div class="market-tabs" role="tablist" aria-label="市场切换">
         <button
@@ -460,6 +515,10 @@ onUnmounted(() => {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.35;
+}
+
+.mc-meta.stale {
+  color: var(--warning);
 }
 
 .market-tabs {
