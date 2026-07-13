@@ -15,9 +15,10 @@ func (c *Client) Start(ctx context.Context) {
 
 func (c *Client) runRefresher(ctx context.Context) {
 	refresh := func() {
+		now := time.Now()
 		for _, market := range refreshMarkets {
 			key := "center:" + market
-			if _, ok := c.cache.get(key); ok {
+			if _, ok := c.cache.getIfFresh(key, CacheTTLForMarket(market, now)); ok {
 				continue
 			}
 			if _, err := c.Center(market); err != nil {

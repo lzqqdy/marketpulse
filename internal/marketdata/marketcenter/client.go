@@ -112,7 +112,7 @@ func (c *Client) Center(market string) (CenterResponse, error) {
 		return CenterResponse{}, err
 	}
 	key := "center:" + market
-	if v, ok := c.cache.get(key); ok {
+	if v, ok := c.cache.getIfFresh(key, CacheTTLForMarket(market, time.Now())); ok {
 		c.reportCacheHit()
 		return v.(CenterResponse), nil
 	}
@@ -188,7 +188,7 @@ func (c *Client) Center(market string) (CenterResponse, error) {
 		Fundflow:   fundflow,
 		Overview:   overview,
 	}
-	c.cache.set(key, out, CacheTTLForMarket(market, now))
+	c.cache.set(key, out)
 	c.reportResult(start, nil)
 	return out, nil
 }
@@ -201,7 +201,7 @@ func (c *Client) Heatmap(market, sortKey string) (Heatmap, error) {
 	}
 	sortKey = normalizeSortKey(sortKey)
 	key := fmt.Sprintf("heatmap:%s:%s", market, sortKey)
-	if v, ok := c.cache.get(key); ok {
+	if v, ok := c.cache.getIfFresh(key, CacheTTLForMarket(market, time.Now())); ok {
 		c.reportCacheHit()
 		return v.(Heatmap), nil
 	}
@@ -211,7 +211,7 @@ func (c *Client) Heatmap(market, sortKey string) (Heatmap, error) {
 		c.reportResult(start, err)
 		return Heatmap{}, err
 	}
-	c.cache.set(key, heatmap, CacheTTLForMarket(market, time.Now()))
+	c.cache.set(key, heatmap)
 	c.reportResult(start, nil)
 	return heatmap, nil
 }

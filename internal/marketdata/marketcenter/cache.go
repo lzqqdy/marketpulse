@@ -6,8 +6,8 @@ import (
 )
 
 type cacheEntry struct {
-	value     any
-	expiresAt time.Time
+	value    any
+	cachedAt time.Time
 }
 
 type responseCache struct {
@@ -20,20 +20,27 @@ func newResponseCache() *responseCache {
 }
 
 func (c *responseCache) get(key string) (any, bool) {
+	return c.getIfFresh(key, time.Hour)
+}
+
+func (c *responseCache) getIfFresh(key string, maxAge time.Duration) (any, bool) {
+	if maxAge <= 0 {
+		maxAge = time.Minute
+	}
 	c.mu.RLock()
 	entry, ok := c.data[key]
 	c.mu.RUnlock()
-	if !ok || time.Now().After(entry.expiresAt) {
+	if !ok {
+		return nil, false
+	}
+	if time.Since(entry.cachedAt) > maxAge {
 		return nil, false
 	}
 	return entry.value, true
 }
 
-func (c *responseCache) set(key string, value any, ttl time.Duration) {
-	if ttl <= 0 {
-		ttl = time.Minute
-	}
+func (c *responseCache) set(key string, value any) {
 	c.mu.Lock()
-	c.data[key] = cacheEntry{value: value, expiresAt: time.Now().Add(ttl)}
+	c.data[key] = cacheEntry{value: value, cachedAt: time.Now()}
 	c.mu.Unlock()
 }
