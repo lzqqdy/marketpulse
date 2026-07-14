@@ -16,9 +16,77 @@ type Config struct {
 	CORS    CORSConfig   `yaml:"cors"`
 	MySQL   MySQLConfig  `yaml:"mysql"`
 	Redis   RedisConfig  `yaml:"redis"`
+	Users   UsersConfig  `yaml:"users"`
+	Upload  UploadConfig `yaml:"upload"`
 	Symbols []string     `yaml:"symbols"`
 	Alpha   AlphaConfig  `yaml:"alpha"`
 	Ingest  IngestConfig `yaml:"ingest"`
+
+	// UsersSkipReason is set when users.enabled was requested but deps are missing.
+	UsersSkipReason string `yaml:"-"`
+}
+
+// UploadConfig controls local file storage for avatars and other user assets.
+type UploadConfig struct {
+	Dir            string `yaml:"dir"`              // filesystem root, relative to process cwd
+	PublicPath     string `yaml:"public_path"`      // URL prefix, e.g. /uploads
+	MaxAvatarBytes int64  `yaml:"max_avatar_bytes"` // default 2 MiB
+}
+
+// UsersConfig configures the optional users module (requires mysql + redis).
+type UsersConfig struct {
+	Enabled     bool             `yaml:"enabled"`
+	AutoMigrate *bool            `yaml:"auto_migrate"` // nil => true when enabled
+	SessionTTL  time.Duration    `yaml:"session_ttl"`
+	Seed        UsersSeed        `yaml:"seed"`
+	Security    UsersSecurityCfg `yaml:"security"`
+}
+
+// UsersSecurityCfg hardens login against brute-force / scraping.
+type UsersSecurityCfg struct {
+	// MaxAttemptsPerIP is the max login attempts per IP in Window (default 30).
+	MaxAttemptsPerIP int `yaml:"max_attempts_per_ip"`
+	// MaxAttemptsPerPhone is the max login attempts per phone in Window (default 15).
+	MaxAttemptsPerPhone int `yaml:"max_attempts_per_phone"`
+	// Window is the sliding counter window for IP/phone attempt caps (default 15m).
+	Window time.Duration `yaml:"window"`
+	// LockoutFailures locks a phone after N consecutive failed logins (default 5).
+	LockoutFailures int `yaml:"lockout_failures"`
+	// LockoutTTL is how long a phone stays locked after too many failures (default 15m).
+	LockoutTTL time.Duration `yaml:"lockout_ttl"`
+}
+
+// IsAutoMigrate reports whether schema migrations should run on startup.
+func (c UsersConfig) IsAutoMigrate() bool {
+	if c.AutoMigrate == nil {
+		return true
+	}
+	return *c.AutoMigrate
+}
+
+func (c *UsersConfig) applySecurityDefaults() {
+	if c.Security.MaxAttemptsPerIP <= 0 {
+		c.Security.MaxAttemptsPerIP = 30
+	}
+	if c.Security.MaxAttemptsPerPhone <= 0 {
+		c.Security.MaxAttemptsPerPhone = 15
+	}
+	if c.Security.Window <= 0 {
+		c.Security.Window = 15 * time.Minute
+	}
+	if c.Security.LockoutFailures <= 0 {
+		c.Security.LockoutFailures = 5
+	}
+	if c.Security.LockoutTTL <= 0 {
+		c.Security.LockoutTTL = 15 * time.Minute
+	}
+}
+
+// UsersSeed creates an initial account when missing (no public registration).
+type UsersSeed struct {
+	Phone       string `yaml:"phone"`
+	Password    string `yaml:"password"`
+	DisplayName string `yaml:"display_name"`
 }
 
 // MySQLConfig holds relational database settings for users/alerts/portfolio modules.
@@ -208,10 +276,30 @@ func Load(path string) (*Config, error) {
 
 	cfg.applyDefaults()
 	cfg.applyEnv()
+	cfg.applyUsersGuard()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// applyUsersGuard soft-disables users when mysql/redis are off so market-only boot succeeds.
+func (c *Config) applyUsersGuard() {
+	c.UsersSkipReason = ""
+	if !c.Users.Enabled {
+		return
+	}
+	switch {
+	case !c.MySQL.Enabled && !c.Redis.Enabled:
+		c.Users.Enabled = false
+		c.UsersSkipReason = "mysql and redis are disabled"
+	case !c.MySQL.Enabled:
+		c.Users.Enabled = false
+		c.UsersSkipReason = "mysql is disabled"
+	case !c.Redis.Enabled:
+		c.Users.Enabled = false
+		c.UsersSkipReason = "redis is disabled"
+	}
 }
 
 func (c *Config) applyDefaults() {
@@ -223,6 +311,15 @@ func (c *Config) applyDefaults() {
 	}
 	if c.App.LogDir == "" {
 		c.App.LogDir = "log"
+	}
+	if c.Upload.Dir == "" {
+		c.Upload.Dir = "data/uploads"
+	}
+	if c.Upload.PublicPath == "" {
+		c.Upload.PublicPath = "/uploads"
+	}
+	if c.Upload.MaxAvatarBytes <= 0 {
+		c.Upload.MaxAvatarBytes = 10 << 20 // 10 MiB (client also compresses before upload)
 	}
 	if c.Ingest.Binance.WSBase == "" {
 		c.Ingest.Binance.WSBase = "wss://stream.binance.com:9443/stream"
@@ -371,6 +468,11 @@ func (c *Config) applyDefaults() {
 		c.Redis.WriteTimeout = 3 * time.Second
 	}
 
+	if c.Users.SessionTTL <= 0 {
+		c.Users.SessionTTL = 7 * 24 * time.Hour
+	}
+	c.Users.applySecurityDefaults()
+
 	normalized := make([]string, 0, len(c.Symbols))
 	for _, s := range c.Symbols {
 		s = strings.ToUpper(strings.TrimSpace(s))
@@ -455,6 +557,18 @@ func (c *Config) applyEnv() {
 		if n, err := parseEnvInt(v); err == nil {
 			c.Redis.DB = n
 		}
+	}
+	if v := os.Getenv("MARKETPULSE_USERS_ENABLED"); v != "" {
+		c.Users.Enabled = parseEnvBool(v)
+	}
+	if v := os.Getenv("MARKETPULSE_USERS_SEED_PHONE"); v != "" {
+		c.Users.Seed.Phone = v
+	}
+	if v := os.Getenv("MARKETPULSE_USERS_SEED_PASSWORD"); v != "" {
+		c.Users.Seed.Password = v
+	}
+	if v := os.Getenv("MARKETPULSE_USERS_SEED_NAME"); v != "" {
+		c.Users.Seed.DisplayName = v
 	}
 }
 

@@ -68,6 +68,36 @@ redis:
 	}
 }
 
+func TestLoad_usersSoftSkipWithoutDeps(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.yaml")
+	content := `
+app:
+  mode: debug
+symbols:
+  - BTC
+mysql:
+  enabled: false
+redis:
+  enabled: false
+users:
+  enabled: true
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Users.Enabled {
+		t.Fatal("users should be soft-disabled without mysql/redis")
+	}
+	if cfg.UsersSkipReason == "" {
+		t.Fatal("expected UsersSkipReason")
+	}
+}
+
 func TestValidate_mysqlEnabledRequiresHost(t *testing.T) {
 	cfg := &Config{
 		App:     AppConfig{Mode: "debug"},

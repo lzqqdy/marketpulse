@@ -147,7 +147,7 @@ docker-up:
 
 docker-up-db:
 	@test -f .env || cp .env.example .env
-	MYSQL_ENABLED=true REDIS_ENABLED=true docker compose --profile db up -d --build
+	MYSQL_ENABLED=true REDIS_ENABLED=true USERS_ENABLED=true docker compose --profile db up -d --build
 
 docker-down:
 	docker compose --profile db down

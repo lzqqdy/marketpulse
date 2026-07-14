@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/features/auth/stores/auth'
 import { useProviderStore } from '@/features/market/stores/providers'
 import { useThemeStore } from '@/stores/theme'
 import type { ProviderHealth, ProviderState } from '@/features/market/types/providers'
 
 const store = useProviderStore()
 const themeStore = useThemeStore()
+const auth = useAuthStore()
+const router = useRouter()
 const open = ref(false)
 
 const statusText: Record<ProviderState, string> = {
@@ -56,6 +60,11 @@ const overallStatusLabel = computed(() => {
 })
 
 const themeLabel = computed(() => (themeStore.mode === 'dark' ? '切换浅色模式' : '切换深色模式'))
+const userLabel = computed(() => (auth.isLoggedIn ? '打开用户中心' : '登录用户中心'))
+
+function goUserCenter() {
+  void router.push(auth.isLoggedIn ? '/user' : '/login')
+}
 
 function latencyLabel(ms: number) {
   return ms > 0 ? `${ms}ms` : '-'
@@ -101,6 +110,12 @@ function togglePanel() {
           <path d="M4 7h11" />
           <path d="M4 12h16" />
           <path d="M4 17h11" />
+        </svg>
+      </button>
+      <button type="button" class="dock-btn user-trigger" :aria-label="userLabel" @click="goUserCenter">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M5.5 19.2c1.6-3.2 4-4.8 6.5-4.8s4.9 1.6 6.5 4.8" />
         </svg>
       </button>
       <button type="button" class="dock-btn theme-trigger" :aria-label="themeLabel" @click="themeStore.toggle">

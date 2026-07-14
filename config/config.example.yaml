@@ -37,6 +37,30 @@ redis:
   read_timeout: 3s
   write_timeout: 3s
 
+# 用户中心（需同时开启 mysql + redis）
+# 若 users.enabled=true 但依赖未开，会自动跳过用户模块并 warn，行情仍可启动
+users:
+  enabled: false
+  auto_migrate: true
+  session_ttl: 168h
+  seed:
+    phone: ""
+    password: ""
+    display_name: "管理员"
+  # 登录防刷（Redis）
+  security:
+    max_attempts_per_ip: 30
+    max_attempts_per_phone: 15
+    window: 15m
+    lockout_failures: 5
+    lockout_ttl: 15m
+
+# 本地文件上传（头像等），默认落到 data/uploads，经 /uploads 访问
+upload:
+  dir: "data/uploads"
+  public_path: "/uploads"
+  max_avatar_bytes: 10485760
+
 symbols:
   - BTC
   - ETH

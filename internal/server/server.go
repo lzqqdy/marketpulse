@@ -31,9 +31,16 @@ func New(deps Deps) *Server {
 	h := &api.Handler{
 		Config:     cfg,
 		MarketData: deps.MarketData,
+		Users:      deps.Users,
 		StartedAt:  time.Now().UTC(),
 	}
 	api.Register(r, h)
+
+	if deps.Upload != nil && deps.Upload.Dir() != "" {
+		public := deps.Upload.PublicPath()
+		r.Static(public, deps.Upload.Dir())
+		slog.Info("serving uploads", "path", public, "dir", deps.Upload.Dir())
+	}
 
 	if dir := cfg.App.StaticDir; dir != "" {
 		if err := mountStatic(r, dir); err != nil {
@@ -71,8 +78,8 @@ func corsMiddleware(cfg *config.Config) gin.HandlerFunc {
 		if origin != "" {
 			if _, ok := allowed[origin]; ok || cfg.App.Mode == "debug" {
 				c.Header("Access-Control-Allow-Origin", origin)
-				c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
-				c.Header("Access-Control-Allow-Headers", "Content-Type, Upgrade, Connection")
+				c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+				c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Session-Token, Upgrade, Connection")
 				c.Header("Vary", "Origin")
 			}
 		}

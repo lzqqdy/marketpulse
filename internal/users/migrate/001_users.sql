@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  phone VARCHAR(20) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  display_name VARCHAR(64) NOT NULL DEFAULT '',
+  avatar_url VARCHAR(512) NOT NULL DEFAULT '',
+  email VARCHAR(128) NOT NULL DEFAULT '',
+  wechat_push_token VARCHAR(256) NOT NULL DEFAULT '',
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  UNIQUE KEY uk_users_phone (phone)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

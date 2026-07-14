@@ -7,6 +7,18 @@ func Register(r *gin.Engine, h *Handler) {
 	RegisterHealthRoutes(r, h)
 	RegisterMarketRoutes(r, h)
 	RegisterLegacyMarketRoutes(r, h)
+	RegisterUsersRoutes(r, h)
+}
+
+// RegisterUsersRoutes mounts /api/v1/users endpoints.
+func RegisterUsersRoutes(r *gin.Engine, h *Handler) {
+	g := r.Group("/api/v1/users")
+	g.POST("/login", h.Login)
+	g.POST("/logout", h.Logout)
+	g.GET("/me", h.Me)
+	g.PUT("/me", h.UpdateMe)
+	g.PUT("/me/password", h.ChangePassword)
+	g.POST("/me/avatar", h.UploadAvatar)
 }
 
 // RegisterHealthRoutes mounts process-level health endpoints.

@@ -10,7 +10,7 @@ MarketPulse is evolving from a single market dashboard into a modular product. T
 | `alerts` | Price and market-condition monitoring | Planned | Alert rules, trigger history, notification delivery |
 | `portfolio` | Assets, positions, transactions, valuation | Planned | User holdings, cost basis, PnL, portfolio snapshots |
 | `ai` | Market analysis and assistant workflows | Planned | Analysis jobs, prompts, model responses, cached insights |
-| `users` | Identity and access control | Planned | Users, sessions, tokens, preferences |
+| `users` | Identity and access control | `internal/users`, `/api/v1/users`, `web/src/features/auth` | Users, sessions (Redis), profile, password; seed account (no public register) |
 | `platform` | Shared infrastructure | `internal/config`, `internal/logging`, `internal/server`, `internal/platform/mysql`, `internal/platform/redis` | Config, logging, HTTP server, MySQL/Redis clients, future scheduler/jobs |
 | `web` | Browser UI | `web/src` | Feature views, client state, API clients |
 

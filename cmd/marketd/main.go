@@ -15,7 +15,9 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformmysql "github.com/lzqqdy/marketpulse/internal/platform/mysql"
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
+	"github.com/lzqqdy/marketpulse/internal/platform/upload"
 	"github.com/lzqqdy/marketpulse/internal/server"
+	"github.com/lzqqdy/marketpulse/internal/users"
 )
 
 func main() {
@@ -30,6 +32,9 @@ func main() {
 	if err := logging.Setup(cfg.App.LogDir); err != nil {
 		slog.Error("setup logging", "dir", cfg.App.LogDir, "err", err)
 		os.Exit(1)
+	}
+	if cfg.UsersSkipReason != "" {
+		slog.Warn("users module skipped", "reason", cfg.UsersSkipReason)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -57,12 +62,36 @@ func main() {
 		slog.Info("redis connected", "addr", cfg.Redis.Addr, "db", cfg.Redis.DB)
 	}
 
+	uploadStore, err := upload.New(cfg.Upload)
+	if err != nil {
+		slog.Error("init upload store", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("upload store ready", "dir", uploadStore.Dir(), "public", uploadStore.PublicPath())
+
+	var userSvc users.Service
+	if cfg.Users.Enabled {
+		userSvc, err = users.Bootstrap(ctx, users.BootstrapArgs{
+			Users:  cfg.Users,
+			DB:     db,
+			Redis:  rdb,
+			Upload: uploadStore,
+		})
+		if err != nil {
+			slog.Error("bootstrap users", "err", err)
+			os.Exit(1)
+		}
+		slog.Info("users module enabled", "auto_migrate", cfg.Users.IsAutoMigrate())
+	}
+
 	marketData := marketdata.New(cfg)
 	marketData.Start(ctx)
 
 	srv := server.New(server.Deps{
 		Config:     cfg,
 		MarketData: marketData,
+		Users:      userSvc,
+		Upload:     uploadStore,
 		MySQL:      db,
 		Redis:      rdb,
 	})

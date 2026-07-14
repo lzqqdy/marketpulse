@@ -31,6 +31,9 @@ deploy/deploy.local.yaml
 *.log
 log/
 
+# Local uploads (avatars, etc.)
+data/
+
 # TLS (local)
 *.pem
 server.crt

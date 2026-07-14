@@ -5,7 +5,7 @@
 | 状态 | Active |
 | 依赖 | RFC-001 |
 | 日期 | 2026-05-16 |
-| 最后对齐 | 2026-07-11 |
+| 最后对齐 | 2026-07-14 |
 
 > 实现前后端时以此为准；变更需更新本文并 bump 修订记录。
 
@@ -313,7 +313,66 @@ K 线历史。支持 crypto 和 alpha 标的。
 
 ---
 
-## 9. GET /healthz
+## 9. Users API（`/api/v1/users`）
+
+用户中心模块。需配置 `users.enabled=true` 且 MySQL + Redis 可用。无公开注册；账号通过配置 `users.seed` 或后续管理录入创建。鉴权使用不透明 Session Token（存 Redis），请求头：`Authorization: Bearer <token>`。
+
+首页行情接口不鉴权。用户中心页面由前端路由守卫要求登录。
+
+### 9.1 POST /api/v1/users/login
+
+```json
+{ "phone": "13800138000", "password": "******" }
+```
+
+Response 200：
+
+```json
+{
+  "token": "...",
+  "expiresAt": "2026-07-21T09:00:00Z",
+  "user": { "...": "..." }
+}
+```
+
+错误：
+- `invalid_credentials`（401）手机号或密码错误
+- `rate_limited`（429）IP / 手机号尝试过频；响应含 `Retry-After` 秒数
+- `login_locked`（429）同一手机号连续失败过多后临时锁定；含 `Retry-After`
+- `users_disabled`（503）
+
+安全策略（Redis，可配置 `users.security`）：
+- 每 IP / 每手机号在 `window`（默认 15m）内限制尝试次数
+- 连续失败 `lockout_failures`（默认 5）次后锁定 `lockout_ttl`（默认 15m）
+- 账号不存在时仍做 bcrypt 耗时填充，降低用户枚举侧信道
+
+### 9.2 POST /api/v1/users/logout
+
+Header：`Authorization: Bearer <token>` → `{ "ok": true }`
+
+### 9.3 GET /api/v1/users/me
+
+返回当前用户公开资料（同 login 中 `user`）。未登录 → `unauthorized`（401）。
+
+### 9.4 PUT /api/v1/users/me
+
+可更新字段（手机号不可改）：`displayName`、`avatarUrl`、`email`、`wechatPushToken`。
+
+### 9.5 PUT /api/v1/users/me/password
+
+```json
+{ "oldPassword": "...", "newPassword": "......" }
+```
+
+### 9.6 POST /api/v1/users/me/avatar
+
+`multipart/form-data`，字段名 `file`。支持 jpeg / png / webp / gif，默认最大 10MB（前端会先压缩大图）。  
+保存到本地 `upload.dir`（默认 `data/uploads/avatars/`），返回更新后的用户资料；`avatarUrl` 形如 `/uploads/avatars/{userId}_{id}.jpg`。  
+静态访问：`GET /uploads/...`（开发环境由 Vite 代理到后端）。
+
+---
+
+## 10. GET /healthz
 
 ```json
 {
@@ -322,6 +381,7 @@ K 线历史。支持 crypto 和 alpha 标的。
   "symbolCount": 5,
   "storeVersion": 1024,
   "appMode": "debug",
+  "users": "enabled",
   "ingest": {
     "binance_ws": "connected",
     "otc": "ok",
@@ -346,11 +406,12 @@ K 线历史。支持 crypto 和 alpha 标的。
 }
 ```
 
-`ingest` 值为字符串状态：`starting`、`ok`、`error`、`connected`、`disconnected`、`reconnecting`、`degraded`、`circuit_open`、`disabled`。
+`ingest` 值为字符串状态：`starting`、`ok`、`error`、`connected`、`disconnected`、`reconnecting`、`degraded`、`circuit_open`、`disabled`。  
+`users`：`enabled` | `disabled`。
 
 ---
 
-## 10. WebSocket /ws/v1/market/stream
+## 11. WebSocket /ws/v1/market/stream
 
 兼容路径：`WS /ws/v1/stream`
 
@@ -401,7 +462,7 @@ wss://{host}/ws/v1/market/stream?channels=quotes,rates,indices,macro,alpha
 
 ---
 
-## 10. WebSocket /ws/v1/market/kline
+## 12. WebSocket /ws/v1/market/kline
 
 兼容路径：`WS /ws/v1/kline`
 
@@ -449,7 +510,7 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 
 ---
 
-## 11. 前端 TypeScript 类型
+## 13. 前端 TypeScript 类型
 
 实现位置：
 
@@ -464,7 +525,7 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 
 ---
 
-## 12. 版本与兼容
+## 14. 版本与兼容
 
 - `snapshot.version` 与 WS `version` 单调递增
 - 前端忽略 `version` 小于本地的包
@@ -480,3 +541,4 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | 0.1 | 2026-05-16 | 草案 |
 | 0.2 | 2026-05-24 | 增加 market canonical namespace，保留旧路径兼容 |
 | 1.0 | 2026-07-11 | 对齐实现：alpha、macro 衍生品、providers/status、index-klines、market/center、expressnews、healthz 字段 |
+| 1.1 | 2026-07-14 | 增加 `/api/v1/users` 登录/资料/改密；healthz.users |

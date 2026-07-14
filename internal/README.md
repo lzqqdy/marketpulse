@@ -8,6 +8,10 @@
 | `logging` | 日志目录初始化 |
 | `platform/mysql` | 可选 MySQL 连接池（users/alerts/portfolio） |
 | `platform/redis` | 可选 Redis 客户端（会话/缓存/告警） |
+| `platform/cache` | Redis JSON 读缓存助手 |
+| `platform/migrate` | 启动时 SQL 迁移 runner |
+| `platform/upload` | 本地文件上传（头像等，`/uploads` 静态托管） |
+| `users` | 用户中心（登录会话、资料、改密、头像；auto migrate） |
 | `marketdata` | 行情服务门面（`MarketDataService` 接口） |
 | `marketdata/ingest` | 数据采集编排（WS 长连接 + REST 轮询） |
 | `marketdata/ingest/binance` | Binance 现货 miniTicker |

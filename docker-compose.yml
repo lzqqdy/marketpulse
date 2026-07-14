@@ -31,10 +31,15 @@ services:
       MARKETPULSE_REDIS_ADDR: redis:6379
       MARKETPULSE_REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
       MARKETPULSE_REDIS_DB: "${REDIS_DB:-0}"
+      MARKETPULSE_USERS_ENABLED: "${USERS_ENABLED:-false}"
+      MARKETPULSE_USERS_SEED_PHONE: "${USERS_SEED_PHONE:-}"
+      MARKETPULSE_USERS_SEED_PASSWORD: "${USERS_SEED_PASSWORD:-}"
+      MARKETPULSE_USERS_SEED_NAME: "${USERS_SEED_NAME:-管理员}"
     volumes:
       # 可选：挂载本机配置覆盖镜像内默认配置（文件不存在时请先复制 config.docker.yaml）
       # - ./config/config.yaml:/app/config/config.yaml:ro
       - marketpulse-log:/app/log
+      - marketpulse-uploads:/app/data/uploads
     depends_on:
       mysql:
         condition: service_healthy
@@ -89,5 +94,6 @@ services:
 
 volumes:
   marketpulse-log:
+  marketpulse-uploads:
   marketpulse-mysql:
   marketpulse-redis:

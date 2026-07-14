@@ -7,12 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
+	"github.com/lzqqdy/marketpulse/internal/users"
 )
 
 // Handler serves HTTP JSON endpoints.
 type Handler struct {
 	Config     *config.Config
 	MarketData marketdata.MarketDataService
+	Users      users.Service
 	StartedAt  time.Time
 }
 
@@ -24,9 +26,14 @@ type HealthResponse struct {
 	StoreVersion uint64            `json:"storeVersion"`
 	AppMode      string            `json:"appMode"`
 	Ingest       map[string]string `json:"ingest"`
+	Users        string            `json:"users,omitempty"`
 }
 
 func (h *Handler) Healthz(c *gin.Context) {
+	usersState := "disabled"
+	if h.Users != nil && h.Users.Enabled() {
+		usersState = "enabled"
+	}
 	c.JSON(http.StatusOK, HealthResponse{
 		Status:       "ok",
 		UptimeSec:    int64(time.Since(h.StartedAt).Seconds()),
@@ -34,6 +41,7 @@ func (h *Handler) Healthz(c *gin.Context) {
 		StoreVersion: h.MarketData.Version(),
 		AppMode:      h.Config.App.Mode,
 		Ingest:       h.MarketData.IngestStatus(),
+		Users:        usersState,
 	})
 }
 
