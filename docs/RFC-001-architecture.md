@@ -150,17 +150,21 @@ sequenceDiagram
 ```
 marketpulse/
 ├── README.md                 # 项目入口说明
-├── Makefile                  # 统一构建/部署命令（Vibe 主入口）
+├── Makefile                  # 统一构建/部署命令（含 docker-*）
+├── Dockerfile                # 多阶段镜像（前端 + marketd）
+├── docker-compose.yml        # Compose；profile db = MySQL/Redis
 ├── .gitignore
 ├── go.mod
 ├── config/
-│   └── config.example.yaml   # 配置模板
+│   ├── config.example.yaml   # 本机配置模板
+│   └── config.docker.yaml    # 容器默认配置
 ├── cmd/
 │   └── marketd/
 │       └── main.go           # 进程入口
 ├── internal/                 # 后端私有包（不对外 import）
 │   ├── config/
 │   ├── logging/
+│   ├── platform/             # mysql / redis 客户端（可选）
 │   ├── marketdata/
 │   │   ├── ingest/         # 数据采集（binance/baidu/equity/macro/...）
 │   │   ├── store/          # 内存行情快照
@@ -173,7 +177,7 @@ marketpulse/
 │   ├── vite.config.ts
 │   └── src/features/market/  # 行情功能模块
 ├── specs/                    # Spec Kit 功能规格
-├── deploy/                   # 部署模板（非密钥）
+├── deploy/                   # 部署模板（非密钥；含 docker.md）
 ├── scripts/                  # 辅助脚本
 └── docs/                     # 设计文档
     ├── README.md
@@ -303,7 +307,22 @@ flowchart TB
 - **非 Go embed**，通过文件系统挂载 Vite dist；
 - 适合极简 VPS、无 Nginx（当前 ship 模式默认方案）。
 
-### 8.3 开发环境
+### 8.3 Docker Compose（推荐快速部署）
+
+```mermaid
+flowchart LR
+  Browser[浏览器 :8080]
+  MD[marketd 容器<br/>API + web/dist]
+  Ext[外部行情源]
+  Browser --> MD
+  MD --> Ext
+```
+
+- 命令：`docker compose up -d --build` 或 `make docker-up`
+- 可选 `--profile db` 附带 MySQL / Redis（默认关闭，为 users/alerts 铺路）
+- 完整说明：[RFC-003 §1.1](./RFC-003-deployment.md) · [deploy/docker.md](../deploy/docker.md)
+
+### 8.4 开发环境
 
 ```bash
 # 终端 1

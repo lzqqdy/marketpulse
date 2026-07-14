@@ -18,21 +18,123 @@
 | **embed 构建** | 本地 `DEPLOY_MODE=embed` | 历史方案；当前使用 `app.static_dir` 文件系统挂载，非 Go embed |
 
 日常个人 VPS：**用 ship**，配置写在 `deploy/deploy.local.yaml`（已 gitignore）。
-新环境 / 想一把梭：**用 Docker**，见 [deploy/docker.md](../deploy/docker.md)。
+新环境 / 想一把梭：**用 Docker**（见下方 §1.1；操作速查 [deploy/docker.md](../deploy/docker.md)）。
 
 ---
 
-## 1.1 Docker 模式（摘要）
+## 1.1 Docker 模式
 
-```bash
-docker compose up -d --build                        # 仅行情，浏览器打开 :8080
-MYSQL_ENABLED=true REDIS_ENABLED=true \
-  docker compose --profile db up -d --build         # 行情 + MySQL + Redis
+适用于本机、CI、或任意已安装 Docker / Compose 的主机。镜像内同时包含 `marketd` 与前端静态资源（`web/dist`），**单端口**对外（默认 `8080`）。MySQL / Redis 通过 Compose profile 可选接入，与近期 platform 基建对齐，默认不开启。
+
+### 架构
+
+```mermaid
+flowchart LR
+  Browser[浏览器]
+  subgraph compose [docker compose]
+    MD[marketd :8080<br/>API + 静态页]
+    MYSQL[(mysql 可选)]
+    REDIS[(redis 可选)]
+  end
+  Ext[Binance / 百度等外网]
+  Browser -->|HTTP/WS| MD
+  MD --> Ext
+  MD -.->|MYSQL_ENABLED| MYSQL
+  MD -.->|REDIS_ENABLED| REDIS
 ```
 
-- 镜像：多阶段构建，内含前端静态资源与 `marketd`
-- 默认配置：`config/config.docker.yaml`
-- 详细命令与灰度回滚：[deploy/docker.md](../deploy/docker.md)
+### 前置条件
+
+- Docker Engine 24+（含 `docker compose` 插件）
+- 出站网络可达行情数据源（Binance、百度财经等）；国内机器可能需改 `ingest.binance.ws_base`
+
+### 仅行情（默认）
+
+```bash
+cp .env.example .env          # 可选，改端口/密码等
+docker compose up -d --build
+# 或: make docker-up
+
+curl -s http://127.0.0.1:8080/healthz
+# 浏览器: http://127.0.0.1:8080/
+```
+
+镜像默认加载 `config/config.docker.yaml`（已 bake 进镜像为 `/app/config/config.yaml`）。
+
+### 行情 + MySQL + Redis
+
+为后续 users / alerts / portfolio 预留：
+
+```bash
+# 方式 A：Makefile（强制开启连接）
+make docker-up-db
+
+# 方式 B：显式环境变量
+MYSQL_ENABLED=true REDIS_ENABLED=true \
+  docker compose --profile db up -d --build
+```
+
+| 服务 | 默认 | 说明 |
+|------|------|------|
+| MySQL 8.4 | 库/用户 `marketpulse`，root 密码见 `.env` | profile `db` |
+| Redis 7 | `redis:6379`，密码默认可空 | profile `db` |
+| marketd | 通过 `MARKETPULSE_MYSQL_*` / `MARKETPULSE_REDIS_*` 连接 | `enabled=true` 时启动 Ping，失败则退出 |
+
+应用侧开关与连接参数优先走环境变量（见 `internal/config`），也可用挂载配置覆盖。
+
+### 覆盖配置与密钥
+
+```bash
+cp config/config.docker.yaml config/config.yaml
+# 编辑后，在 docker-compose.yml 的 marketd.volumes 取消注释：
+# - ./config/config.yaml:/app/config/config.yaml:ro
+```
+
+- 密码、`.env` **不要提交**（已在 `.gitignore`；保留 `.env.example`）
+- 生产请改掉示例默认口令（`MYSQL_ROOT_PASSWORD` / `MYSQL_PASSWORD`）
+
+### Make 命令
+
+| 命令 | 作用 |
+|------|------|
+| `make docker-build` | 仅构建镜像 |
+| `make docker-up` | 构建并启动行情 |
+| `make docker-up-db` | 构建并启动行情 + MySQL + Redis |
+| `make docker-down` | 停止并移除（含 db profile） |
+| `make docker-logs` | 跟随 `marketd` 日志 |
+
+### 相关文件
+
+| 路径 | 说明 |
+|------|------|
+| `Dockerfile` | 多阶段：Node 打前端 → Go 编后端 → Alpine 运行 |
+| `docker-compose.yml` | 编排；`profiles: [db]` 启持久化 |
+| `config/config.docker.yaml` | 容器默认配置 |
+| `.env.example` | Compose 环境变量模板 |
+| `.dockerignore` | 缩小构建上下文 |
+| [deploy/docker.md](../deploy/docker.md) | 运维速查（与本节等价，偏命令） |
+
+### 灰度与回滚
+
+- **灰度**：先只跑 `docker compose up`（无 DB）；确认 `/healthz` 与页面正常后，再开 `--profile db` 并设 `MYSQL_ENABLED`/`REDIS_ENABLED=true`
+- **回滚**：将开关改回 `false` 后 `docker compose up -d`，或 `docker compose --profile db down` 后仅起行情
+- **不影响**现有 `make ship` 流程，可并行保留
+
+### 验收清单
+
+- [ ] `curl http://127.0.0.1:8080/healthz` 返回正常
+- [ ] 浏览器打开首页，币价 / 指数有数据（视外网连通性）
+- [ ] （可选）`--profile db` 下日志出现 `mysql connected` / `redis connected`
+- [ ] `docker compose logs marketd` 无持续报错
+
+### 常见问题
+
+| 现象 | 处理 |
+|------|------|
+| 构建失败 / 拉取基础镜像慢 | 配置 Docker 镜像加速或代理 |
+| 币价不更新 | 检查容器出站；必要时改 `ingest.binance.ws_base`（如 `data-stream.binance.vision`） |
+| 开启 DB 后 marketd 起不来 | 看日志：密码/库名是否与 `.env` 一致；等 MySQL healthy 后再启动 |
+| 端口占用 | 改 `.env` 中 `MARKETPULSE_PORT` |
 
 ---
 
@@ -248,10 +350,19 @@ make test
 
 ## 5. 上线检查清单
 
+### ship / 裸机
+
 - [ ] `curl http://<IP>:8080/healthz` → `binance_ws: connected`
 - [ ] 页面币价持续更新，状态非长期「指数加载中」
 - [ ] `make check-binance-remote` 通过
 - [ ] 若用 Git：`git status` 干净或已按需 commit / push
+
+### Docker
+
+- [ ] `docker compose up -d --build` 后 `curl http://127.0.0.1:8080/healthz` 正常
+- [ ] 浏览器打开首页有行情数据（视外网）
+- [ ] （可选）`--profile db` 下应用日志含 mysql/redis connected
+- [ ] 详见 §1.1 验收清单
 
 ---
 
@@ -280,3 +391,4 @@ make test
 | 0.2 | 2026-05-16 | 增加 ship、Git 仓库目录、源码同步与可选 git commit |
 | 0.3 | 2026-07-11 | 增加 Windows 开发说明；embed 改为 static_dir |
 | 0.4 | 2026-07-14 | 增加 Docker Compose 部署（可选 MySQL/Redis profile） |
+| 0.5 | 2026-07-14 | 补全 Docker 正式章节（架构、命令、验收、FAQ） |

@@ -2,16 +2,18 @@
 
 本目录为**可提交到 Git 的部署资源**（不含密钥）。本机私密配置见 `deploy/deploy.local.yaml`（已 gitignore）。
 
-完整说明：[docs/RFC-003-deployment.md](../docs/RFC-003-deployment.md)
+完整说明：[docs/RFC-003-deployment.md](../docs/RFC-003-deployment.md)（含 **§1.1 Docker**）
 
-Docker 部署：[docker.md](./docker.md)
+Docker 运维速查：[docker.md](./docker.md)
 
 ## 快速开始（Docker）
 
 ```bash
 docker compose up -d --build              # 仅行情
-docker compose --profile db up -d --build # 行情 + MySQL + Redis
+make docker-up-db                         # 行情 + MySQL + Redis
 ```
+
+完整步骤、灰度回滚、FAQ 见 [RFC-003 §1.1](../docs/RFC-003-deployment.md)。
 
 ## 快速开始（ship · IP + 端口）
 

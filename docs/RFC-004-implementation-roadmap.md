@@ -300,6 +300,13 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 - [x] `make ship` / `make ship-commit`
 - [x] 详见 `docs/RFC-003-deployment.md`
 
+### Step 18b：Docker Compose 部署 ✅
+
+- [x] `Dockerfile` 多阶段构建（前端 + `marketd`）
+- [x] `docker-compose.yml`（默认行情；`--profile db` 可选 MySQL/Redis）
+- [x] `make docker-up` / `make docker-up-db`
+- [x] 文档：`docs/RFC-003-deployment.md` §1.1、`deploy/docker.md`
+
 ---
 
 ### Step 19：运维小闭环 ✅

@@ -83,7 +83,7 @@ docker compose --profile db up -d --build   # 行情 + MySQL + Redis
 # 或: make docker-up-db
 ```
 
-详细说明：[deploy/docker.md](./deploy/docker.md)
+详细说明：[docs/RFC-003-deployment.md §1.1](./docs/RFC-003-deployment.md) · [deploy/docker.md](./deploy/docker.md)
 
 ### HK VPS（ship）
 
