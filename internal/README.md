@@ -6,6 +6,8 @@
 |----|------|
 | `config` | YAML + 环境变量 |
 | `logging` | 日志目录初始化 |
+| `platform/mysql` | 可选 MySQL 连接池（users/alerts/portfolio） |
+| `platform/redis` | 可选 Redis 客户端（会话/缓存/告警） |
 | `marketdata` | 行情服务门面（`MarketDataService` 接口） |
 | `marketdata/ingest` | 数据采集编排（WS 长连接 + REST 轮询） |
 | `marketdata/ingest/binance` | Binance 现货 miniTicker |

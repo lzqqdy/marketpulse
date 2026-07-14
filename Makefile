@@ -1,5 +1,5 @@
 # MarketPulse — 统一构建入口（Vibe Coding 以 make help 为准）
-.PHONY: help dev dev-api dev-api-log dev-web web api build deploy deploy-web deploy-api ship ship-bt ship-bt-commit ship-commit restart-remote check check-binance check-binance-remote test setup-config setup-deploy setup-log
+.PHONY: help dev dev-api dev-api-log dev-web web api build deploy deploy-web deploy-api ship ship-bt ship-bt-commit ship-commit restart-remote check check-binance check-binance-remote test setup-config setup-deploy setup-log docker-build docker-up docker-up-db docker-down docker-logs
 
 DEPLOY_MODE ?= nginx
 DEPLOY_HOST ?=
@@ -21,6 +21,13 @@ help:
 	@echo "    make web              构建前端 → web/dist"
 	@echo "    make api              构建后端 → bin/marketd"
 	@echo "    make build            web + api"
+	@echo ""
+	@echo "  Docker"
+	@echo "    make docker-build     构建 marketpulse 镜像"
+	@echo "    make docker-up        启动行情容器（默认）"
+	@echo "    make docker-up-db     启动行情 + MySQL + Redis"
+	@echo "    make docker-down      停止并移除容器"
+	@echo "    make docker-logs      跟随 marketd 日志"
 	@echo ""
 	@echo "  部署"
 	@echo "    make setup-deploy     复制 deploy.local.yaml 模板"
@@ -44,6 +51,7 @@ help:
 	@echo "    make check-binance-remote  SSH 到 deploy.local 服务器检查"
 	@echo ""
 	@echo "  变量: DEPLOY_HOST=...  DEPLOY_CFG=...  SHIP_GIT_COMMIT=1  SHIP_GIT_MSG=..."
+	@echo "  Docker 说明: deploy/docker.md"
 
 # --- 开发 ---
 setup-config:
@@ -129,3 +137,20 @@ check-binance:
 check-binance-remote:
 	@chmod +x scripts/check-binance-remote.sh
 	@./scripts/check-binance-remote.sh
+
+# --- Docker ---
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up -d --build
+
+docker-up-db:
+	@test -f .env || cp .env.example .env
+	MYSQL_ENABLED=true REDIS_ENABLED=true docker compose --profile db up -d --build
+
+docker-down:
+	docker compose --profile db down
+
+docker-logs:
+	docker compose logs -f marketd

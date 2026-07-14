@@ -14,9 +14,66 @@ import (
 type Config struct {
 	App     AppConfig    `yaml:"app"`
 	CORS    CORSConfig   `yaml:"cors"`
+	MySQL   MySQLConfig  `yaml:"mysql"`
+	Redis   RedisConfig  `yaml:"redis"`
 	Symbols []string     `yaml:"symbols"`
 	Alpha   AlphaConfig  `yaml:"alpha"`
 	Ingest  IngestConfig `yaml:"ingest"`
+}
+
+// MySQLConfig holds relational database settings for users/alerts/portfolio modules.
+// Disabled by default so existing market-only deployments stay unchanged.
+type MySQLConfig struct {
+	Enabled         bool          `yaml:"enabled"`
+	Host            string        `yaml:"host"`
+	Port            int           `yaml:"port"`
+	User            string        `yaml:"user"`
+	Password        string        `yaml:"password"`
+	Database        string        `yaml:"database"`
+	Params          string        `yaml:"params"` // query string without leading '?'
+	MaxOpenConns    int           `yaml:"max_open_conns"`
+	MaxIdleConns    int           `yaml:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `yaml:"conn_max_idle_time"`
+}
+
+// DSN builds a go-sql-driver/mysql DSN.
+func (c MySQLConfig) DSN() string {
+	user := c.User
+	if user == "" {
+		user = "root"
+	}
+	host := c.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	port := c.Port
+	if port <= 0 {
+		port = 3306
+	}
+	params := c.Params
+	if params == "" {
+		params = "parseTime=true&loc=Local&charset=utf8mb4"
+	}
+	auth := user
+	if c.Password != "" {
+		auth = user + ":" + c.Password
+	}
+	return fmt.Sprintf("%s@tcp(%s:%d)/%s?%s", auth, host, port, c.Database, params)
+}
+
+// RedisConfig holds cache/queue settings for sessions, alerts, and jobs.
+// Disabled by default so existing market-only deployments stay unchanged.
+type RedisConfig struct {
+	Enabled      bool          `yaml:"enabled"`
+	Addr         string        `yaml:"addr"`
+	Password     string        `yaml:"password"`
+	DB           int           `yaml:"db"`
+	PoolSize     int           `yaml:"pool_size"`
+	MinIdleConns int           `yaml:"min_idle_conns"`
+	DialTimeout  time.Duration `yaml:"dial_timeout"`
+	ReadTimeout  time.Duration `yaml:"read_timeout"`
+	WriteTimeout time.Duration `yaml:"write_timeout"`
 }
 
 // AppConfig holds HTTP server settings.
@@ -270,6 +327,50 @@ func (c *Config) applyDefaults() {
 		c.Ingest.Macro.Interval = 5 * time.Minute
 	}
 
+	if c.MySQL.Host == "" {
+		c.MySQL.Host = "127.0.0.1"
+	}
+	if c.MySQL.Port <= 0 {
+		c.MySQL.Port = 3306
+	}
+	if c.MySQL.User == "" {
+		c.MySQL.User = "root"
+	}
+	if c.MySQL.Database == "" {
+		c.MySQL.Database = "marketpulse"
+	}
+	if c.MySQL.Params == "" {
+		c.MySQL.Params = "parseTime=true&loc=Local&charset=utf8mb4"
+	}
+	if c.MySQL.MaxOpenConns <= 0 {
+		c.MySQL.MaxOpenConns = 20
+	}
+	if c.MySQL.MaxIdleConns <= 0 {
+		c.MySQL.MaxIdleConns = 5
+	}
+	if c.MySQL.ConnMaxLifetime <= 0 {
+		c.MySQL.ConnMaxLifetime = time.Hour
+	}
+	if c.MySQL.ConnMaxIdleTime <= 0 {
+		c.MySQL.ConnMaxIdleTime = 10 * time.Minute
+	}
+
+	if c.Redis.Addr == "" {
+		c.Redis.Addr = "127.0.0.1:6379"
+	}
+	if c.Redis.PoolSize <= 0 {
+		c.Redis.PoolSize = 10
+	}
+	if c.Redis.DialTimeout <= 0 {
+		c.Redis.DialTimeout = 5 * time.Second
+	}
+	if c.Redis.ReadTimeout <= 0 {
+		c.Redis.ReadTimeout = 3 * time.Second
+	}
+	if c.Redis.WriteTimeout <= 0 {
+		c.Redis.WriteTimeout = 3 * time.Second
+	}
+
 	normalized := make([]string, 0, len(c.Symbols))
 	for _, s := range c.Symbols {
 		s = strings.ToUpper(strings.TrimSpace(s))
@@ -321,6 +422,55 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MARKETPULSE_BINANCE_WS_BASE"); v != "" {
 		c.Ingest.Binance.WSBase = v
 	}
+	if v := os.Getenv("MARKETPULSE_MYSQL_ENABLED"); v != "" {
+		c.MySQL.Enabled = parseEnvBool(v)
+	}
+	if v := os.Getenv("MARKETPULSE_MYSQL_HOST"); v != "" {
+		c.MySQL.Host = v
+	}
+	if v := os.Getenv("MARKETPULSE_MYSQL_PORT"); v != "" {
+		if n, err := parseEnvInt(v); err == nil {
+			c.MySQL.Port = n
+		}
+	}
+	if v := os.Getenv("MARKETPULSE_MYSQL_USER"); v != "" {
+		c.MySQL.User = v
+	}
+	if v := os.Getenv("MARKETPULSE_MYSQL_PASSWORD"); v != "" {
+		c.MySQL.Password = v
+	}
+	if v := os.Getenv("MARKETPULSE_MYSQL_DATABASE"); v != "" {
+		c.MySQL.Database = v
+	}
+	if v := os.Getenv("MARKETPULSE_REDIS_ENABLED"); v != "" {
+		c.Redis.Enabled = parseEnvBool(v)
+	}
+	if v := os.Getenv("MARKETPULSE_REDIS_ADDR"); v != "" {
+		c.Redis.Addr = v
+	}
+	if v := os.Getenv("MARKETPULSE_REDIS_PASSWORD"); v != "" {
+		c.Redis.Password = v
+	}
+	if v := os.Getenv("MARKETPULSE_REDIS_DB"); v != "" {
+		if n, err := parseEnvInt(v); err == nil {
+			c.Redis.DB = n
+		}
+	}
+}
+
+func parseEnvBool(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseEnvInt(v string) (int, error) {
+	var n int
+	_, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &n)
+	return n, err
 }
 
 func (c *Config) validate() error {
@@ -336,6 +486,22 @@ func (c *Config) validate() error {
 	case "", "bitget", "binance":
 	default:
 		return fmt.Errorf("config: alpha.provider must be bitget or binance, got %q", c.Alpha.Provider)
+	}
+	if c.MySQL.Enabled {
+		if c.MySQL.Database == "" {
+			return fmt.Errorf("config: mysql.database is required when mysql.enabled")
+		}
+		if c.MySQL.Host == "" {
+			return fmt.Errorf("config: mysql.host is required when mysql.enabled")
+		}
+	}
+	if c.Redis.Enabled {
+		if c.Redis.Addr == "" {
+			return fmt.Errorf("config: redis.addr is required when redis.enabled")
+		}
+		if c.Redis.DB < 0 {
+			return fmt.Errorf("config: redis.db must be >= 0")
+		}
 	}
 	return nil
 }

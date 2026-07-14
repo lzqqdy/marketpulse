@@ -4,6 +4,15 @@
 
 完整说明：[docs/RFC-003-deployment.md](../docs/RFC-003-deployment.md)
 
+Docker 部署：[docker.md](./docker.md)
+
+## 快速开始（Docker）
+
+```bash
+docker compose up -d --build              # 仅行情
+docker compose --profile db up -d --build # 行情 + MySQL + Redis
+```
+
 ## 快速开始（ship · IP + 端口）
 
 ```bash

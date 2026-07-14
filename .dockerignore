@@ -1,0 +1,24 @@
+# 减小构建上下文，加快 docker build
+.git
+.gomodcache
+.cache
+.cursor
+.idea
+.vscode
+.specify
+specs
+docs
+deploy
+log
+bin
+*.md
+*.log
+.env
+.env.*
+config/config.yaml
+deploy/deploy.local.yaml
+web/node_modules
+web/dist
+**/*_test.go
+scripts
+package-lock.json

@@ -12,11 +12,27 @@
 
 | 模式 | 命令 | 适用场景 |
 |------|------|----------|
-| **ship**（推荐） | `make ship` | 香港/海外 VPS，**IP + 端口** 访问；`marketd` 单进程托管 API + 前端 |
+| **Docker** | `docker compose up -d --build` / `make docker-up` | 本机或任意装了 Docker 的机器；一键起行情；`--profile db` 可带 MySQL/Redis |
+| **ship**（推荐 VPS） | `make ship` | 香港/海外 VPS，**IP + 端口** 访问；`marketd` 单进程托管 API + 前端 |
 | **nginx** | `make deploy` | 域名 + Nginx 反代；前后端目录分离，可只发一端 |
 | **embed 构建** | 本地 `DEPLOY_MODE=embed` | 历史方案；当前使用 `app.static_dir` 文件系统挂载，非 Go embed |
 
 日常个人 VPS：**用 ship**，配置写在 `deploy/deploy.local.yaml`（已 gitignore）。
+新环境 / 想一把梭：**用 Docker**，见 [deploy/docker.md](../deploy/docker.md)。
+
+---
+
+## 1.1 Docker 模式（摘要）
+
+```bash
+docker compose up -d --build                        # 仅行情，浏览器打开 :8080
+MYSQL_ENABLED=true REDIS_ENABLED=true \
+  docker compose --profile db up -d --build         # 行情 + MySQL + Redis
+```
+
+- 镜像：多阶段构建，内含前端静态资源与 `marketd`
+- 默认配置：`config/config.docker.yaml`
+- 详细命令与灰度回滚：[deploy/docker.md](../deploy/docker.md)
 
 ---
 
@@ -250,6 +266,9 @@ make test
 | `remote-git-commit.sh` | 服务器端提交脚本 |
 | `nginx.conf.example` | nginx 模式 |
 | `marketpulse.service.example` | systemd 单元 |
+| `docker.md` | Docker / Compose 部署说明 |
+
+仓库根目录另有：`Dockerfile`、`docker-compose.yml`、`.env.example`、`config/config.docker.yaml`。
 
 ---
 
@@ -260,3 +279,4 @@ make test
 | 0.1 | 2026-05-16 | 草案（nginx / embed） |
 | 0.2 | 2026-05-16 | 增加 ship、Git 仓库目录、源码同步与可选 git commit |
 | 0.3 | 2026-07-11 | 增加 Windows 开发说明；embed 改为 static_dir |
+| 0.4 | 2026-07-14 | 增加 Docker Compose 部署（可选 MySQL/Redis profile） |

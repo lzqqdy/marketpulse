@@ -1,23 +1,20 @@
-# MarketPulse 配置模板 — 复制为 config/config.yaml（已 gitignore）
+# MarketPulse 容器默认配置（可挂载覆盖；密钥用环境变量）
+# 用法见 deploy/docker.md
 
 app:
-  addr: ":8080"
-  mode: "debug" # debug | release
+  addr: "0.0.0.0:8080"
+  mode: "release"
   log_dir: "log"
-  # 生产 IP+端口 单进程部署时设为 web/dist 目录（见 make ship）
-  # static_dir: "web/dist"
+  static_dir: "web/dist"
 
 cors:
-  allowed_origins:
-    - "http://localhost:5173"
+  allowed_origins: []
 
-# 平台持久化（users / alerts / portfolio 等模块依赖）
-# 默认关闭：不启用时 marketd 行为与现网一致，可随时回滚
 mysql:
   enabled: false
-  host: "127.0.0.1"
+  host: "mysql"
   port: 3306
-  user: "root"
+  user: "marketpulse"
   password: ""
   database: "marketpulse"
   params: "parseTime=true&loc=Local&charset=utf8mb4"
@@ -28,7 +25,7 @@ mysql:
 
 redis:
   enabled: false
-  addr: "127.0.0.1:6379"
+  addr: "redis:6379"
   password: ""
   db: 0
   pool_size: 10
@@ -83,7 +80,6 @@ alpha:
 
 ingest:
   binance:
-    # 合并流示例，实现时按 symbols 生成
     ws_base: "wss://stream.binance.com:9443/stream"
   baidu:
     enabled: true

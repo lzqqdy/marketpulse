@@ -1,0 +1,93 @@
+# MarketPulse Docker Compose
+#
+# 仅行情（默认）:
+#   docker compose up -d --build
+#
+# 行情 + MySQL + Redis（为 users/alerts/portfolio 预留）:
+#   docker compose --profile db up -d --build
+#
+# 说明见 deploy/docker.md
+
+name: marketpulse
+
+services:
+  marketd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: marketpulse:local
+    restart: unless-stopped
+    ports:
+      - "${MARKETPULSE_PORT:-8080}:8080"
+    environment:
+      MARKETPULSE_APP_MODE: release
+      MARKETPULSE_MYSQL_ENABLED: "${MYSQL_ENABLED:-false}"
+      MARKETPULSE_MYSQL_HOST: mysql
+      MARKETPULSE_MYSQL_PORT: "3306"
+      MARKETPULSE_MYSQL_USER: "${MYSQL_USER:-marketpulse}"
+      MARKETPULSE_MYSQL_PASSWORD: "${MYSQL_PASSWORD:-marketpulse}"
+      MARKETPULSE_MYSQL_DATABASE: "${MYSQL_DATABASE:-marketpulse}"
+      MARKETPULSE_REDIS_ENABLED: "${REDIS_ENABLED:-false}"
+      MARKETPULSE_REDIS_ADDR: redis:6379
+      MARKETPULSE_REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      MARKETPULSE_REDIS_DB: "${REDIS_DB:-0}"
+    volumes:
+      # 可选：挂载本机配置覆盖镜像内默认配置（文件不存在时请先复制 config.docker.yaml）
+      # - ./config/config.yaml:/app/config/config.yaml:ro
+      - marketpulse-log:/app/log
+    depends_on:
+      mysql:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  mysql:
+    profiles: ["db"]
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-rootpass}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-marketpulse}"
+      MYSQL_USER: "${MYSQL_USER:-marketpulse}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-marketpulse}"
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - marketpulse-mysql:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    profiles: ["db"]
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - marketpulse-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  marketpulse-log:
+  marketpulse-mysql:
+  marketpulse-redis:

@@ -208,7 +208,7 @@ marketpulse/
 | WS 客户端（交易所） | **gorilla/websocket** | Binance/Bitget/Baidu 明文 JSON |
 | 配置 | **YAML + 环境变量覆盖** | 适合个人 VPS |
 | 日志 | **slog** 标准库 + 文件日志 | `app.log_dir` |
-| 持久化 | **无**（纯内存） | 降低复杂度 |
+| 持久化 | 行情仍内存；业务侧可选 **MySQL + Redis**（`enabled` 开关，默认关） | 为 users/alerts/portfolio 铺路，不影响现有行情路径 |
 
 ### 6.2 前端
 

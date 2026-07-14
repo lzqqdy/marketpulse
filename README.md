@@ -16,7 +16,9 @@ marketpulse/
 ├── web/              # Vue 3 前端
 ├── docs/             # RFC 与设计
 ├── specs/            # Spec Kit 功能规格
-├── deploy/           # 部署模板
+├── deploy/           # 部署模板（含 Docker 说明）
+├── Dockerfile        # 多阶段镜像构建
+├── docker-compose.yml
 └── Makefile          # 构建 / 部署命令（Linux/macOS/Git Bash）
 ```
 
@@ -69,7 +71,21 @@ curl -s http://127.0.0.1:8080/api/v1/market/snapshot
 | K 线抽屉 | lightweight-charts，crypto/alpha WS 实时，指数 REST |
 | 数据源健康 | Provider 状态面板，30s 轮询 |
 
-## 部署（HK VPS）
+## 部署
+
+### Docker（推荐快速体验 / 新环境）
+
+```bash
+docker compose up -d --build          # 仅行情（单端口 :8080）
+# 或: make docker-up
+
+docker compose --profile db up -d --build   # 行情 + MySQL + Redis
+# 或: make docker-up-db
+```
+
+详细说明：[deploy/docker.md](./deploy/docker.md)
+
+### HK VPS（ship）
 
 推荐 **`make ship`**：单端口（默认 `:8080`）对外，源码同步到服务器 Git 仓库目录。
 

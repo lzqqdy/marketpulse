@@ -16,6 +16,7 @@ config/config.yaml
 deploy/deploy.local.yaml
 .env
 .env.*
+!.env.example
 
 # IDE / AI Agent
 .idea/
