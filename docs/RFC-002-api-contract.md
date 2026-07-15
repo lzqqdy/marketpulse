@@ -407,11 +407,30 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 ```
 
 `ingest` 值为字符串状态：`starting`、`ok`、`error`、`connected`、`disconnected`、`reconnecting`、`degraded`、`circuit_open`、`disabled`。  
-`users`：`enabled` | `disabled`。
+`users` / `alerts`：`enabled` | `disabled`。
 
 ---
 
-## 11. WebSocket /ws/v1/market/stream
+## 11. 推送告警 `/api/v1/alerts/*`
+
+需登录（Bearer 或 `X-Session-Token`）；`alerts.enabled=false` 时返回 `503` + `alerts_disabled`。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/alerts/rules` | 规则列表（可选 `status=active\|disabled`） |
+| POST | `/api/v1/alerts/rules` | 创建规则（创建时校验条件未满足） |
+| PATCH | `/api/v1/alerts/rules/:id` | 更新规则 |
+| DELETE | `/api/v1/alerts/rules/:id` | 软删规则 |
+| GET | `/api/v1/alerts/deliveries` | 推送记录分页 |
+| POST | `/api/v1/alerts/inbox/ack` | 站内未读确认 |
+
+**WebSocket** `GET /ws/v1/alerts/stream?token=` — 连接后推送 `inbox_snapshot`，实时 `alert` 事件；客户端可发 `{"type":"ack","deliveryIds":[...]}`。
+
+规则 `ruleType` 1–5（上涨/下跌/区间/振幅%/5分钟波动）；通道 `in_app` / `email` / `pushplus`；频率 `once` / `loop` / `daily`。
+
+---
+
+## 12. WebSocket /ws/v1/market/stream
 
 兼容路径：`WS /ws/v1/stream`
 
@@ -462,7 +481,7 @@ wss://{host}/ws/v1/market/stream?channels=quotes,rates,indices,macro,alpha
 
 ---
 
-## 12. WebSocket /ws/v1/market/kline
+## 13. WebSocket /ws/v1/market/kline
 
 兼容路径：`WS /ws/v1/kline`
 
@@ -510,7 +529,7 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 
 ---
 
-## 13. 前端 TypeScript 类型
+## 14. 前端 TypeScript 类型
 
 实现位置：
 
@@ -525,7 +544,7 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 
 ---
 
-## 14. 版本与兼容
+## 15. 版本与兼容
 
 - `snapshot.version` 与 WS `version` 单调递增
 - 前端忽略 `version` 小于本地的包
@@ -542,3 +561,4 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | 0.2 | 2026-05-24 | 增加 market canonical namespace，保留旧路径兼容 |
 | 1.0 | 2026-07-11 | 对齐实现：alpha、macro 衍生品、providers/status、index-klines、market/center、expressnews、healthz 字段 |
 | 1.1 | 2026-07-14 | 增加 `/api/v1/users` 登录/资料/改密；healthz.users |
+| 1.2 | 2026-07-14 | 增加 `/api/v1/alerts` 规则/投递/WS 站内推送；healthz.alerts |

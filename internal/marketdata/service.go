@@ -36,6 +36,7 @@ var ServeWSUpgrader = stream.ServeWSUpgrader
 type ProviderStatusResponse = ingest.ProviderStatusResponse
 type Snapshot = store.Snapshot
 type Quote = store.Quote
+type IndexQuote = store.IndexQuote
 
 // KlineResponse is returned by market kline APIs.
 type KlineResponse struct {
@@ -51,6 +52,8 @@ type MarketDataService interface {
 	Start(ctx context.Context)
 	Snapshot() Snapshot
 	Quote(symbol string) (Quote, bool)
+	IndexQuote(id string) (IndexQuote, bool)
+	AddListener(listener store.ChangeListener)
 	Version() uint64
 	SymbolCount() int
 	ProviderStatus() ProviderStatusResponse
@@ -123,6 +126,23 @@ func (s *Service) Quote(symbol string) (Quote, bool) {
 		}
 	}
 	return Quote{}, false
+}
+
+func (s *Service) IndexQuote(id string) (IndexQuote, bool) {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if id == "" {
+		return IndexQuote{}, false
+	}
+	for _, idx := range s.Snapshot().Indices {
+		if idx.ID == id {
+			return idx, true
+		}
+	}
+	return IndexQuote{}, false
+}
+
+func (s *Service) AddListener(fn store.ChangeListener) {
+	s.store.AddListener(fn)
 }
 
 func (s *Service) Version() uint64 {

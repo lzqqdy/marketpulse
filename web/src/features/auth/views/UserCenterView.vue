@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import AlertDeliveriesPanel from '@/features/alerts/AlertDeliveriesPanel.vue'
+import AlertRulesPanel from '@/features/alerts/AlertRulesPanel.vue'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { compressAvatar } from '@/features/auth/utils/compressImage'
 import { useThemeStore } from '@/stores/theme'
@@ -273,24 +275,10 @@ function goHome() {
         </div>
       </section>
 
-      <section v-else class="user-card placeholder-card">
-        <div class="placeholder-badge">即将推出</div>
-        <h2>价格告警</h2>
-        <p class="placeholder-desc">设置涨跌阈值、到价提醒，触发后走推送通道。</p>
-        <div class="placeholder-list" aria-hidden="true">
-          <div class="placeholder-row">
-            <span>BTC &gt; 70,000</span>
-            <span class="pill">静音</span>
-          </div>
-          <div class="placeholder-row">
-            <span>ETH 跌破 2,000</span>
-            <span class="pill warn">触发中</span>
-          </div>
-          <div class="placeholder-row muted-row">
-            <span>+ 新建告警规则</span>
-          </div>
-        </div>
-      </section>
+      <template v-else>
+        <AlertRulesPanel />
+        <AlertDeliveriesPanel />
+      </template>
     </div>
 
     <aside class="user-dock" aria-label="页面工具">

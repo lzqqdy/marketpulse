@@ -49,6 +49,21 @@ users:
     lockout_failures: 5
     lockout_ttl: 15m
 
+alerts:
+  enabled: false
+  auto_migrate: true
+  daily_timezone: Asia/Shanghai
+  loop_interval_min: 1
+  loop_interval_max: 1440
+  inbox_max_len: 100
+
+smtp:
+  host: ""
+  port: 465
+  username: ""
+  password: ""
+  from: ""
+
 upload:
   dir: "data/uploads"
   public_path: "/uploads"

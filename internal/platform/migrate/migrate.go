@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -83,8 +84,15 @@ func applyOne(ctx context.Context, db *sql.DB, m Migration) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, m.Up); err != nil {
-		return fmt.Errorf("migrate up %d (%s): %w", m.Version, m.Name, err)
+	// go-mysql 默认禁止单次 Exec 多语句；按 ; 拆开逐条执行（无需开 multiStatements）。
+	stmts := splitSQL(m.Up)
+	if len(stmts) == 0 {
+		return fmt.Errorf("migrate up %d (%s): empty SQL", m.Version, m.Name)
+	}
+	for i, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("migrate up %d (%s) stmt %d: %w", m.Version, m.Name, i+1, err)
+		}
 	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`,
@@ -96,4 +104,19 @@ func applyOne(ctx context.Context, db *sql.DB, m Migration) error {
 		return fmt.Errorf("migrate commit %d: %w", m.Version, err)
 	}
 	return nil
+}
+
+// splitSQL splits a migration batch into individual statements.
+// DDL in this repo does not embed ; inside string literals.
+func splitSQL(raw string) []string {
+	parts := strings.Split(raw, ";")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		s := strings.TrimSpace(p)
+		if s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
 }

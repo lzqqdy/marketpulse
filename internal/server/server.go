@@ -29,10 +29,12 @@ func New(deps Deps) *Server {
 	r.Use(corsMiddleware(cfg))
 
 	h := &api.Handler{
-		Config:     cfg,
-		MarketData: deps.MarketData,
-		Users:      deps.Users,
-		StartedAt:  time.Now().UTC(),
+		Config:      cfg,
+		MarketData:  deps.MarketData,
+		Users:       deps.Users,
+		Alerts:      deps.Alerts,
+		AlertStream: deps.AlertStream,
+		StartedAt:   time.Now().UTC(),
 	}
 	api.Register(r, h)
 

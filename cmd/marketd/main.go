@@ -12,6 +12,7 @@ import (
 
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/logging"
+	"github.com/lzqqdy/marketpulse/internal/alerts"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformmysql "github.com/lzqqdy/marketpulse/internal/platform/mysql"
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
@@ -35,6 +36,9 @@ func main() {
 	}
 	if cfg.UsersSkipReason != "" {
 		slog.Warn("users module skipped", "reason", cfg.UsersSkipReason)
+	}
+	if cfg.AlertsSkipReason != "" {
+		slog.Warn("alerts module skipped", "reason", cfg.AlertsSkipReason)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -87,13 +91,36 @@ func main() {
 	marketData := marketdata.New(cfg)
 	marketData.Start(ctx)
 
+	var alertSvc alerts.Service
+	var alertStream *alerts.StreamServer
+	if cfg.Alerts.Enabled {
+		alertSvc, err = alerts.Bootstrap(ctx, alerts.BootstrapArgs{
+			Alerts:     cfg.Alerts,
+			SMTP:       cfg.SMTP,
+			DB:         db,
+			Redis:      rdb,
+			MarketData: marketData,
+			Users:      userSvc,
+		})
+		if err != nil {
+			slog.Error("bootstrap alerts", "err", err)
+			os.Exit(1)
+		}
+		if alertSvc != nil && alertSvc.Enabled() {
+			alertStream = alerts.NewStreamServer(alertSvc, userSvc)
+			slog.Info("alerts module enabled")
+		}
+	}
+
 	srv := server.New(server.Deps{
-		Config:     cfg,
-		MarketData: marketData,
-		Users:      userSvc,
-		Upload:     uploadStore,
-		MySQL:      db,
-		Redis:      rdb,
+		Config:      cfg,
+		MarketData:  marketData,
+		Users:       userSvc,
+		Alerts:      alertSvc,
+		AlertStream: alertStream,
+		Upload:      uploadStore,
+		MySQL:       db,
+		Redis:       rdb,
 	})
 
 	slog.Info("marketpulse marketd listening", "addr", server.AddrLabel(cfg))

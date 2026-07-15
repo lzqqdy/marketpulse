@@ -55,6 +55,22 @@ users:
     lockout_failures: 5
     lockout_ttl: 15m
 
+# 推送告警（需同时开启 mysql + redis + users）
+alerts:
+  enabled: false
+  auto_migrate: true
+  daily_timezone: Asia/Shanghai
+  loop_interval_min: 1
+  loop_interval_max: 1440
+  inbox_max_len: 100
+
+smtp:
+  host: ""
+  port: 465
+  username: ""
+  password: ""
+  from: ""
+
 # 本地文件上传（头像等），默认落到 data/uploads，经 /uploads 访问
 upload:
   dir: "data/uploads"

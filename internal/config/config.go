@@ -16,14 +16,45 @@ type Config struct {
 	CORS    CORSConfig   `yaml:"cors"`
 	MySQL   MySQLConfig  `yaml:"mysql"`
 	Redis   RedisConfig  `yaml:"redis"`
-	Users   UsersConfig  `yaml:"users"`
-	Upload  UploadConfig `yaml:"upload"`
+	Users   UsersConfig   `yaml:"users"`
+	Alerts  AlertsConfig  `yaml:"alerts"`
+	SMTP    SMTPConfig    `yaml:"smtp"`
+	Upload  UploadConfig  `yaml:"upload"`
 	Symbols []string     `yaml:"symbols"`
 	Alpha   AlphaConfig  `yaml:"alpha"`
 	Ingest  IngestConfig `yaml:"ingest"`
 
 	// UsersSkipReason is set when users.enabled was requested but deps are missing.
 	UsersSkipReason string `yaml:"-"`
+	// AlertsSkipReason is set when alerts.enabled was requested but deps are missing.
+	AlertsSkipReason string `yaml:"-"`
+}
+
+// AlertsConfig configures the optional alerts module (requires mysql + redis + users).
+type AlertsConfig struct {
+	Enabled         bool   `yaml:"enabled"`
+	AutoMigrate     *bool  `yaml:"auto_migrate"`
+	DailyTimezone   string `yaml:"daily_timezone"`
+	LoopIntervalMin int    `yaml:"loop_interval_min"`
+	LoopIntervalMax int    `yaml:"loop_interval_max"`
+	InboxMaxLen     int    `yaml:"inbox_max_len"`
+}
+
+// IsAutoMigrate reports whether alerts schema migrations should run on startup.
+func (c AlertsConfig) IsAutoMigrate() bool {
+	if c.AutoMigrate == nil {
+		return true
+	}
+	return *c.AutoMigrate
+}
+
+// SMTPConfig configures outbound email for alert delivery.
+type SMTPConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	From     string `yaml:"from"`
 }
 
 // UploadConfig controls local file storage for avatars and other user assets.
@@ -277,6 +308,7 @@ func Load(path string) (*Config, error) {
 	cfg.applyDefaults()
 	cfg.applyEnv()
 	cfg.applyUsersGuard()
+	cfg.applyAlertsGuard()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -299,6 +331,28 @@ func (c *Config) applyUsersGuard() {
 	case !c.Redis.Enabled:
 		c.Users.Enabled = false
 		c.UsersSkipReason = "redis is disabled"
+	}
+}
+
+// applyAlertsGuard soft-disables alerts when mysql/redis/users are off.
+func (c *Config) applyAlertsGuard() {
+	c.AlertsSkipReason = ""
+	if !c.Alerts.Enabled {
+		return
+	}
+	switch {
+	case !c.MySQL.Enabled && !c.Redis.Enabled && !c.Users.Enabled:
+		c.Alerts.Enabled = false
+		c.AlertsSkipReason = "mysql, redis and users are disabled"
+	case !c.MySQL.Enabled:
+		c.Alerts.Enabled = false
+		c.AlertsSkipReason = "mysql is disabled"
+	case !c.Redis.Enabled:
+		c.Alerts.Enabled = false
+		c.AlertsSkipReason = "redis is disabled"
+	case !c.Users.Enabled:
+		c.Alerts.Enabled = false
+		c.AlertsSkipReason = "users module is disabled"
 	}
 }
 
@@ -472,6 +526,22 @@ func (c *Config) applyDefaults() {
 		c.Users.SessionTTL = 7 * 24 * time.Hour
 	}
 	c.Users.applySecurityDefaults()
+
+	if c.Alerts.DailyTimezone == "" {
+		c.Alerts.DailyTimezone = "Asia/Shanghai"
+	}
+	if c.Alerts.LoopIntervalMin <= 0 {
+		c.Alerts.LoopIntervalMin = 1
+	}
+	if c.Alerts.LoopIntervalMax <= 0 {
+		c.Alerts.LoopIntervalMax = 1440
+	}
+	if c.Alerts.InboxMaxLen <= 0 {
+		c.Alerts.InboxMaxLen = 100
+	}
+	if c.SMTP.Port <= 0 {
+		c.SMTP.Port = 465
+	}
 
 	normalized := make([]string, 0, len(c.Symbols))
 	for _, s := range c.Symbols {

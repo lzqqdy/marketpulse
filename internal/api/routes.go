@@ -8,6 +8,7 @@ func Register(r *gin.Engine, h *Handler) {
 	RegisterMarketRoutes(r, h)
 	RegisterLegacyMarketRoutes(r, h)
 	RegisterUsersRoutes(r, h)
+	RegisterAlertsRoutes(r, h)
 }
 
 // RegisterUsersRoutes mounts /api/v1/users endpoints.
@@ -19,6 +20,19 @@ func RegisterUsersRoutes(r *gin.Engine, h *Handler) {
 	g.PUT("/me", h.UpdateMe)
 	g.PUT("/me/password", h.ChangePassword)
 	g.POST("/me/avatar", h.UploadAvatar)
+}
+
+// RegisterAlertsRoutes mounts /api/v1/alerts endpoints and WS stream.
+func RegisterAlertsRoutes(r *gin.Engine, h *Handler) {
+	g := r.Group("/api/v1/alerts")
+	g.GET("/rules", h.ListAlertRules)
+	g.POST("/rules", h.CreateAlertRule)
+	g.PATCH("/rules/:id", h.UpdateAlertRule)
+	g.DELETE("/rules/:id", h.DeleteAlertRule)
+	g.GET("/deliveries", h.ListAlertDeliveries)
+	g.POST("/inbox/ack", h.AckAlertInbox)
+
+	r.GET("/ws/v1/alerts/stream", h.AlertsStreamWS)
 }
 
 // RegisterHealthRoutes mounts process-level health endpoints.

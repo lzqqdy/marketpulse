@@ -7,7 +7,7 @@ MarketPulse is evolving from a single market dashboard into a modular product. T
 | Module | Purpose | Current Code | Owns |
 | --- | --- | --- | --- |
 | `marketdata` | Collect, normalize, cache, and stream market data | `internal/marketdata`, market routes in `internal/api` | Quotes, rates, indices, macro, derivatives, klines, alpha, market center, provider health |
-| `alerts` | Price and market-condition monitoring | Planned | Alert rules, trigger history, notification delivery |
+| `alerts` | Price and market-condition monitoring | Implemented | Alert rules, trigger history, in_app / email / PushPlus |
 | `portfolio` | Assets, positions, transactions, valuation | Planned | User holdings, cost basis, PnL, portfolio snapshots |
 | `ai` | Market analysis and assistant workflows | Planned | Analysis jobs, prompts, model responses, cached insights |
 | `users` | Identity and access control | `internal/users`, `/api/v1/users`, `web/src/features/auth` | Users, sessions (Redis), profile, password; seed account (no public register) |
@@ -67,12 +67,12 @@ The exact interface can evolve, but callers should depend on an interface owned 
 
 ### alerts
 
-Owns price monitoring and notification workflow.
+Owns price monitoring and notification workflow (`alerts.enabled` 灰度开关).
 
-- Stores alert rules and trigger history in a repository.
-- Evaluates rules from market data events or snapshots.
-- Sends notifications through configurable channels.
-- Does not fetch external prices itself.
+- Stores alert rules and trigger history in MySQL; cooldown / inbox in Redis.
+- Evaluates rules from MarketStore change events (no direct exchange calls).
+- Sends notifications through `in_app` / email / PushPlus.
+- Frontend: 用户中心规则与记录面板 + 全局 `AlertToastHost` WS 站内提醒.
 
 ### portfolio
 
@@ -140,7 +140,7 @@ Keep feature code grouped by domain as the UI grows:
 ```text
 web/src/features/
   market/          # QuoteTable, MacroGrid, IndexGrid, MarketCenterPanel, AlphaStockPanel, KlineDrawer
-  alerts/          # (planned)
+  alerts/          # rules / deliveries / toast WS
   portfolio/       # (planned)
   ai/              # (planned)
   auth/            # (planned)

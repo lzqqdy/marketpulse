@@ -29,6 +29,7 @@ type Service interface {
 	ChangePassword(ctx context.Context, token, oldPassword, newPassword string) error
 	UploadAvatar(ctx context.Context, token string, fh *multipart.FileHeader) (User, error)
 	UserIDFromToken(ctx context.Context, token string) (int64, error)
+	ProfileByID(ctx context.Context, userID int64) (User, error)
 }
 
 type service struct {
@@ -223,6 +224,17 @@ func (s *service) UserIDFromToken(ctx context.Context, token string) (int64, err
 		return 0, ErrDisabled
 	}
 	return s.sessions.UserID(ctx, token)
+}
+
+func (s *service) ProfileByID(ctx context.Context, userID int64) (User, error) {
+	if !s.Enabled() {
+		return User{}, ErrDisabled
+	}
+	row, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return User{}, err
+	}
+	return row.toPublic(), nil
 }
 
 func normalizePhone(phone string) string {
