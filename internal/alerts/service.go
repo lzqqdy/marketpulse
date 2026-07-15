@@ -21,7 +21,7 @@ import (
 type Service interface {
 	Enabled() bool
 	Hub() *Hub
-	ListRules(ctx context.Context, userID int64, status string) ([]Rule, error)
+	ListRules(ctx context.Context, userID int64, q ListRulesQuery) (ListRulesResult, error)
 	CreateRule(ctx context.Context, userID int64, in CreateRuleInput) (Rule, error)
 	UpdateRule(ctx context.Context, userID, id int64, in UpdateRuleInput) (Rule, error)
 	DeleteRule(ctx context.Context, userID, id int64) error
@@ -126,11 +126,16 @@ func (s *service) Hub() *Hub {
 	return s.hub
 }
 
-func (s *service) ListRules(ctx context.Context, userID int64, status string) ([]Rule, error) {
+func (s *service) ListRules(ctx context.Context, userID int64, q ListRulesQuery) (ListRulesResult, error) {
 	if !s.Enabled() {
-		return nil, ErrDisabled
+		return ListRulesResult{}, ErrDisabled
 	}
-	return s.repo.ListByUser(ctx, userID, strings.TrimSpace(status))
+	normalizeListPage(&q.Page, &q.PageSize)
+	items, total, err := s.repo.ListByUser(ctx, userID, q)
+	if err != nil {
+		return ListRulesResult{}, err
+	}
+	return ListRulesResult{Items: items, Page: q.Page, PageSize: q.PageSize, Total: total}, nil
 }
 
 func (s *service) CreateRule(ctx context.Context, userID int64, in CreateRuleInput) (Rule, error) {
@@ -273,20 +278,24 @@ func (s *service) ListDeliveries(ctx context.Context, userID int64, q ListDelive
 	if !s.Enabled() {
 		return ListDeliveriesResult{}, ErrDisabled
 	}
-	if q.Page <= 0 {
-		q.Page = 1
-	}
-	if q.PageSize <= 0 {
-		q.PageSize = 20
-	}
-	if q.PageSize > 100 {
-		q.PageSize = 100
-	}
+	normalizeListPage(&q.Page, &q.PageSize)
 	items, total, err := s.repo.ListDeliveries(ctx, userID, q)
 	if err != nil {
 		return ListDeliveriesResult{}, err
 	}
 	return ListDeliveriesResult{Items: items, Page: q.Page, PageSize: q.PageSize, Total: total}, nil
+}
+
+func normalizeListPage(page, pageSize *int) {
+	if *page <= 0 {
+		*page = 1
+	}
+	if *pageSize <= 0 {
+		*pageSize = 20
+	}
+	if *pageSize > 100 {
+		*pageSize = 100
+	}
 }
 
 func (s *service) AckInbox(ctx context.Context, userID int64, deliveryIDs []int64) error {

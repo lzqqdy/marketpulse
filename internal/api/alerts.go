@@ -65,12 +65,24 @@ func (h *Handler) ListAlertRules(c *gin.Context) {
 	if !ok {
 		return
 	}
-	items, err := h.Alerts.ListRules(c.Request.Context(), userID, c.Query("status"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	ruleType, _ := strconv.Atoi(c.Query("ruleType"))
+	res, err := h.Alerts.ListRules(c.Request.Context(), userID, alerts.ListRulesQuery{
+		Page:      page,
+		PageSize:  pageSize,
+		Status:    c.Query("status"),
+		AssetType: c.Query("assetType"),
+		Symbol:    c.Query("symbol"),
+		RuleType:  ruleType,
+		SortBy:    c.DefaultQuery("sortBy", "id"),
+		SortOrder: c.DefaultQuery("sortOrder", "desc"),
+	})
 	if err != nil {
 		writeAlertsError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items})
+	c.JSON(http.StatusOK, res)
 }
 
 func (h *Handler) CreateAlertRule(c *gin.Context) {
@@ -151,11 +163,18 @@ func (h *Handler) ListAlertDeliveries(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
 	ruleID, _ := strconv.ParseInt(c.Query("ruleId"), 10, 64)
+	ruleType, _ := strconv.Atoi(c.Query("ruleType"))
 	res, err := h.Alerts.ListDeliveries(c.Request.Context(), userID, alerts.ListDeliveriesQuery{
-		Page:     page,
-		PageSize: pageSize,
-		RuleID:   ruleID,
-		Channel:  c.Query("channel"),
+		Page:      page,
+		PageSize:  pageSize,
+		RuleID:    ruleID,
+		Channel:   c.Query("channel"),
+		Status:    c.Query("status"),
+		AssetType: c.Query("assetType"),
+		Symbol:    c.Query("symbol"),
+		RuleType:  ruleType,
+		SortBy:    c.DefaultQuery("sortBy", "createdAt"),
+		SortOrder: c.DefaultQuery("sortOrder", "desc"),
 	})
 	if err != nil {
 		writeAlertsError(c, err)

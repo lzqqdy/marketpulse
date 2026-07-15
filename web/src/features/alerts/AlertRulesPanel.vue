@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { fetchSnapshot } from '@/features/market/api/http'
+import MpListTable from '@/components/MpListTable.vue'
+import type { MpColumn, MpSortOrder } from '@/components/mpListTable'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import * as alertsApi from './api'
 import type { AlertChannel, AlertFrequency, AlertRule, AlertRuleParams, CreateAlertRuleInput } from './types'
+import { useAlertSymbols } from './useAlertSymbols'
 
 const RULE_TYPE_OPTIONS = [
   { value: 1, label: '上涨触达（价格 ≥ 目标）' },
@@ -19,16 +21,43 @@ const CHANNEL_OPTIONS: { value: AlertChannel; label: string }[] = [
   { value: 'pushplus', label: 'PushPlus' },
 ]
 
+const COLUMNS: MpColumn[] = [
+  { key: 'symbol', label: '标的', sortable: true, width: '9%' },
+  { key: 'status', label: '状态', sortable: true, width: '8%' },
+  { key: 'ruleType', label: '规则', sortable: true, width: '22%' },
+  { key: 'params', label: '参数', width: '14%' },
+  { key: 'triggerCount', label: '触发', sortable: true, width: '8%', align: 'right' },
+  { key: 'lastTriggeredAt', label: '最近触发', sortable: true, width: '16%' },
+  { key: 'id', label: '创建', sortable: true, width: '8%' },
+  { key: 'actions', label: '操作', width: '15%', align: 'right' },
+]
+
 const auth = useAuthStore()
+const symbols = useAlertSymbols()
+const {
+  loading: symbolsLoading,
+  hint: symbolsHint,
+  optionsForAssetType,
+  loadSymbols,
+} = symbols
 
 const rules = ref<AlertRule[]>([])
 const loading = ref(false)
+const listLoading = ref(false)
 const error = ref('')
 const msg = ref('')
-const spotSymbols = ref<string[]>([])
-const indexSymbols = ref<{ id: string; name: string }[]>([])
-const symbolsLoading = ref(false)
-const symbolsHint = ref('')
+
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const filters = reactive({
+  status: '',
+  assetType: '',
+  symbol: '',
+  ruleType: 0,
+  sortBy: 'id',
+  sortOrder: 'desc' as MpSortOrder,
+})
 
 const form = reactive({
   assetType: 'spot' as 'spot' | 'index',
@@ -44,80 +73,70 @@ const form = reactive({
   intervalMinutes: 10,
 })
 
-/** 始终用下拉；优先行情快照，失败时回退常见标的 */
-const FALLBACK_SPOT = ['BTC', 'ETH', 'BNB', 'LTC', 'FIL']
-const FALLBACK_INDEX = [
-  { id: 'sh000001', name: '上证指数' },
-  { id: 'sz399001', name: '深证成指' },
-  { id: 'sz399006', name: '创业板指' },
-  { id: 'sh000300', name: '沪深300' },
-  { id: 'hsi', name: '恒生指数' },
-]
-
-const symbolSelectOptions = computed(() => {
-  if (form.assetType === 'spot') {
-    return spotSymbols.value.map((s) => ({
-      value: s,
-      label: s.includes('USDT') ? s : `${s} / ${s}USDT`,
-    }))
-  }
-  return indexSymbols.value.map((i) => ({
-    value: i.id,
-    label: i.name && i.name !== i.id ? `${i.name} (${i.id})` : i.id,
-  }))
-})
+const formSymbolOptions = computed(() => optionsForAssetType(form.assetType))
+const filterSymbolOptions = computed(() => optionsForAssetType(filters.assetType))
 
 onMounted(async () => {
-  await Promise.all([loadRules(), loadSymbols()])
+  await loadSymbols()
+  if (!form.symbol) form.symbol = formSymbolOptions.value[0]?.value ?? ''
+  await loadRules()
 })
 
-async function loadSymbols() {
-  symbolsLoading.value = true
-  symbolsHint.value = ''
-  try {
-    const snap = await fetchSnapshot()
-    const spots = (snap.quotes ?? [])
-      .map((q) => q.symbol)
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b))
-    spotSymbols.value = spots.length ? spots : [...FALLBACK_SPOT]
-
-    const idxs = (snap.indices ?? [])
-      .filter((i) => i.id && !i.stale)
-      .map((i) => ({ id: i.id, name: i.name || i.id }))
-    indexSymbols.value = idxs.length ? idxs : [...FALLBACK_INDEX]
-
-    if (!spots.length || !idxs.length) {
-      symbolsHint.value = '行情快照暂无完整标的，已使用常用列表'
-    }
-    if (!form.symbol) {
-      form.symbol = symbolSelectOptions.value[0]?.value ?? ''
-    }
-  } catch {
-    spotSymbols.value = [...FALLBACK_SPOT]
-    indexSymbols.value = [...FALLBACK_INDEX]
-    form.symbol = symbolSelectOptions.value[0]?.value ?? ''
-    symbolsHint.value = '行情接口不可用，已使用常用标的列表'
-  } finally {
-    symbolsLoading.value = false
-  }
-}
-
-async function loadRules() {
+async function loadRules(p = page.value) {
   if (!auth.token) return
-  loading.value = true
+  listLoading.value = true
   error.value = ''
   try {
-    rules.value = await alertsApi.listRules(auth.token)
+    const res = await alertsApi.listRules(auth.token, {
+      page: p,
+      pageSize: pageSize.value,
+      status: filters.status || undefined,
+      assetType: filters.assetType || undefined,
+      symbol: filters.symbol || undefined,
+      ruleType: filters.ruleType || undefined,
+      sortBy: filters.sortBy,
+      sortOrder: filters.sortOrder,
+    })
+    rules.value = res.items
+    page.value = res.page
+    total.value = res.total
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败'
   } finally {
-    loading.value = false
+    listLoading.value = false
   }
 }
 
+function applyFilters() {
+  page.value = 1
+  void loadRules(1)
+}
+
+function onFilterAssetTypeChange() {
+  filters.symbol = ''
+  applyFilters()
+}
+
+function resetFilters() {
+  filters.status = ''
+  filters.assetType = ''
+  filters.symbol = ''
+  filters.ruleType = 0
+  filters.sortBy = 'id'
+  filters.sortOrder = 'desc'
+  page.value = 1
+  void loadRules(1)
+}
+
+function onSort(key: string, order: MpSortOrder) {
+  filters.sortBy = key
+  filters.sortOrder = order
+  page.value = 1
+  void loadRules(1)
+}
+
 function onAssetChange() {
-  form.symbol = symbolSelectOptions.value[0]?.value ?? ''
+  form.symbol = formSymbolOptions.value[0]?.value ?? ''
 }
 
 function toggleChannel(ch: AlertChannel) {
@@ -189,6 +208,10 @@ function formatTime(ts: number | null): string {
   return new Date(ts * 1000).toLocaleString()
 }
 
+function shortRuleType(t: number): string {
+  return RULE_TYPE_OPTIONS.find((o) => o.value === t)?.label.replace(/（.*）/, '') ?? `类型 ${t}`
+}
+
 async function onCreate() {
   if (!auth.token) return
   msg.value = ''
@@ -219,7 +242,8 @@ async function onCreate() {
   try {
     await alertsApi.createRule(auth.token, input)
     msg.value = '规则已创建'
-    await loadRules()
+    page.value = 1
+    await loadRules(1)
   } catch (e) {
     error.value = e instanceof Error ? e.message : '创建失败'
   } finally {
@@ -249,8 +273,6 @@ async function onDelete(r: AlertRule) {
     error.value = e instanceof Error ? e.message : '删除失败'
   }
 }
-
-const ruleTypeLabel = (t: number) => RULE_TYPE_OPTIONS.find((o) => o.value === t)?.label ?? `类型 ${t}`
 </script>
 
 <template>
@@ -266,11 +288,11 @@ const ruleTypeLabel = (t: number) => RULE_TYPE_OPTIONS.find((o) => o.value === t
       </label>
       <label class="field">
         <span>标的</span>
-        <select v-model="form.symbol" :disabled="symbolsLoading || !symbolSelectOptions.length">
-          <option v-if="!symbolSelectOptions.length" value="" disabled>
+        <select v-model="form.symbol" :disabled="symbolsLoading || !formSymbolOptions.length">
+          <option v-if="!formSymbolOptions.length" value="" disabled>
             {{ symbolsLoading ? '加载中…' : '暂无可用标的' }}
           </option>
-          <option v-for="opt in symbolSelectOptions" :key="opt.value" :value="opt.value">
+          <option v-for="opt in formSymbolOptions" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </option>
         </select>
@@ -340,36 +362,85 @@ const ruleTypeLabel = (t: number) => RULE_TYPE_OPTIONS.find((o) => o.value === t
   </section>
 
   <section class="user-card alert-panel">
-    <div class="list-head">
-      <h2>我的规则</h2>
-      <button type="button" class="ghost-btn" :disabled="loading" @click="loadRules">刷新</button>
-    </div>
-    <p v-if="loading && !rules.length" class="hint">加载中…</p>
-    <p v-else-if="!rules.length" class="hint">暂无规则</p>
-    <ul v-else class="rule-list">
-      <li v-for="r in rules" :key="r.id" class="rule-row">
-        <div class="rule-main">
-          <div class="rule-title">
-            <strong>{{ r.symbol }}</strong>
-            <span class="pill" :class="r.status">{{ r.status === 'active' ? '启用' : '停用' }}</span>
-          </div>
-          <p class="rule-meta">
-            {{ ruleTypeLabel(r.ruleType) }} · {{ formatParams(r) }} · {{ r.frequency }}
-            <template v-if="r.frequency === 'loop'"> / {{ r.intervalMinutes }}m</template>
-          </p>
-          <p class="rule-meta muted">
-            通道 {{ r.channels.join(', ') }} · 设定价 {{ r.setPrice || '—' }} · 触发
-            {{ r.triggerCount }} · 最近 {{ formatTime(r.lastTriggeredAt) }}
-          </p>
-        </div>
-        <div class="rule-actions">
+    <MpListTable
+      :columns="COLUMNS"
+      :sort-by="filters.sortBy"
+      :sort-order="filters.sortOrder"
+      :page="page"
+      :page-size="pageSize"
+      :total="total"
+      :loading="listLoading"
+      :has-data="rules.length > 0"
+      empty-text="暂无规则"
+      @sort="onSort"
+      @page-change="loadRules"
+      @page-size-change="(n) => { pageSize = n; applyFilters() }"
+    >
+      <template #header>
+        <h2>我的规则</h2>
+        <button type="button" class="ghost-btn" :disabled="listLoading" @click="loadRules()">刷新</button>
+      </template>
+
+      <template #toolbar>
+        <label class="tool">
+          <span>状态</span>
+          <select v-model="filters.status" @change="applyFilters">
+            <option value="">全部</option>
+            <option value="active">启用</option>
+            <option value="disabled">停用</option>
+          </select>
+        </label>
+        <label class="tool">
+          <span>类型</span>
+          <select v-model="filters.assetType" @change="onFilterAssetTypeChange">
+            <option value="">全部</option>
+            <option value="spot">现货</option>
+            <option value="index">指数</option>
+          </select>
+        </label>
+        <label class="tool grow">
+          <span>标的</span>
+          <select v-model="filters.symbol" @change="applyFilters">
+            <option value="">全部标的</option>
+            <option v-for="opt in filterSymbolOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </label>
+        <label class="tool">
+          <span>规则</span>
+          <select v-model.number="filters.ruleType" @change="applyFilters">
+            <option :value="0">全部</option>
+            <option v-for="o in RULE_TYPE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </label>
+        <button type="button" class="ghost-btn" @click="resetFilters">重置</button>
+      </template>
+
+      <tr v-for="r in rules" :key="r.id">
+        <td>
+          <strong>{{ r.symbol }}</strong>
+          <div class="sub">{{ r.assetType === 'spot' ? '现货' : '指数' }}</div>
+        </td>
+        <td>
+          <span class="pill" :class="r.status">{{ r.status === 'active' ? '启用' : '停用' }}</span>
+        </td>
+        <td>
+          {{ shortRuleType(r.ruleType) }}
+          <div class="sub">{{ r.frequency }}<template v-if="r.frequency === 'loop'"> / {{ r.intervalMinutes }}m</template></div>
+        </td>
+        <td>{{ formatParams(r) }}</td>
+        <td style="text-align: right">{{ r.triggerCount }}</td>
+        <td>{{ formatTime(r.lastTriggeredAt) }}</td>
+        <td>#{{ r.id }}</td>
+        <td class="actions">
           <button type="button" class="ghost-btn" @click="toggleStatus(r)">
             {{ r.status === 'active' ? '停用' : '启用' }}
           </button>
           <button type="button" class="danger-btn" @click="onDelete(r)">删除</button>
-        </div>
-      </li>
-    </ul>
+        </td>
+      </tr>
+    </MpListTable>
   </section>
 </template>
 
@@ -412,13 +483,20 @@ const ruleTypeLabel = (t: number) => RULE_TYPE_OPTIONS.find((o) => o.value === t
 }
 
 .field input,
-.field select {
+.field select,
+.tool input,
+.tool select {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
   border-radius: 6px;
   padding: 8px 10px;
   font-size: 13px;
+}
+
+.tool select {
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 .field select:disabled {
@@ -490,64 +568,17 @@ const ruleTypeLabel = (t: number) => RULE_TYPE_OPTIONS.find((o) => o.value === t
   font-size: 12px;
 }
 
-.list-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.list-head h2 {
-  margin: 0;
-}
-
-.hint {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.rule-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.tool {
   display: grid;
-  gap: 10px;
-}
-
-.rule-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-}
-
-.rule-row:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.rule-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  color: var(--text-strong);
-}
-
-.rule-meta {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text);
-  line-height: 1.45;
-}
-
-.rule-meta.muted {
+  gap: 4px;
+  font-size: 11px;
   color: var(--muted);
+  min-width: 110px;
+}
+
+.tool.grow {
+  flex: 1 1 160px;
+  min-width: 160px;
 }
 
 .pill {
@@ -567,9 +598,19 @@ const ruleTypeLabel = (t: number) => RULE_TYPE_OPTIONS.find((o) => o.value === t
   color: var(--muted);
 }
 
-.rule-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
+.sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actions .ghost-btn,
+.actions .danger-btn {
+  margin-left: 4px;
 }
 </style>

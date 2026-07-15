@@ -417,11 +417,11 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/v1/alerts/rules` | 规则列表（可选 `status=active\|disabled`） |
+| GET | `/api/v1/alerts/rules` | 规则分页列表；筛选 `status`/`assetType`/`symbol`/`ruleType`；排序 `sortBy`/`sortOrder` |
 | POST | `/api/v1/alerts/rules` | 创建规则（创建时校验条件未满足） |
 | PATCH | `/api/v1/alerts/rules/:id` | 更新规则 |
 | DELETE | `/api/v1/alerts/rules/:id` | 软删规则 |
-| GET | `/api/v1/alerts/deliveries` | 推送记录分页 |
+| GET | `/api/v1/alerts/deliveries` | 推送记录分页；筛选 `channel`/`status`/`assetType`/`symbol`/`ruleType`/`ruleId`；排序 `sortBy`/`sortOrder` |
 | POST | `/api/v1/alerts/inbox/ack` | 站内未读确认 |
 
 **WebSocket** `GET /ws/v1/alerts/stream?token=` — 连接后推送 `inbox_snapshot`，实时 `alert` 事件；客户端可发 `{"type":"ack","deliveryIds":[...]}`。

@@ -108,12 +108,38 @@ type UpdateRuleInput struct {
 	Status          *string          `json:"status"`
 }
 
+// ListRulesQuery holds pagination / filter / sort for rules.
+type ListRulesQuery struct {
+	Page      int
+	PageSize  int
+	Status    string
+	AssetType string
+	Symbol    string
+	RuleType  int
+	SortBy    string
+	SortOrder string
+}
+
+// ListRulesResult is a paginated rule list.
+type ListRulesResult struct {
+	Items    []Rule `json:"items"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+	Total    int    `json:"total"`
+}
+
 // ListDeliveriesQuery holds pagination filters.
 type ListDeliveriesQuery struct {
-	Page     int
-	PageSize int
-	RuleID   int64
-	Channel  string
+	Page      int
+	PageSize  int
+	RuleID    int64
+	Channel   string
+	Status    string
+	AssetType string
+	Symbol    string
+	RuleType  int
+	SortBy    string
+	SortOrder string
 }
 
 // ListDeliveriesResult is a paginated delivery list.

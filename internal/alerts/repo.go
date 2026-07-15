@@ -59,31 +59,51 @@ FROM alert_rules WHERE id = ? AND user_id = ? AND is_deleted = 0`, id, userID)
 	return row, nil
 }
 
-func (r *repository) ListByUser(ctx context.Context, userID int64, status string) ([]Rule, error) {
-	q := `
-SELECT id, user_id, asset_type, symbol, field, rule_type, params, channels, frequency,
-  interval_minutes, set_price, status, last_triggered_at, trigger_count, created_at, updated_at
-FROM alert_rules WHERE user_id = ? AND is_deleted = 0`
+func (r *repository) ListByUser(ctx context.Context, userID int64, q ListRulesQuery) ([]Rule, int, error) {
+	where := `WHERE user_id = ? AND is_deleted = 0`
 	args := []any{userID}
-	if status != "" {
-		q += ` AND status = ?`
+	if status := strings.TrimSpace(q.Status); status != "" {
+		where += ` AND status = ?`
 		args = append(args, status)
 	}
-	q += ` ORDER BY id DESC`
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	if asset := strings.TrimSpace(q.AssetType); asset != "" {
+		where += ` AND asset_type = ?`
+		args = append(args, asset)
+	}
+	if sym := strings.TrimSpace(q.Symbol); sym != "" {
+		where += ` AND symbol LIKE ?`
+		args = append(args, "%"+sym+"%")
+	}
+	if q.RuleType > 0 {
+		where += ` AND rule_type = ?`
+		args = append(args, q.RuleType)
+	}
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM alert_rules `+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	order := rulesOrderBy(q.SortBy, q.SortOrder)
+	offset := (q.Page - 1) * q.PageSize
+	listArgs := append(append([]any{}, args...), q.PageSize, offset)
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, user_id, asset_type, symbol, field, rule_type, params, channels, frequency,
+  interval_minutes, set_price, status, last_triggered_at, trigger_count, created_at, updated_at
+FROM alert_rules `+where+` ORDER BY `+order+` LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("alert_rules list: %w", err)
+		return nil, 0, fmt.Errorf("alert_rules list: %w", err)
 	}
 	defer rows.Close()
 	out := make([]Rule, 0)
 	for rows.Next() {
 		rule, err := scanRuleRow(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, rule)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 func (r *repository) ListActive(ctx context.Context) ([]Rule, error) {
@@ -184,15 +204,6 @@ INSERT INTO alert_deliveries (
 }
 
 func (r *repository) ListDeliveries(ctx context.Context, userID int64, q ListDeliveriesQuery) ([]Delivery, int, error) {
-	if q.Page <= 0 {
-		q.Page = 1
-	}
-	if q.PageSize <= 0 {
-		q.PageSize = 20
-	}
-	if q.PageSize > 100 {
-		q.PageSize = 100
-	}
 	where := `WHERE user_id = ?`
 	args := []any{userID}
 	if q.RuleID > 0 {
@@ -203,16 +214,33 @@ func (r *repository) ListDeliveries(ctx context.Context, userID int64, q ListDel
 		where += ` AND channel = ?`
 		args = append(args, ch)
 	}
+	if status := strings.TrimSpace(q.Status); status != "" {
+		where += ` AND status = ?`
+		args = append(args, status)
+	}
+	if asset := strings.TrimSpace(q.AssetType); asset != "" {
+		where += ` AND asset_type = ?`
+		args = append(args, asset)
+	}
+	if sym := strings.TrimSpace(q.Symbol); sym != "" {
+		where += ` AND symbol LIKE ?`
+		args = append(args, "%"+sym+"%")
+	}
+	if q.RuleType > 0 {
+		where += ` AND rule_type = ?`
+		args = append(args, q.RuleType)
+	}
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM alert_deliveries `+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
+	order := deliveriesOrderBy(q.SortBy, q.SortOrder)
 	offset := (q.Page - 1) * q.PageSize
 	listArgs := append(append([]any{}, args...), q.PageSize, offset)
 	rows, err := r.db.QueryContext(ctx, `
 SELECT id, rule_id, user_id, asset_type, symbol, rule_type, channel, trigger_value,
   title, body, status, error_msg, created_at
-FROM alert_deliveries `+where+` ORDER BY created_at DESC LIMIT ? OFFSET ?`, listArgs...)
+FROM alert_deliveries `+where+` ORDER BY `+order+` LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("alert_deliveries list: %w", err)
 	}
@@ -231,6 +259,59 @@ FROM alert_deliveries `+where+` ORDER BY created_at DESC LIMIT ? OFFSET ?`, list
 		out = append(out, d)
 	}
 	return out, total, rows.Err()
+}
+
+func rulesOrderBy(sortBy, sortOrder string) string {
+	col := map[string]string{
+		"id":               "id",
+		"createdAt":        "created_at",
+		"created_at":       "created_at",
+		"updatedAt":        "updated_at",
+		"updated_at":       "updated_at",
+		"lastTriggeredAt":  "last_triggered_at",
+		"last_triggered_at": "last_triggered_at",
+		"triggerCount":     "trigger_count",
+		"trigger_count":    "trigger_count",
+		"symbol":           "symbol",
+		"status":           "status",
+		"ruleType":         "rule_type",
+		"rule_type":        "rule_type",
+	}[strings.TrimSpace(sortBy)]
+	if col == "" {
+		col = "id"
+	}
+	dir := "DESC"
+	if strings.EqualFold(strings.TrimSpace(sortOrder), "asc") {
+		dir = "ASC"
+	}
+	// NULLS last for last_triggered_at on MySQL: put NULLs after via secondary key.
+	if col == "last_triggered_at" {
+		return fmt.Sprintf("last_triggered_at IS NULL ASC, last_triggered_at %s, id DESC", dir)
+	}
+	return col + " " + dir + ", id DESC"
+}
+
+func deliveriesOrderBy(sortBy, sortOrder string) string {
+	col := map[string]string{
+		"id":         "id",
+		"createdAt":  "created_at",
+		"created_at": "created_at",
+		"ruleId":     "rule_id",
+		"rule_id":    "rule_id",
+		"symbol":     "symbol",
+		"status":     "status",
+		"channel":    "channel",
+		"ruleType":   "rule_type",
+		"rule_type":  "rule_type",
+	}[strings.TrimSpace(sortBy)]
+	if col == "" {
+		col = "created_at"
+	}
+	dir := "DESC"
+	if strings.EqualFold(strings.TrimSpace(sortOrder), "asc") {
+		dir = "ASC"
+	}
+	return col + " " + dir + ", id DESC"
 }
 
 func (r *repository) scanOne(ctx context.Context, query string, args ...any) (Rule, error) {

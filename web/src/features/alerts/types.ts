@@ -52,6 +52,37 @@ export interface UpdateAlertRuleInput {
   status?: AlertStatus
 }
 
+export interface AlertRulesResult {
+  items: AlertRule[]
+  page: number
+  pageSize: number
+  total: number
+}
+
+export interface ListRulesQuery {
+  page?: number
+  pageSize?: number
+  status?: string
+  assetType?: string
+  symbol?: string
+  ruleType?: number
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
+export interface ListDeliveriesQuery {
+  page?: number
+  pageSize?: number
+  ruleId?: number
+  channel?: string
+  status?: string
+  assetType?: string
+  symbol?: string
+  ruleType?: number
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
 export interface AlertDelivery {
   id: number
   ruleId: number
