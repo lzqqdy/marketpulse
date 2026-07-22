@@ -118,6 +118,9 @@ alpha:
     - id: tsla
       name: 特斯拉
       symbol: TSLAUSDT
+    - id: mu
+      name: 美光
+      symbol: MUUSDT
 
 ingest:
   binance:

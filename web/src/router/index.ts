@@ -18,6 +18,10 @@ const router = createRouter({
     },
     {
       path: '/user',
+      redirect: '/user/profile',
+    },
+    {
+      path: '/user/:tab',
       name: 'user',
       component: () => import('@/features/auth/views/UserCenterView.vue'),
       meta: { requiresAuth: true },
@@ -26,7 +30,15 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+const USER_TABS = new Set(['profile', 'alerts', 'portfolio'])
+
 router.beforeEach(async (to) => {
+  if (to.name === 'user') {
+    const tab = String(to.params.tab || '')
+    if (!USER_TABS.has(tab)) {
+      return { name: 'user', params: { tab: 'profile' }, replace: true }
+    }
+  }
   const auth = useAuthStore()
   if (to.meta.requiresAuth) {
     if (!auth.isLoggedIn) {
@@ -38,7 +50,7 @@ router.beforeEach(async (to) => {
     }
   }
   if (to.meta.guestOnly && auth.isLoggedIn) {
-    return { name: 'user' }
+    return { name: 'user', params: { tab: 'profile' } }
   }
   return true
 })

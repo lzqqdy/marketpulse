@@ -257,7 +257,8 @@ const cards = computed<MetricCard[]>(() => [
   scroll-snap-type: x proximity;
   padding-bottom: 2px;
   container-type: inline-size;
-  --col-w: calc((100cqw - 8px) / 3);
+  /* 约 3.2 列宽：完整显示 3 列，右侧露出第 4 列一角，提示可横滑 */
+  --col-w: calc((100cqw - 8px) / 3.2);
 }
 
 .metric-scroll::-webkit-scrollbar {
@@ -271,6 +272,9 @@ const cards = computed<MetricCard[]>(() => [
   grid-auto-columns: var(--col-w);
   gap: 4px;
   width: max-content;
+  /* 右侧多留一点，避免最后一列贴边看不出还能滑 */
+  padding-right: 10px;
+  box-sizing: content-box;
 }
 
 .card {
@@ -333,11 +337,12 @@ const cards = computed<MetricCard[]>(() => [
 
 @media (max-width: 360px) {
   .metric-scroll {
-    --col-w: calc((100cqw - 4px) / 3);
+    --col-w: calc((100cqw - 4px) / 3.2);
   }
 
   .macro-grid {
     gap: 2px;
+    padding-right: 8px;
   }
 
   .index-title {

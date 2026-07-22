@@ -223,7 +223,6 @@ defineExpose({ reload: load })
               <div class="coin-cell">
                 <span class="coin-name">{{ displaySymbol(h) }}</span>
                 <span v-if="h.assetType === 'alpha'" class="tag">美股</span>
-                <button type="button" class="rm-mobile" aria-label="移除" @click="removeRow(h)">×</button>
               </div>
             </td>
             <td class="col-num">
@@ -386,6 +385,7 @@ defineExpose({ reload: load })
 }
 .col-act {
   width: 8%;
+  text-align: center;
 }
 
 .coin {
@@ -404,10 +404,6 @@ defineExpose({ reload: load })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rm-mobile {
-  display: none;
 }
 
 .tag {
@@ -530,13 +526,18 @@ defineExpose({ reload: load })
 }
 
 @media (max-width: 680px) {
+  /* 前 4 列铺满可视宽度，末列「移除」需右滑点击 */
   .table-wrap {
-    overflow-x: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    container-type: inline-size;
+    container-name: holdings;
   }
 
   .holdings-table {
-    min-width: 0;
-    width: 100%;
+    table-layout: fixed;
+    width: calc(100cqw + 2.75rem);
+    min-width: calc(100cqw + 2.75rem);
     font-size: 11px;
   }
 
@@ -549,19 +550,23 @@ defineExpose({ reload: load })
   }
 
   .col-coin {
-    width: 14%;
+    width: 15cqw;
   }
   .col-num {
-    width: 32%;
+    width: 32cqw;
   }
   .col-val {
-    width: 27%;
+    width: 26.5cqw;
   }
   .col-est {
-    width: 27%;
+    width: 26.5cqw;
   }
   .col-act {
-    display: none;
+    display: table-cell;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    padding-left: 4px;
+    padding-right: 6px;
   }
 
   .holdings-table th,
@@ -591,22 +596,8 @@ defineExpose({ reload: load })
     display: none;
   }
 
-  .rm-mobile {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    margin: 0;
-    padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 14px;
-    line-height: 1;
-    cursor: pointer;
+  .col-act .link-btn {
+    font-size: 11px;
   }
 
   .add-row .primary-btn,

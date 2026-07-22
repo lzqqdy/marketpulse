@@ -305,6 +305,7 @@ var DefaultAlphaStocks = []AlphaItem{
 	{ID: "googl", Name: "谷歌", Symbol: "GOOGLUSDT"},
 	{ID: "meta", Name: "Meta", Symbol: "METAUSDT"},
 	{ID: "tsla", Name: "特斯拉", Symbol: "TSLAUSDT"},
+	{ID: "mu", Name: "美光", Symbol: "MUUSDT"},
 }
 
 // MacroConfig configures macro indicator polling.

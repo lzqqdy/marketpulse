@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AlertDeliveriesPanel from '@/features/alerts/AlertDeliveriesPanel.vue'
 import AlertRulesPanel from '@/features/alerts/AlertRulesPanel.vue'
 import { useAuthStore } from '@/features/auth/stores/auth'
@@ -16,11 +16,22 @@ const TABS: { id: UserTab; label: string }[] = [
   { id: 'portfolio', label: '资产中心' },
 ]
 
+const TAB_IDS = new Set<UserTab>(TABS.map((t) => t.id))
+
 const auth = useAuthStore()
 const themeStore = useThemeStore()
 const router = useRouter()
+const route = useRoute()
 
-const activeTab = ref<UserTab>('profile')
+const activeTab = computed<UserTab>(() => {
+  const tab = String(route.params.tab || 'profile') as UserTab
+  return TAB_IDS.has(tab) ? tab : 'profile'
+})
+
+function selectTab(tab: UserTab) {
+  if (tab === activeTab.value) return
+  void router.push({ name: 'user', params: { tab } })
+}
 
 const profileMsg = ref('')
 const passwordMsg = ref('')
@@ -155,7 +166,7 @@ function goHome() {
         role="tab"
         :class="{ active: activeTab === tab.id }"
         :aria-selected="activeTab === tab.id"
-        @click="activeTab = tab.id"
+        @click="selectTab(tab.id)"
       >
         {{ tab.label }}
       </button>

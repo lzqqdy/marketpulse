@@ -67,4 +67,5 @@ make docker-logs
 
 - 容器需访问外网数据源；国内可调 `ingest.binance.ws_base`
 - 日志卷：`marketpulse-log` → `/app/log`
+- 上传卷：`marketpulse-uploads` → `/app/data/uploads`（头像等；`down -v` 会清空）
 - 与 `make ship` 并行，互不替代
