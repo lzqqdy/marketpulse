@@ -78,8 +78,8 @@ onUnmounted(() => {
 .footer-note {
   text-align: center;
   font-size: 11px;
-  color: var(--muted-2);
-  margin: 12px 0 0;
+  color: var(--muted);
+  margin: 14px 0 0;
 }
 
 @media (min-width: 900px) {

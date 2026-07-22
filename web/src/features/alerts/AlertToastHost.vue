@@ -89,9 +89,9 @@ onUnmounted(() => {
   pointer-events: auto;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 12px 14px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 24px var(--shadow);
   animation: toast-in 0.28s ease;
 }
 
@@ -109,6 +109,7 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--text);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .toast-meta {
@@ -124,6 +125,12 @@ onUnmounted(() => {
   line-height: 1;
   cursor: pointer;
   padding: 0 2px;
+  min-width: 28px;
+  min-height: 28px;
+}
+
+.toast-x:active {
+  color: var(--text);
 }
 
 @keyframes toast-in {
@@ -134,6 +141,28 @@ onUnmounted(() => {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 680px) {
+  .toast-host {
+    top: max(12px, env(safe-area-inset-top, 0px));
+    bottom: auto;
+    right: 12px;
+    left: 12px;
+    max-width: none;
+    flex-direction: column;
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 </style>

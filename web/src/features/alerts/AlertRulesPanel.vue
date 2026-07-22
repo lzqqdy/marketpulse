@@ -22,14 +22,14 @@ const CHANNEL_OPTIONS: { value: AlertChannel; label: string }[] = [
 ]
 
 const COLUMNS: MpColumn[] = [
-  { key: 'symbol', label: '标的', sortable: true, width: '9%' },
+  { key: 'symbol', label: '标的', sortable: true, width: '12%' },
   { key: 'status', label: '状态', sortable: true, width: '8%' },
-  { key: 'ruleType', label: '规则', sortable: true, width: '22%' },
-  { key: 'params', label: '参数', width: '14%' },
+  { key: 'ruleType', label: '规则', sortable: true, width: '18%' },
+  { key: 'params', label: '参数', width: '16%' },
   { key: 'triggerCount', label: '触发', sortable: true, width: '8%', align: 'right' },
-  { key: 'lastTriggeredAt', label: '最近触发', sortable: true, width: '16%' },
-  { key: 'id', label: '创建', sortable: true, width: '8%' },
-  { key: 'actions', label: '操作', width: '15%', align: 'right' },
+  { key: 'lastTriggeredAt', label: '最近触发', sortable: true, width: '14%' },
+  { key: 'id', label: '创建', sortable: true, width: '6%' },
+  { key: 'actions', label: '操作', width: '18%', align: 'right' },
 ]
 
 const auth = useAuthStore()
@@ -370,6 +370,7 @@ async function onDelete(r: AlertRule) {
   </section>
 
   <section class="user-card alert-panel">
+    <div class="desktop-list">
     <MpListTable
       :columns="COLUMNS"
       :sort-by="filters.sortBy"
@@ -432,7 +433,7 @@ async function onDelete(r: AlertRule) {
           <div class="sub">{{ assetTypeLabel(r.assetType) }}</div>
         </td>
         <td>
-          <span class="pill" :class="r.status">{{ r.status === 'active' ? '启用' : '停用' }}</span>
+          <span class="status-pill" :class="r.status">{{ r.status === 'active' ? '启用' : '停用' }}</span>
         </td>
         <td>
           {{ shortRuleType(r.ruleType) }}
@@ -450,6 +451,64 @@ async function onDelete(r: AlertRule) {
         </td>
       </tr>
     </MpListTable>
+    </div>
+
+    <div class="mobile-cards" aria-label="规则列表">
+      <div class="mobile-cards-head">
+        <h2>我的规则</h2>
+        <button type="button" class="ghost-btn" :disabled="listLoading" @click="loadRules()">刷新</button>
+      </div>
+      <div class="mobile-filters">
+        <select v-model="filters.status" @change="applyFilters">
+          <option value="">全部状态</option>
+          <option value="active">启用</option>
+          <option value="disabled">停用</option>
+        </select>
+        <select v-model="filters.assetType" @change="onFilterAssetTypeChange">
+          <option value="">全部类型</option>
+          <option value="spot">现货</option>
+          <option value="index">指数</option>
+          <option value="alpha">美股参考</option>
+        </select>
+      </div>
+      <p v-if="listLoading && !rules.length" class="loading-state">加载中…</p>
+      <p v-else-if="!rules.length" class="empty-state">暂无规则</p>
+      <article v-for="r in rules" :key="'m-' + r.id" class="rule-card">
+        <div class="rule-card-top">
+          <div>
+            <strong>{{ r.symbol }}</strong>
+            <span class="sub"> {{ assetTypeLabel(r.assetType) }}</span>
+          </div>
+          <span class="status-pill" :class="r.status">{{ r.status === 'active' ? '启用' : '停用' }}</span>
+        </div>
+        <div class="rule-card-meta">
+          <span>{{ shortRuleType(r.ruleType) }}</span>
+          <span>{{ formatParams(r) }}</span>
+          <span>{{ r.frequency }}<template v-if="r.frequency === 'loop'"> / {{ r.intervalMinutes }}m</template></span>
+        </div>
+        <div class="rule-card-foot">
+          <span class="muted">触发 {{ r.triggerCount }} · {{ formatTime(r.lastTriggeredAt) }}</span>
+          <div class="actions">
+            <button type="button" class="ghost-btn" @click="toggleStatus(r)">
+              {{ r.status === 'active' ? '停用' : '启用' }}
+            </button>
+            <button type="button" class="danger-btn" @click="onDelete(r)">删除</button>
+          </div>
+        </div>
+      </article>
+      <div v-if="total > pageSize" class="mobile-pager">
+        <button type="button" class="ghost-btn" :disabled="page <= 1 || listLoading" @click="loadRules(page - 1)">上一页</button>
+        <span>{{ page }} / {{ Math.max(1, Math.ceil(total / pageSize)) }}</span>
+        <button
+          type="button"
+          class="ghost-btn"
+          :disabled="page >= Math.ceil(total / pageSize) || listLoading"
+          @click="loadRules(page + 1)"
+        >
+          下一页
+        </button>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -461,9 +520,7 @@ async function onDelete(r: AlertRule) {
 }
 
 .alert-panel h2 {
-  margin: 0 0 12px;
-  font-size: 15px;
-  color: var(--text-strong);
+  margin: 0;
 }
 
 .form-grid {
@@ -484,13 +541,6 @@ async function onDelete(r: AlertRule) {
   }
 }
 
-.field {
-  display: grid;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
 .field input,
 .field select,
 .tool input,
@@ -498,7 +548,7 @@ async function onDelete(r: AlertRule) {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-size: 13px;
 }
@@ -534,47 +584,7 @@ async function onDelete(r: AlertRule) {
 }
 
 .primary-btn {
-  border: 0;
-  background: var(--coin);
-  color: #111;
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 10px 14px;
-  cursor: pointer;
   justify-self: start;
-}
-
-.primary-btn:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.ghost-btn,
-.danger-btn {
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.danger-btn {
-  border-color: color-mix(in srgb, #e5484d 50%, var(--line));
-  color: #e5484d;
-}
-
-.form-error {
-  margin: 0;
-  color: #e5484d;
-  font-size: 12px;
-}
-
-.form-ok {
-  margin: 0;
-  color: var(--coin);
-  font-size: 12px;
 }
 
 .tool {
@@ -590,23 +600,6 @@ async function onDelete(r: AlertRule) {
   min-width: 160px;
 }
 
-.pill {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-}
-
-.pill.active {
-  color: var(--coin);
-  border-color: color-mix(in srgb, var(--coin) 40%, var(--line));
-}
-
-.pill.disabled {
-  color: var(--muted);
-}
-
 .sub {
   margin-top: 2px;
   font-size: 11px;
@@ -620,7 +613,104 @@ async function onDelete(r: AlertRule) {
 
 .actions .ghost-btn,
 .actions .danger-btn {
-  margin-left: 4px;
+  margin-left: 0;
+}
+
+@media (min-width: 681px) {
+  .desktop-list :deep(.mp-table) {
+    min-width: 860px;
+  }
+
+  .desktop-list :deep(.mp-table td) {
+    line-height: 1.35;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .actions .ghost-btn,
+  .actions .danger-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+}
+
+.mobile-cards {
+  display: none;
+}
+
+.mobile-cards-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.mobile-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.mobile-filters select {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.rule-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.rule-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rule-card-meta {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.rule-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rule-card-foot .muted {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.mobile-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
 }
 
 @media (max-width: 680px) {
@@ -628,14 +718,17 @@ async function onDelete(r: AlertRule) {
     padding: 12px;
   }
 
-  .tool {
-    min-width: 0;
-    flex: 1 1 calc(50% - 8px);
+  .desktop-list {
+    display: none;
   }
 
-  .tool.grow {
-    flex: 1 1 100%;
-    min-width: 0;
+  .mobile-cards {
+    display: block;
+  }
+
+  .primary-btn {
+    width: 100%;
+    justify-self: stretch;
   }
 
   .actions {
@@ -645,12 +738,7 @@ async function onDelete(r: AlertRule) {
 
   .actions .ghost-btn,
   .actions .danger-btn {
-    margin: 4px 4px 0 0;
-  }
-
-  .primary-btn {
-    width: 100%;
-    justify-self: stretch;
+    margin: 0 6px 0 0;
   }
 }
 </style>

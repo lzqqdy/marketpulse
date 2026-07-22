@@ -363,7 +363,7 @@ function togglePanel() {
 
 .state-pill {
   justify-self: start;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   padding: 3px 6px;
   color: var(--bg);
   background: var(--muted);
@@ -371,17 +371,19 @@ function togglePanel() {
 }
 
 .state-pill.healthy {
-  background: var(--down);
+  background: var(--ok);
+  color: #fff;
 }
 
 .state-pill.stale,
 .state-pill.degraded {
   background: var(--warning);
+  color: #111;
 }
 
 .state-pill.circuit_open,
 .state-pill.unavailable {
-  background: var(--up);
+  background: var(--danger);
   color: #fff;
 }
 

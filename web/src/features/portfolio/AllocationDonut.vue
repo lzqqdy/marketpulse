@@ -8,11 +8,11 @@ const props = defineProps<{
 }>()
 
 const COLORS = [
-  '#f0b90b',
+  '#dbaa6a',
   '#f6465d',
   '#0ecb81',
-  '#3b82f6',
-  '#a78bfa',
+  '#5b8def',
+  '#9b7dd4',
   '#f97316',
   '#22d3ee',
   '#e879f9',

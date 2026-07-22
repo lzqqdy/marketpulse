@@ -335,6 +335,30 @@ const cards = computed<MetricCard[]>(() => [
   color: var(--usd);
 }
 
+@media (max-width: 680px) {
+  .macro-grid {
+    gap: 4px;
+    padding: 6px 6px 6px 0;
+  }
+
+  .card {
+    min-height: 58px;
+    padding: 5px 4px;
+  }
+
+  .index-title {
+    font-size: 10px;
+  }
+
+  .index-box {
+    font-size: 12px;
+  }
+
+  .index-desc {
+    font-size: 9px;
+  }
+}
+
 @media (max-width: 360px) {
   .metric-scroll {
     --col-w: calc((100cqw - 4px) / 3.2);

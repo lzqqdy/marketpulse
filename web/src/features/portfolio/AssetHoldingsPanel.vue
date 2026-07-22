@@ -366,28 +366,37 @@ defineExpose({ reload: load })
 }
 
 .table-wrap {
-  overflow-x: auto;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius, 8px);
   min-width: 0;
   max-width: 100%;
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
 }
 
 .holdings-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
   table-layout: fixed;
 }
 
 .holdings-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   text-align: left;
-  padding: 10px 12px;
-  color: var(--coin);
+  padding: 12px 14px;
+  color: var(--muted);
   font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  box-shadow: 0 1px 0 var(--line);
 }
 
 .holdings-table th.num,
@@ -398,13 +407,38 @@ defineExpose({ reload: load })
 }
 
 .holdings-table td {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
 }
 
+.holdings-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--hover) 42%, transparent);
+}
+
+.holdings-table tbody tr:hover td {
+  background: var(--hover-strong, var(--hover));
+}
+
 .holdings-table tr:last-child td {
   border-bottom: none;
+}
+
+@media (min-width: 681px) {
+  .table-wrap {
+    max-height: min(52vh, 520px);
+  }
+
+  .qty {
+    max-width: 140px;
+  }
+
+  .add-row {
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius, 8px);
+    background: color-mix(in srgb, var(--card-soft, var(--panel)) 78%, transparent);
+  }
 }
 
 .col-coin {

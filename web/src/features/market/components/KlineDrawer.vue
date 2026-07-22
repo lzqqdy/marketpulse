@@ -334,7 +334,7 @@ function onBackdrop(e: MouseEvent) {
   align-items: center;
   margin-left: 6px;
   padding: 1px 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 10px;
@@ -439,7 +439,7 @@ function onBackdrop(e: MouseEvent) {
 .live-dot {
   width: 5px;
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--down);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--down) 16%, transparent);
 }
@@ -486,7 +486,7 @@ function onBackdrop(e: MouseEvent) {
   right: 8px;
   z-index: 2;
   padding: 4px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   border: 1px solid var(--line);
   color: var(--warning);
@@ -587,7 +587,7 @@ function onBackdrop(e: MouseEvent) {
   transform: translateX(-50%);
   max-width: calc(100% - 24px);
   padding: 5px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--up) 40%, transparent);
   color: var(--up);
@@ -615,7 +615,7 @@ function onBackdrop(e: MouseEvent) {
 
 .latest-btn {
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--warning);
   font-size: 11px;

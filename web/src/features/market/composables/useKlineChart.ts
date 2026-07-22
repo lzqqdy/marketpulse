@@ -16,7 +16,7 @@ import { KLINE_INITIAL_VISIBLE_BARS } from '@/features/market/types/chart'
 const MA_LINES = [
   { period: 5, color: '#f0b90b' },
   { period: 10, color: '#22d3ee' },
-  { period: 20, color: '#a78bfa' },
+  { period: 20, color: '#9b7dd4' },
   { period: 60, color: '#f97316' },
 ] as const
 

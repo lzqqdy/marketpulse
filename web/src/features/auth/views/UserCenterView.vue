@@ -499,25 +499,14 @@ function goHome() {
 
 .form-error {
   margin: 0;
-  font-size: 12px;
-  color: var(--warning);
 }
 
 .form-ok {
   margin: 0;
-  font-size: 12px;
-  color: var(--coin);
 }
 
 .primary-btn {
   justify-self: start;
-  border: 0;
-  border-radius: 6px;
-  background: var(--coin);
-  color: #111;
-  font-weight: 700;
-  padding: 10px 16px;
-  cursor: pointer;
 }
 
 .primary-btn:disabled {

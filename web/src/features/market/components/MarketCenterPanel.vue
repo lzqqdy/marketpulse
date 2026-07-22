@@ -741,7 +741,7 @@ onUnmounted(() => {
   display: flex;
   width: 100%;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
   background: var(--hover);
 }

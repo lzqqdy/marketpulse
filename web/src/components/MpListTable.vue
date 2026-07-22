@@ -127,7 +127,7 @@ function sortMark(col: MpColumn): string {
 .mp-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
   max-width: 100%;
 }
@@ -136,36 +136,61 @@ function sortMark(col: MpColumn): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
 .mp-list-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: end;
 }
 
 .mp-list-scroll {
-  overflow-x: auto;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius, 8px);
   min-width: 0;
   max-width: 100%;
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
 }
 
 .mp-table {
   width: 100%;
-  border-collapse: collapse;
-  min-width: 640px;
-  font-size: 12px;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 720px;
+  font-size: 13px;
+}
+
+@media (min-width: 681px) {
+  .mp-list-toolbar {
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius, 8px);
+    background: color-mix(in srgb, var(--card-soft, var(--panel)) 78%, transparent);
+  }
+
+  .mp-list-scroll {
+    max-height: min(64vh, 760px);
+  }
+
+  .mp-pager {
+    justify-content: space-between;
+    padding: 2px 4px;
+  }
+
+  .mp-pager > span {
+    margin-right: auto;
+  }
 }
 
 @media (max-width: 680px) {
   .mp-table {
     min-width: 0;
+    font-size: 12px;
   }
 
   .mp-pager {
@@ -181,18 +206,24 @@ function sortMark(col: MpColumn): string {
 
 .mp-table th,
 .mp-table td {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   color: var(--text);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .mp-table th {
-  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--panel) 94%, var(--card, transparent));
   color: var(--muted);
   font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   user-select: none;
+  box-shadow: 0 1px 0 var(--line);
 }
 
 .mp-table th.sortable {
@@ -215,18 +246,23 @@ function sortMark(col: MpColumn): string {
   opacity: 0.7;
 }
 
+.mp-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--hover) 42%, transparent);
+}
+
 .mp-table tbody tr:last-child td {
   border-bottom: 0;
 }
 
 .mp-table tbody tr:hover td {
-  background: var(--hover);
+  background: var(--hover-strong, var(--hover));
 }
 
 .empty {
   text-align: center;
   color: var(--muted);
-  padding: 20px 12px !important;
+  padding: 28px 12px !important;
+  font-size: 13px;
 }
 
 .mp-pager {
@@ -243,8 +279,8 @@ function sortMark(col: MpColumn): string {
   border: 1px solid var(--line);
   background: transparent;
   color: var(--text);
-  border-radius: 6px;
-  padding: 6px 10px;
+  border-radius: var(--radius-sm, 6px);
+  padding: 6px 12px;
   font-size: 12px;
   cursor: pointer;
 }
@@ -258,7 +294,7 @@ function sortMark(col: MpColumn): string {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
-  border-radius: 6px;
+  border-radius: var(--radius-sm, 6px);
   padding: 6px 8px;
   font-size: 12px;
 }

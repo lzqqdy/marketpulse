@@ -533,7 +533,7 @@ function markerIcon(marker: IndexMapItem['marker']) {
   width: var(--bubble-size);
   height: var(--bubble-size);
   border: 2px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
+  border-radius: 50%;
   color: #fff;
   background: rgba(3, 130, 24, 0.88);
   box-shadow: 0 0 0 4px rgba(3, 130, 24, 0.16);
@@ -596,7 +596,7 @@ function markerIcon(marker: IndexMapItem['marker']) {
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 999px;
+  border-radius: 50%;
   background: color-mix(in srgb, var(--panel) 84%, transparent);
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   font-size: 12px;

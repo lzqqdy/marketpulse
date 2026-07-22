@@ -40,14 +40,14 @@ const dailyPoints = computed(() =>
   (series.value?.points ?? []).map((p) => ({ date: p.date, value: p.dailyProfit })),
 )
 
-usePortfolioLineChart(trendEl, trendPoints, { kind: 'area' })
+usePortfolioLineChart(trendEl, trendPoints, { kind: 'area', colorToken: '--accent' })
 usePortfolioLineChart(profitEl, profitPoints, {
   kind: 'line',
-  lineColor: '#3b82f6',
+  colorToken: '--chart-2',
 })
 usePortfolioLineChart(rateEl, ratePoints, {
   kind: 'line',
-  lineColor: '#a78bfa',
+  colorToken: '--chart-3',
 })
 usePortfolioLineChart(dailyEl, dailyPoints, { kind: 'histogram', signedBars: true })
 

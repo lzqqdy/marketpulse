@@ -207,11 +207,21 @@ defineExpose({ reload: () => load(page.value) })
 }
 
 :deep(tr.zebra td) {
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  background: transparent;
 }
 
 :deep(.mp-list) {
   min-width: 0;
+}
+
+@media (min-width: 681px) {
+  :deep(.mp-table) {
+    min-width: 760px;
+  }
+
+  .num {
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 680px) {

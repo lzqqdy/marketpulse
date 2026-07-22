@@ -35,6 +35,7 @@ export function usePortfolioLineChart(
     /** For histogram: color by sign using --up/--down */
     signedBars?: boolean
     lineColor?: string
+    colorToken?: '--accent' | '--chart-2' | '--chart-3' | '--coin' | '--warning'
     areaTop?: string
     areaBottom?: string
   },
@@ -87,7 +88,8 @@ export function usePortfolioLineChart(
     const text = cssVar('--muted', '#848e9c')
     const line = cssVar('--line', '#2b3139')
     const muted = cssVar('--muted-2', '#5f5f5f')
-    const accent = opts.lineColor || cssVar('--accent', '#f0b90b')
+    const token = opts.colorToken || '--accent'
+    const accent = opts.lineColor || cssVar(token, cssVar('--accent', '#dbaa6a'))
     const up = cssVar('--up', '#f6465d')
 
     const chart = createChart(el, {
@@ -117,8 +119,8 @@ export function usePortfolioLineChart(
     if (opts.kind === 'area') {
       series = chart.addAreaSeries({
         lineColor: accent,
-        topColor: opts.areaTop || 'rgba(240, 185, 11, 0.35)',
-        bottomColor: opts.areaBottom || 'rgba(240, 185, 11, 0.02)',
+        topColor: opts.areaTop || `${accent}59`,
+        bottomColor: opts.areaBottom || `${accent}05`,
         lineWidth: 2,
         priceLineVisible: false,
       })

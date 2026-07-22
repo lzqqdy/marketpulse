@@ -31,14 +31,16 @@ async function onSubmit() {
 
 <template>
   <div class="auth-page">
+    <div class="auth-glow" aria-hidden="true" />
     <header class="auth-top">
       <RouterLink class="brand" to="/">MarketPulse</RouterLink>
-      <button type="button" class="theme-btn" :aria-label="themeStore.mode === 'dark' ? '浅色' : '深色'" @click="themeStore.toggle">
+      <button type="button" class="ghost-btn theme-btn" :aria-label="themeStore.mode === 'dark' ? '浅色' : '深色'" @click="themeStore.toggle">
         {{ themeStore.mode === 'dark' ? '浅色' : '深色' }}
       </button>
     </header>
 
     <section class="auth-card">
+      <p class="eyebrow">个人行情看板</p>
       <h1>登录</h1>
       <p class="hint">手机号 + 密码登录。账号由管理员录入，暂不开放注册。</p>
 
@@ -64,10 +66,29 @@ async function onSubmit() {
 
 <style scoped>
 .auth-page {
+  position: relative;
   min-height: calc(100vh - 36px);
   display: flex;
   flex-direction: column;
   gap: 28px;
+  overflow: hidden;
+}
+
+.auth-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 55%;
+  background:
+    radial-gradient(ellipse 70% 60% at 20% 30%, color-mix(in srgb, var(--coin) 22%, transparent), transparent 70%),
+    radial-gradient(ellipse 55% 50% at 85% 20%, color-mix(in srgb, var(--chart-2) 16%, transparent), transparent 65%);
+  z-index: 0;
+}
+
+.auth-top,
+.auth-card {
+  position: relative;
+  z-index: 1;
 }
 
 .auth-top {
@@ -77,34 +98,41 @@ async function onSubmit() {
 }
 
 .brand {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-strong);
   text-decoration: none;
+  letter-spacing: 0.02em;
 }
 
 .theme-btn {
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--muted);
-  border-radius: 6px;
   padding: 6px 10px;
   font-size: 12px;
-  cursor: pointer;
+  color: var(--muted);
 }
 
 .auth-card {
   width: min(100%, 420px);
   margin: 0 auto;
-  padding: 22px 18px;
-  background: var(--card);
-  border-radius: 8px;
-  text-align: left;
+  padding: 24px 20px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--coin);
 }
 
 .auth-card h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 24px;
   color: var(--text-strong);
 }
 
@@ -120,48 +148,11 @@ async function onSubmit() {
   gap: 12px;
 }
 
-.field {
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.field input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 10px 12px;
-  font-size: 15px;
-}
-
-.field input:focus {
-  outline: 1px solid var(--coin);
-}
-
-.form-error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--warning);
-}
-
 .primary-btn {
+  width: 100%;
   margin-top: 4px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--coin);
-  color: #111;
-  font-weight: 700;
-  padding: 11px 14px;
-  cursor: pointer;
-}
-
-.primary-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  padding: 12px 14px;
+  font-size: 15px;
 }
 
 .back-link {
@@ -169,5 +160,10 @@ async function onSubmit() {
   margin-top: 16px;
   font-size: 13px;
   color: var(--muted);
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--coin);
 }
 </style>

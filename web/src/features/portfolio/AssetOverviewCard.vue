@@ -110,9 +110,6 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
 .overview-title {
   margin: 0 0 14px;
   text-align: center;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--coin);
 }
 
 .block {
