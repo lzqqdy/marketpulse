@@ -603,13 +603,13 @@ onUnmounted(() => {
 }
 
 .mc-block {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--line);
 }
 
 .market-center > .mc-block:first-of-type {
-  margin-top: 8px;
+  margin-top: 6px;
   padding-top: 0;
   border-top: none;
 }

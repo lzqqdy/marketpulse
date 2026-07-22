@@ -115,7 +115,14 @@ function formatAlphaPrice(value: number) {
 .alpha-panel {
   width: 100%;
   border-top: 1px solid rgba(148, 163, 184, 0.14);
-  padding-top: 12px;
+  padding-top: 10px;
+}
+
+@media (min-width: 900px) {
+  .alpha-panel {
+    border-top: 0;
+    padding-top: 0;
+  }
 }
 
 .alpha-header {

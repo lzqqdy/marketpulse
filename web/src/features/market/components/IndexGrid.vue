@@ -339,7 +339,7 @@ function markerIcon(marker: IndexMapItem['marker']) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 2px 8px;
+  padding: 0 2px 6px;
 }
 
 .panel-title {
