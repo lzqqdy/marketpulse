@@ -417,8 +417,8 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/v1/alerts/rules` | 规则分页列表；筛选 `status`/`assetType`/`symbol`/`ruleType`；排序 `sortBy`/`sortOrder` |
-| POST | `/api/v1/alerts/rules` | 创建规则（创建时校验条件未满足） |
+| GET | `/api/v1/alerts/rules` | 规则分页列表；筛选 `status`/`assetType`/`symbol`/`ruleType`；排序 `sortBy`/`sortOrder`；`assetType` ∈ `spot\|index\|alpha` |
+| POST | `/api/v1/alerts/rules` | 创建规则（`assetType` 含美股参考 `alpha`；创建时校验条件未满足） |
 | PATCH | `/api/v1/alerts/rules/:id` | 更新规则 |
 | DELETE | `/api/v1/alerts/rules/:id` | 软删规则 |
 | GET | `/api/v1/alerts/deliveries` | 推送记录分页；筛选 `channel`/`status`/`assetType`/`symbol`/`ruleType`/`ruleId`；排序 `sortBy`/`sortOrder` |

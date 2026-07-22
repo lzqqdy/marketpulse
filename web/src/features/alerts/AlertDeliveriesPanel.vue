@@ -170,6 +170,7 @@ function formatTime(ts: number): string {
             <option value="">全部</option>
             <option value="spot">现货</option>
             <option value="index">指数</option>
+            <option value="alpha">美股参考</option>
           </select>
         </label>
         <label class="tool grow">
@@ -198,7 +199,7 @@ function formatTime(ts: number): string {
         <td>{{ formatTime(d.createdAt) }}</td>
         <td>
           <strong>{{ d.symbol }}</strong>
-          <div class="sub">{{ d.assetType === 'spot' ? '现货' : '指数' }}</div>
+          <div class="sub">{{ d.assetType === 'spot' ? '现货' : d.assetType === 'alpha' ? '美股参考' : '指数' }}</div>
         </td>
         <td>
           <div class="title">{{ d.title }}</div>

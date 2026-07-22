@@ -1,6 +1,6 @@
 /** 与 docs/RFC-002 §11 / specs/004-alert-push 对齐 */
 
-export type AlertAssetType = 'spot' | 'index'
+export type AlertAssetType = 'spot' | 'index' | 'alpha'
 export type AlertFrequency = 'once' | 'loop' | 'daily'
 export type AlertStatus = 'active' | 'disabled'
 export type AlertChannel = 'in_app' | 'email' | 'pushplus'

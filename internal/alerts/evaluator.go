@@ -159,6 +159,25 @@ func (e *Evaluator) processSnapshot() {
 		amp, ready := e.windows.Update(key, idx.Price, now)
 		e.evaluateAsset(AssetIndex, id, idx.Price, amp, ready)
 	}
+
+	alphaRows := append(append([]marketdata.AlphaQuote(nil), snap.Alpha.Indices...), snap.Alpha.Stocks...)
+	for _, row := range alphaRows {
+		if row.Price <= 0 {
+			continue
+		}
+		id := strings.ToLower(strings.TrimSpace(row.ID))
+		if id == "" {
+			continue
+		}
+		key := indexKey(AssetAlpha, id)
+		last, ok := e.lastPrices[key]
+		if ok && last == row.Price {
+			continue
+		}
+		e.lastPrices[key] = row.Price
+		amp, ready := e.windows.Update(key, row.Price, now)
+		e.evaluateAsset(AssetAlpha, id, row.Price, amp, ready)
+	}
 }
 
 func (e *Evaluator) evaluateAsset(assetType, symbol string, price, amp float64, windowReady bool) {
@@ -210,6 +229,22 @@ func (e *Evaluator) triggerMetaFor(assetType, symbol string, price, amp float64)
 			meta.DisplayName = displayName(AssetIndex, q.ID, q.Name)
 			return meta
 		}
+	case AssetAlpha:
+		if q, ok := e.md.AlphaQuote(symbol); ok {
+			if q.Price > 0 {
+				meta.Price = q.Price
+			}
+			meta.ChangePct = q.ChangeDayPct
+			if meta.ChangePct == 0 {
+				meta.ChangePct = q.Change24hPct
+			}
+			live := strings.TrimSpace(q.Name)
+			if live == "" {
+				live = q.Symbol
+			}
+			meta.DisplayName = displayName(AssetAlpha, q.ID, live)
+			return meta
+		}
 	}
 	meta.DisplayName = displayName(assetType, symbol, "")
 	return meta
@@ -221,7 +256,7 @@ func (e *Evaluator) WindowAmplitude(assetType, symbol string) (float64, bool) {
 }
 
 func normalizeIndexSymbol(assetType, symbol string) string {
-	if assetType == AssetIndex {
+	if assetType == AssetIndex || assetType == AssetAlpha {
 		return strings.ToLower(strings.TrimSpace(symbol))
 	}
 	return normalizeSpotBase(symbol)

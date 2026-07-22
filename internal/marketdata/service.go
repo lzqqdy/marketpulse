@@ -37,6 +37,7 @@ type ProviderStatusResponse = ingest.ProviderStatusResponse
 type Snapshot = store.Snapshot
 type Quote = store.Quote
 type IndexQuote = store.IndexQuote
+type AlphaQuote = store.AlphaQuote
 
 // KlineResponse is returned by market kline APIs.
 type KlineResponse struct {
@@ -53,6 +54,7 @@ type MarketDataService interface {
 	Snapshot() Snapshot
 	Quote(symbol string) (Quote, bool)
 	IndexQuote(id string) (IndexQuote, bool)
+	AlphaQuote(id string) (AlphaQuote, bool)
 	AddListener(listener store.ChangeListener)
 	Version() uint64
 	SymbolCount() int
@@ -139,6 +141,25 @@ func (s *Service) IndexQuote(id string) (IndexQuote, bool) {
 		}
 	}
 	return IndexQuote{}, false
+}
+
+func (s *Service) AlphaQuote(id string) (AlphaQuote, bool) {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if id == "" {
+		return AlphaQuote{}, false
+	}
+	snap := s.Snapshot().Alpha
+	for _, row := range snap.Indices {
+		if strings.ToLower(row.ID) == id {
+			return row, true
+		}
+	}
+	for _, row := range snap.Stocks {
+		if strings.ToLower(row.ID) == id {
+			return row, true
+		}
+	}
+	return AlphaQuote{}, false
 }
 
 func (s *Service) AddListener(fn store.ChangeListener) {

@@ -17,8 +17,11 @@ func TestDisplayName_indexChinese(t *testing.T) {
 	}
 }
 
-func TestDisplayName_spotTicker(t *testing.T) {
-	if got := displayName(AssetSpot, "BTCUSDT", ""); got != "BTC" {
+func TestDisplayName_alphaPrefersChineseName(t *testing.T) {
+	if got := displayName(AssetAlpha, "qqq", "纳指ETF"); got != "纳指ETF" {
+		t.Fatalf("got %q", got)
+	}
+	if got := displayName(AssetAlpha, "aapl", ""); got != "AAPL" {
 		t.Fatalf("got %q", got)
 	}
 }

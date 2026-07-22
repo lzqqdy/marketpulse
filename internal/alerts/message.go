@@ -57,6 +57,16 @@ func displayName(assetType, symbol, liveName string) string {
 		}
 		return live
 	}
+	if assetType == AssetAlpha {
+		if live != "" && !looksLikeRawID(live) {
+			return live
+		}
+		id := strings.ToLower(strings.TrimSpace(symbol))
+		if id != "" {
+			return strings.ToUpper(id)
+		}
+		return live
+	}
 	base := normalizeSpotBase(symbol)
 	if n, ok := spotDisplayNames[base]; ok {
 		return n

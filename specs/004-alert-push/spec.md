@@ -114,7 +114,7 @@
 
 **Why this priority**: 对齐产品目标；可分期落地标的，但契约需统一。
 
-**Independent Test**: 对 `asset_type=spot` 与 `asset_type=index` 各建一条规则，随 Store 更新进入评测；无数据/不健康源不可选或创建失败。
+**Independent Test**: 对 `asset_type=spot` / `index` / `alpha`（美股参考）各建一条规则，随 Store 更新进入评测；无数据/不健康源不可选或创建失败。
 
 **Acceptance Scenarios**:
 

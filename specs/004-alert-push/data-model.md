@@ -11,7 +11,7 @@
 |----|------|------|
 | id | BIGINT PK AI | |
 | user_id | BIGINT NOT NULL | 对应 users.id |
-| asset_type | VARCHAR(32) NOT NULL | `spot` / `index` /（预留 `fx` `macro`） |
+| asset_type | VARCHAR(32) NOT NULL | `spot` / `index` / `alpha`（美股参考） /（预留 `fx` `macro`） |
 | symbol | VARCHAR(64) NOT NULL | 如 `BTCUSDT`、指数 id |
 | field | VARCHAR(32) NOT NULL DEFAULT `price` | 监控字段 |
 | rule_type | TINYINT UNSIGNED NOT NULL | 1–5 |

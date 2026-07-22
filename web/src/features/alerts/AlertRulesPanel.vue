@@ -60,7 +60,7 @@ const filters = reactive({
 })
 
 const form = reactive({
-  assetType: 'spot' as 'spot' | 'index',
+  assetType: 'spot' as 'spot' | 'index' | 'alpha',
   symbol: '',
   ruleType: 1,
   target: '',
@@ -208,6 +208,13 @@ function formatTime(ts: number | null): string {
   return new Date(ts * 1000).toLocaleString()
 }
 
+function assetTypeLabel(t: string): string {
+  if (t === 'spot') return '现货'
+  if (t === 'index') return '指数'
+  if (t === 'alpha') return '美股参考'
+  return t
+}
+
 function shortRuleType(t: number): string {
   return RULE_TYPE_OPTIONS.find((o) => o.value === t)?.label.replace(/（.*）/, '') ?? `类型 ${t}`
 }
@@ -284,6 +291,7 @@ async function onDelete(r: AlertRule) {
         <select v-model="form.assetType" @change="onAssetChange">
           <option value="spot">现货</option>
           <option value="index">指数</option>
+          <option value="alpha">美股参考</option>
         </select>
       </label>
       <label class="field">
@@ -396,6 +404,7 @@ async function onDelete(r: AlertRule) {
             <option value="">全部</option>
             <option value="spot">现货</option>
             <option value="index">指数</option>
+            <option value="alpha">美股参考</option>
           </select>
         </label>
         <label class="tool grow">
@@ -420,7 +429,7 @@ async function onDelete(r: AlertRule) {
       <tr v-for="r in rules" :key="r.id">
         <td>
           <strong>{{ r.symbol }}</strong>
-          <div class="sub">{{ r.assetType === 'spot' ? '现货' : '指数' }}</div>
+          <div class="sub">{{ assetTypeLabel(r.assetType) }}</div>
         </td>
         <td>
           <span class="pill" :class="r.status">{{ r.status === 'active' ? '启用' : '停用' }}</span>

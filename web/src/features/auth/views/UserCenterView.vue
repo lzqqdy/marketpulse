@@ -7,12 +7,10 @@ import { useAuthStore } from '@/features/auth/stores/auth'
 import { compressAvatar } from '@/features/auth/utils/compressImage'
 import { useThemeStore } from '@/stores/theme'
 
-type UserTab = 'profile' | 'notify' | 'watchlist' | 'alerts'
+type UserTab = 'profile' | 'alerts'
 
 const TABS: { id: UserTab; label: string }[] = [
   { id: 'profile', label: '账户资料' },
-  { id: 'notify', label: '推送设置' },
-  { id: 'watchlist', label: '首页自选' },
   { id: 'alerts', label: '价格告警' },
 ]
 
@@ -237,43 +235,6 @@ function goHome() {
           </form>
         </section>
       </template>
-
-      <section v-else-if="activeTab === 'notify'" class="user-card placeholder-card">
-        <div class="placeholder-badge">即将推出</div>
-        <h2>推送设置</h2>
-        <p class="placeholder-desc">配置微信 / 邮件等告警通道，与上方微信推送 Token 联动。</p>
-        <div class="placeholder-list" aria-hidden="true">
-          <div class="placeholder-row">
-            <span>微信推送</span>
-            <span class="switch-mock on" />
-          </div>
-          <div class="placeholder-row">
-            <span>邮件通知</span>
-            <span class="switch-mock" />
-          </div>
-          <div class="placeholder-row">
-            <span>站内提醒</span>
-            <span class="switch-mock on" />
-          </div>
-        </div>
-      </section>
-
-      <section v-else-if="activeTab === 'watchlist'" class="user-card placeholder-card">
-        <div class="placeholder-badge">即将推出</div>
-        <h2>首页自选</h2>
-        <p class="placeholder-desc">自定义首页展示的币种、指数与板块顺序。</p>
-        <div class="placeholder-chips" aria-hidden="true">
-          <span class="chip">BTC</span>
-          <span class="chip">ETH</span>
-          <span class="chip">上证</span>
-          <span class="chip muted">+ 添加</span>
-        </div>
-        <div class="placeholder-skel">
-          <div class="skel-line" />
-          <div class="skel-line short" />
-          <div class="skel-line" />
-        </div>
-      </section>
 
       <template v-else>
         <AlertRulesPanel />
@@ -537,137 +498,6 @@ function goHome() {
 .primary-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.placeholder-card {
-  position: relative;
-  min-height: 220px;
-}
-
-.placeholder-badge {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--coin) 45%, var(--line));
-  color: var(--coin);
-  background: color-mix(in srgb, var(--coin) 12%, transparent);
-}
-
-.placeholder-desc {
-  margin: 0 0 16px;
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.placeholder-list {
-  display: grid;
-  gap: 10px;
-}
-
-.placeholder-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 6px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  font-size: 13px;
-  color: var(--text);
-}
-
-.placeholder-row.muted-row {
-  color: var(--muted);
-  border-style: dashed;
-  justify-content: center;
-}
-
-.switch-mock {
-  width: 36px;
-  height: 20px;
-  border-radius: 999px;
-  background: var(--line);
-  position: relative;
-}
-
-.switch-mock::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--muted-2);
-}
-
-.switch-mock.on {
-  background: color-mix(in srgb, var(--coin) 55%, var(--line));
-}
-
-.switch-mock.on::after {
-  left: 18px;
-  background: #111;
-}
-
-.placeholder-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.chip {
-  padding: 6px 12px;
-  border-radius: 6px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  font-size: 12px;
-  color: var(--text);
-}
-
-.chip.muted {
-  color: var(--muted);
-  border-style: dashed;
-}
-
-.placeholder-skel {
-  display: grid;
-  gap: 8px;
-}
-
-.skel-line {
-  height: 12px;
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--line) 80%, transparent),
-    color-mix(in srgb, var(--muted) 22%, transparent),
-    color-mix(in srgb, var(--line) 80%, transparent)
-  );
-  background-size: 200% 100%;
-}
-
-.skel-line.short {
-  width: 56%;
-}
-
-.pill {
-  font-size: 11px;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 2px 8px;
-}
-
-.pill.warn {
-  color: var(--warning);
-  border-color: color-mix(in srgb, var(--warning) 45%, var(--line));
 }
 
 .user-dock {

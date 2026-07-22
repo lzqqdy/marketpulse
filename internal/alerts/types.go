@@ -7,6 +7,7 @@ import (
 const (
 	AssetSpot  = "spot"
 	AssetIndex = "index"
+	AssetAlpha = "alpha"
 
 	FrequencyOnce  = "once"
 	FrequencyLoop  = "loop"

@@ -314,7 +314,7 @@ func (s *service) InboxSnapshot(ctx context.Context, userID int64) ([]InboxItem,
 
 func (s *service) buildRule(_ context.Context, userID int64, in CreateRuleInput) (Rule, error) {
 	assetType := strings.ToLower(strings.TrimSpace(in.AssetType))
-	if assetType != AssetSpot && assetType != AssetIndex {
+	if assetType != AssetSpot && assetType != AssetIndex && assetType != AssetAlpha {
 		return Rule{}, ErrInvalidParams
 	}
 	symbol, err := normalizeSymbol(assetType, in.Symbol)
@@ -371,6 +371,13 @@ func (s *service) currentPrice(assetType, symbol string) (float64, bool) {
 			return 0, false
 		}
 		return q.Price, true
+	case AssetAlpha:
+		id := strings.ToLower(strings.TrimSpace(symbol))
+		q, ok := s.md.AlphaQuote(id)
+		if !ok || q.Price <= 0 {
+			return 0, false
+		}
+		return q.Price, true
 	default:
 		return 0, false
 	}
@@ -381,14 +388,20 @@ func normalizeSymbol(assetType, symbol string) (string, error) {
 	if symbol == "" {
 		return "", ErrInvalidParams
 	}
-	if assetType == AssetIndex {
-		return strings.ToLower(symbol), nil
+	switch assetType {
+	case AssetIndex, AssetAlpha:
+		id := strings.ToLower(symbol)
+		if id == "" {
+			return "", ErrInvalidParams
+		}
+		return id, nil
+	default:
+		base := normalizeSpotBase(symbol)
+		if base == "" {
+			return "", ErrInvalidParams
+		}
+		return base + "USDT", nil
 	}
-	base := normalizeSpotBase(symbol)
-	if base == "" {
-		return "", ErrInvalidParams
-	}
-	return base + "USDT", nil
 }
 
 func normalizeSpotBase(symbol string) string {
