@@ -77,8 +77,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("dry_run=%v snapshots_inserted=%d skipped=%d settings=%d holdings=%d errors=%d\n",
-		*dryRun, report.SnapshotsInserted, report.SnapshotsSkipped, report.SettingsUpdated, report.HoldingsUpdated, len(report.Errors))
+	fmt.Printf("dry_run=%v snapshots_inserted=%d skipped=%d unmapped_skipped=%d settings=%d holdings=%d errors=%d\n",
+		*dryRun, report.SnapshotsInserted, report.SnapshotsSkipped, report.UnmappedSkipped, report.SettingsUpdated, report.HoldingsUpdated, len(report.Errors))
 	for i, e := range report.Errors {
 		if i >= 20 {
 			fmt.Printf("... %d more errors\n", len(report.Errors)-20)

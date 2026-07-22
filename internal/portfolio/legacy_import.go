@@ -44,6 +44,7 @@ type LegacyAssetRow struct {
 type ImportReport struct {
 	SnapshotsInserted int
 	SnapshotsSkipped  int
+	UnmappedSkipped   int // rows ignored because old uid not in UIDMap
 	SettingsUpdated   int
 	HoldingsUpdated   int
 	Errors            []string
@@ -60,7 +61,8 @@ func ImportLegacy(ctx context.Context, db *sql.DB, logs []LegacyAssetsLogRow, as
 	for _, row := range logs {
 		newUID, ok := opt.UIDMap[row.UID]
 		if !ok {
-			report.Errors = append(report.Errors, fmt.Sprintf("no uid map for %d", row.UID))
+			// Only mapped uids are imported; others are intentional skips, not errors.
+			report.UnmappedSkipped++
 			continue
 		}
 		date := strings.TrimSpace(row.Date)
