@@ -36,9 +36,9 @@ type Service struct {
 	alphaItems     atomic.Value // []alpha.ResolvedItem
 	bitgetItems    atomic.Value // []bitget.ResolvedItem
 
-	sgeGoldMu sync.RWMutex
-	sgeGold   store.IndexQuote
-	sgeGoldOK bool
+	domesticGoldMu sync.RWMutex
+	domesticGold   store.IndexQuote
+	domesticGoldOK bool
 }
 
 // New creates an ingest service.
@@ -71,7 +71,7 @@ func New(cfg *config.Config, st *store.MarketStore) *Service {
 	s.ingestStatus.set("taker_buy_sell", "starting")
 	s.ingestStatus.set("liquidations", "starting")
 	s.ingestStatus.set("liquidations_ws", "starting")
-	s.ingestStatus.set("sge_gold", "starting")
+	s.ingestStatus.set("domestic_gold", "starting")
 	s.ingestStatus.set("market_center", "starting")
 	s.ingestStatus.set("expressnews", "starting")
 	if cfg.Alpha.Enabled {
@@ -107,10 +107,10 @@ func (s *Service) seedAlphaDefaults() {
 	s.store.SetAlphaDefaults(toRows(s.cfg.Alpha.Indices, "index"), toRows(s.cfg.Alpha.Stocks, "stock"))
 }
 
-func (s *Service) indicesWithSGE(rows []store.IndexQuote) []store.IndexQuote {
-	s.sgeGoldMu.RLock()
-	defer s.sgeGoldMu.RUnlock()
-	if !s.sgeGoldOK {
+func (s *Service) indicesWithDomesticGold(rows []store.IndexQuote) []store.IndexQuote {
+	s.domesticGoldMu.RLock()
+	defer s.domesticGoldMu.RUnlock()
+	if !s.domesticGoldOK {
 		return rows
 	}
 	out := make([]store.IndexQuote, 0, len(rows)+1)
@@ -119,8 +119,7 @@ func (s *Service) indicesWithSGE(rows []store.IndexQuote) []store.IndexQuote {
 			out = append(out, r)
 		}
 	}
-	q := s.sgeGold
-	out = append(out, q)
+	out = append(out, s.domesticGold)
 	return out
 }
 
@@ -186,7 +185,7 @@ func (s *Service) onBaiduIndexQuotes(rows map[string]store.IndexQuote) {
 	now := time.Now().UTC()
 	s.equityCache.merge(rows, now)
 	defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
-	s.store.SetIndices(s.indicesWithSGE(s.equityCache.snapshot(defs, false)))
+	s.store.SetIndices(s.indicesWithDomesticGold(s.equityCache.snapshot(defs, false)))
 	s.providerHealth.ReportSuccess("baidu_index", 0)
 	s.providerHealth.ReportUsed("baidu_index", true)
 	s.ingestStatus.set("equity_baidu", "ok")

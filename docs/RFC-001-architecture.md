@@ -233,7 +233,7 @@ marketpulse/
 | USDT/CNY | OKX C2C | — | REST | 30s |
 | USD/CNY | Frankfurter | — | REST | 1h |
 | 股指 + 商品 | **Baidu Finance** | Tencent、Eastmoney | WS + REST | 1m/1h |
-| 国内黄金 | 上金所 SGE | — | REST/HTML | 1m/1h |
+| 国内黄金 | 东财 AU9999 | 新浪黄金延期 | REST | 1m/1h |
 | 恐惧贪婪 | alternative.me | — | REST | 5min |
 | 全局市值/元数据 | CoinGecko | — | REST | 5min |
 | 衍生品指标 | Binance USD-M Futures | — | REST | 60s |

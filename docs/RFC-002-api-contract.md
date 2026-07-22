@@ -398,7 +398,7 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
     "open_interest": "ok",
     "liquidations": "ok",
     "liquidations_ws": "connected",
-    "sge_gold": "ok",
+    "domestic_gold": "ok",
     "market_center": "ok",
     "expressnews": "ok",
     "alpha_poll": "ok"

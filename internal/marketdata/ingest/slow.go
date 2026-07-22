@@ -20,7 +20,7 @@ func (s *Service) startSlowIngest(ctx context.Context) {
 	go runPoller(ctx, s.cfg.Ingest.OTC.USDTCNYInterval, "otc", s.pollOTC)
 	go runPoller(ctx, s.cfg.Ingest.Forex.USDCNYInterval, "forex", s.pollForex)
 	go runDynamicPoller(ctx, "equity", s.nextEquityPollInterval, s.pollEquity)
-	go runDynamicPoller(ctx, "sge_gold", s.nextGoldPollInterval, s.pollSGE)
+	go runDynamicPoller(ctx, "domestic_gold", s.nextGoldPollInterval, s.pollDomesticGold)
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "macro", s.pollMacro)
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "crypto_meta", s.pollCryptoMeta)
 	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "long_short", s.pollLongShort)
@@ -87,7 +87,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
 	now := time.Now()
 	if rows, ok := s.equityCache.fresh(defs, now, equity.CacheTTL); ok {
-		s.store.SetIndices(s.indicesWithSGE(rows))
+		s.store.SetIndices(s.indicesWithDomesticGold(rows))
 		s.ingestStatus.set("equity", "ok")
 		return nil
 	}
@@ -95,7 +95,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	expired := s.equityCache.expiredDefs(defs, now, equity.CacheTTL)
 	if len(expired) == 0 {
 		rows := s.equityCache.snapshot(defs, false)
-		s.store.SetIndices(s.indicesWithSGE(rows))
+		s.store.SetIndices(s.indicesWithDomesticGold(rows))
 		s.ingestStatus.set("equity", "ok")
 		return nil
 	}
@@ -172,7 +172,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 		}
 		return nil
 	}
-	s.store.SetIndices(s.indicesWithSGE(rows))
+	s.store.SetIndices(s.indicesWithDomesticGold(rows))
 	if firstErr != nil || len(rows) < len(defs) || len(finalMissing) > 0 {
 		s.ingestStatus.set("equity", "degraded")
 		return nil
@@ -181,31 +181,44 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) pollSGE(ctx context.Context) error {
+func (s *Service) pollDomesticGold(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	start := time.Now()
-	q, err := metals.FetchAu9999(httpClient)
-	if err != nil {
-		s.ingestStatus.set("sge_gold", "error")
-		s.providerHealth.ReportFailure("sge_gold", err)
-		slog.Warn("sge gold fetch failed", "err", err)
-		return nil
+	q, err := metals.FetchEastmoneyGold(httpClient)
+	if err == nil {
+		s.providerHealth.ReportSuccess("eastmoney_gold", time.Since(start))
+		s.providerHealth.ReportUsed("eastmoney_gold", true)
+		s.providerHealth.ReportUsed("sina_gold", false)
+		s.ingestStatus.set("domestic_gold", "ok")
+	} else {
+		s.providerHealth.ReportFailure("eastmoney_gold", err)
+		s.providerHealth.ReportUsed("eastmoney_gold", false)
+		fbStart := time.Now()
+		q, err = metals.FetchSinaGold(httpClient)
+		if err != nil {
+			s.providerHealth.ReportFailure("sina_gold", err)
+			s.providerHealth.ReportUsed("sina_gold", false)
+			s.ingestStatus.set("domestic_gold", "error")
+			slog.Warn("domestic gold fetch failed", "err", err)
+			return nil
+		}
+		s.providerHealth.ReportSuccess("sina_gold", time.Since(fbStart))
+		s.providerHealth.ReportUsed("sina_gold", true)
+		s.ingestStatus.set("domestic_gold", "degraded")
+		slog.Warn("domestic gold using sina fallback", "latency_ms", time.Since(start).Milliseconds())
 	}
-	q.Source = "sge"
-	s.sgeGoldMu.Lock()
-	s.sgeGold = q
-	s.sgeGoldOK = true
-	s.sgeGoldMu.Unlock()
-	s.ingestStatus.set("sge_gold", "ok")
-	s.providerHealth.ReportSuccess("sge_gold", time.Since(start))
-	s.providerHealth.ReportUsed("sge_gold", true)
+
+	s.domesticGoldMu.Lock()
+	s.domesticGold = q
+	s.domesticGoldOK = true
+	s.domesticGoldMu.Unlock()
 
 	defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
 	rows := s.equityCache.snapshot(defs, false)
 	if len(rows) > 0 {
-		s.store.SetIndices(s.indicesWithSGE(rows))
+		s.store.SetIndices(s.indicesWithDomesticGold(rows))
 	}
 	return nil
 }

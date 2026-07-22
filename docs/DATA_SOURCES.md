@@ -14,7 +14,7 @@ The market data boundary is `internal/marketdata`. Other future modules should c
 | USD/CNY | Frankfurter | None | REST poll | `internal/marketdata/ingest/forex` |
 | Global indices and commodities | Baidu Finance | Tencent, Eastmoney | WS + REST poll | `internal/marketdata/ingest/baidu`, `internal/marketdata/ingest/equity` |
 | Index K lines | Baidu Finance | Eastmoney, Tencent | REST | `internal/marketdata/ingest/baidu`, `internal/marketdata/ingest/equity` |
-| Domestic gold | Shanghai Gold Exchange | SGE English delayed quote, daily report | REST/HTML poll | `internal/marketdata/ingest/metals` |
+| Domestic gold | Eastmoney AU9999 | Sina gold T+D (`gds_AUTD`) | REST poll | `internal/marketdata/ingest/metals` |
 | Macro | alternative.me, CoinGecko | Stablecoin market cap best-effort | REST poll | `internal/marketdata/ingest/macro` |
 | Crypto metadata | CoinGecko | None | REST poll | `internal/marketdata/ingest/crypto` |
 | Derivatives indicators | Binance USD-M Futures | None | REST poll | `internal/marketdata/ingest/derivatives` |
@@ -41,7 +41,8 @@ Current provider names:
 | `baidu_index` | Baidu Finance | Index quote primary |
 | `tencent_index` | Tencent | Index quote fallback |
 | `eastmoney_index` | Eastmoney | Index quote fallback |
-| `sge_gold` | SGE Gold | Domestic gold auxiliary |
+| `eastmoney_gold` | Eastmoney Gold | Domestic gold primary |
+| `sina_gold` | Sina Gold | Domestic gold fallback |
 | `coingecko_macro` | CoinGecko Macro | Macro primary |
 | `coingecko_meta` | CoinGecko Metadata | Crypto metadata auxiliary |
 | `binance_derivatives` | Binance Derivatives | Futures indicators primary |
@@ -107,7 +108,7 @@ dji, ixic, gspc,
 gold, silver, crude
 ```
 
-`sge-au9999` is appended separately by the SGE domestic gold poller.
+`sge-au9999` is appended separately by the domestic gold poller (Eastmoney → Sina).
 
 ### Baidu Finance Index Quotes
 
@@ -151,15 +152,15 @@ gold, silver, crude
 - Supported intervals: Baidu handles `1h`, `1d`, `1w`; `15m` falls back to Eastmoney.
 - K lines are cached by index/interval to avoid repeated upstream calls.
 
-### Domestic Gold SGE
+### Domestic Gold
 
 - Purpose: domestic Au99.99 RMB/gram quote.
-- Primary endpoint: `https://www.sge.com.cn/sjzx/yshqbg`
-- Fallback endpoint: `https://en.sgenow.cn/h5_data_DelayedQuotes`
-- Daily fallback endpoint: `https://www.sge.com.cn/sjzx/quotation_daily_new`
+- Primary endpoint: `GET https://push2.eastmoney.com/api/qt/stock/get?fltt=2&secid=118.AU9999`
+- Fallback endpoint: `GET https://hq.sinajs.cn/?list=gds_AUTD` (Referer: `https://finance.sina.com.cn`)
 - Polling follows gold market window: active `1m`, inactive `1h`.
-- Normalized id: `sge-au9999`.
-- Health: `sge_gold`.
+- Normalized id: `sge-au9999` (stable public id; UI label 国内金价).
+- Health: `eastmoney_gold` (primary), `sina_gold` (fallback).
+- Ingest status: `domestic_gold` (`ok` / `degraded` / `error`).
 
 ## Macro and Metadata
 

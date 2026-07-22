@@ -24,7 +24,7 @@
 | `marketdata/ingest/derivatives` | Binance 衍生品指标 + 爆仓 |
 | `marketdata/ingest/bitget` | Bitget 美股参考行情/K 线 |
 | `marketdata/ingest/alpha` | Binance Alpha 备用 |
-| `marketdata/ingest/metals` | 上金所国内黄金 |
+| `marketdata/ingest/metals` | 国内金价（东财主源，新浪降级） |
 | `marketdata/store` | 行情内存读模型（线程安全） |
 | `marketdata/stream` | 行情 WS 广播 + K 线 WS 订阅 |
 | `marketdata/marketcenter` | 行情中心按需 API（Baidu，短 TTL 缓存） |
