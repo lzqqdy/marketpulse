@@ -163,6 +163,22 @@ function sortMark(col: MpColumn): string {
   font-size: 12px;
 }
 
+@media (max-width: 680px) {
+  .mp-table {
+    min-width: 0;
+  }
+
+  .mp-pager {
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .mp-list-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .mp-table th,
 .mp-table td {
   padding: 10px 12px;

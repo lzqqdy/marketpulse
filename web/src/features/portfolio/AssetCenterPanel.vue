@@ -165,5 +165,25 @@ onUnmounted(() => {
   .asset-center :deep(.user-card) {
     padding: 12px;
   }
+
+  .subtabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .subtab {
+    border: 0;
+    border-radius: 0;
+    padding: 10px 8px;
+    text-align: center;
+  }
+
+  .subtab + .subtab {
+    border-left: 1px solid var(--line);
+  }
 }
 </style>

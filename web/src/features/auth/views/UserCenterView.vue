@@ -588,11 +588,37 @@ function goHome() {
     bottom: 72px;
   }
 
+  .user-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+  }
+
   .user-tab {
-    flex: 1 1 0;
+    flex: none;
     min-width: 0;
-    padding-inline: 8px;
+    padding: 10px 4px;
     font-size: 12px;
+    text-align: center;
+  }
+
+  .card-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .avatar-mask {
+    opacity: 1;
+  }
+
+  .avatar-hint {
+    font-size: 12px;
+  }
+
+  .primary-btn {
+    width: 100%;
+    justify-self: stretch;
   }
 }
 </style>

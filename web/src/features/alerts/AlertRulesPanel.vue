@@ -622,4 +622,35 @@ async function onDelete(r: AlertRule) {
 .actions .danger-btn {
   margin-left: 4px;
 }
+
+@media (max-width: 680px) {
+  .user-card {
+    padding: 12px;
+  }
+
+  .tool {
+    min-width: 0;
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .tool.grow {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .actions {
+    text-align: left;
+    white-space: normal;
+  }
+
+  .actions .ghost-btn,
+  .actions .danger-btn {
+    margin: 4px 4px 0 0;
+  }
+
+  .primary-btn {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
 </style>

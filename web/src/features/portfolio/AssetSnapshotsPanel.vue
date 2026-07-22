@@ -1,18 +1,25 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import MpListTable from '@/components/MpListTable.vue'
 import type { MpColumn, MpSortOrder } from '@/components/mpListTable'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import * as api from './api'
 import type { PortfolioSnapshot } from './types'
 
-const COLUMNS: MpColumn[] = [
+const COLUMNS_FULL: MpColumn[] = [
   { key: 'date', label: '日期', sortable: true, width: '16%' },
   { key: 'totalValueCny', label: '总资产', sortable: true, width: '16%', align: 'right' },
   { key: 'dailyProfit', label: '日收益', sortable: true, width: '16%', align: 'right' },
   { key: 'dailyProfitRate', label: '日收益率', sortable: false, width: '14%', align: 'right' },
   { key: 'totalProfit', label: '累计收益', sortable: false, width: '18%', align: 'right' },
   { key: 'totalProfitRate', label: '累计收益率', sortable: false, width: '14%', align: 'right' },
+]
+
+const COLUMNS_COMPACT: MpColumn[] = [
+  { key: 'date', label: '日期', sortable: true, width: '22%' },
+  { key: 'totalValueCny', label: '总资产', sortable: true, width: '26%', align: 'right' },
+  { key: 'dailyProfit', label: '日收益', sortable: true, width: '26%', align: 'right' },
+  { key: 'totalProfit', label: '累计', sortable: false, width: '26%', align: 'right' },
 ]
 
 const auth = useAuthStore()
@@ -24,6 +31,14 @@ const loading = ref(false)
 const error = ref('')
 const sortBy = ref('date')
 const sortOrder = ref<MpSortOrder>('desc')
+const compact = ref(false)
+
+const columns = computed(() => (compact.value ? COLUMNS_COMPACT : COLUMNS_FULL))
+
+let mq: MediaQueryList | null = null
+function onMq() {
+  compact.value = Boolean(mq?.matches)
+}
 
 function fmtMoney(n: number): string {
   if (!Number.isFinite(n)) return '—'
@@ -82,7 +97,16 @@ function onSort(key: string, order: MpSortOrder) {
   void load(1)
 }
 
-onMounted(() => load(1))
+onMounted(() => {
+  mq = window.matchMedia('(max-width: 680px)')
+  onMq()
+  mq.addEventListener('change', onMq)
+  void load(1)
+})
+
+onUnmounted(() => {
+  mq?.removeEventListener('change', onMq)
+})
 
 defineExpose({ reload: () => load(page.value) })
 </script>
@@ -92,7 +116,7 @@ defineExpose({ reload: () => load(page.value) })
     <h2>详情</h2>
     <p v-if="error" class="err">{{ error }}</p>
     <MpListTable
-      :columns="COLUMNS"
+      :columns="columns"
       :page="page"
       :page-size="pageSize"
       :total="total"
@@ -112,10 +136,16 @@ defineExpose({ reload: () => load(page.value) })
       <tr v-for="(row, idx) in items" :key="row.date" :class="{ zebra: idx % 2 === 1 }">
         <td>{{ row.date }}</td>
         <td class="num">{{ fmtMoney(row.totalValueCny) }}</td>
-        <td class="num" :class="trendClass(row.dailyProfit)">{{ fmtSigned(row.dailyProfit) }}</td>
-        <td class="num" :class="trendClass(row.dailyProfit)">{{ fmtRate(row.dailyProfitRate) }}</td>
-        <td class="num" :class="trendClass(row.totalProfit)">{{ fmtSigned(row.totalProfit) }}</td>
-        <td class="num" :class="trendClass(row.totalProfit)">{{ fmtRate(row.totalProfitRate) }}</td>
+        <td class="num" :class="trendClass(row.dailyProfit)">
+          <div>{{ fmtSigned(row.dailyProfit) }}</div>
+          <div v-if="compact" class="sub">{{ fmtRate(row.dailyProfitRate) }}</div>
+        </td>
+        <td v-if="!compact" class="num" :class="trendClass(row.dailyProfit)">{{ fmtRate(row.dailyProfitRate) }}</td>
+        <td class="num" :class="trendClass(row.totalProfit)">
+          <div>{{ fmtSigned(row.totalProfit) }}</div>
+          <div v-if="compact" class="sub">{{ fmtRate(row.totalProfitRate) }}</div>
+        </td>
+        <td v-if="!compact" class="num" :class="trendClass(row.totalProfit)">{{ fmtRate(row.totalProfitRate) }}</td>
       </tr>
     </MpListTable>
   </section>
@@ -143,6 +173,12 @@ defineExpose({ reload: () => load(page.value) })
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.sub {
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.85;
 }
 
 .up {
@@ -176,5 +212,17 @@ defineExpose({ reload: () => load(page.value) })
 
 :deep(.mp-list) {
   min-width: 0;
+}
+
+@media (max-width: 680px) {
+  :deep(.mp-table) {
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  :deep(.mp-table th),
+  :deep(.mp-table td) {
+    padding: 8px 6px;
+  }
 }
 </style>

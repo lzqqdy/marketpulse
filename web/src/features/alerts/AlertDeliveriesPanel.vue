@@ -318,4 +318,24 @@ function formatTime(ts: number): string {
   color: #e5484d;
   font-size: 12px;
 }
+
+@media (max-width: 680px) {
+  .user-card {
+    padding: 12px;
+  }
+
+  .tool {
+    min-width: 0;
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .tool.grow {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .body {
+    overflow-wrap: anywhere;
+  }
+}
 </style>

@@ -194,20 +194,20 @@ defineExpose({ reload: load })
       <div class="principal">
         <label>
           本金 (¥)
-          <input v-model="principal" type="number" min="0" step="0.01" />
+          <input v-model="principal" type="number" min="0" step="0.01" inputmode="decimal" />
         </label>
         <button type="button" class="ghost-btn" :disabled="saving || loading" @click="savePrincipal">保存本金</button>
       </div>
     </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap desktop-only">
       <table class="holdings-table">
         <thead>
           <tr>
             <th class="col-coin">币种</th>
             <th class="col-num">数量</th>
-            <th class="col-val num"><span class="lab-full">价值(U)</span><span class="lab-short">价值</span></th>
-            <th class="col-est num"><span class="lab-full">估值(¥)</span><span class="lab-short">估值</span></th>
+            <th class="col-val num">价值(U)</th>
+            <th class="col-est num">估值(¥)</th>
             <th class="col-act"></th>
           </tr>
         </thead>
@@ -248,6 +248,46 @@ defineExpose({ reload: load })
       </table>
     </div>
 
+    <div class="mobile-cards mobile-only" aria-label="持仓列表">
+      <p v-if="loading && !rows.length" class="empty soft">加载中…</p>
+      <p v-else-if="!rows.length" class="empty soft">暂无持仓，请在下方添加</p>
+      <article v-for="h in rows" :key="'m-' + rowKey(h)" class="holding-card">
+        <div class="holding-card-top">
+          <div class="coin-cell">
+            <span class="coin-name">{{ displaySymbol(h) }}</span>
+            <span v-if="h.assetType === 'alpha'" class="tag">美股</span>
+          </div>
+          <button type="button" class="link-btn danger" @click="removeRow(h)">移除</button>
+        </div>
+        <label class="holding-qty">
+          <span>数量</span>
+          <input
+            v-model="draftQty[rowKey(h)]"
+            class="qty"
+            type="number"
+            min="0"
+            step="any"
+            inputmode="decimal"
+            @keydown.enter.prevent="saveHoldings"
+          />
+        </label>
+        <div class="holding-metrics">
+          <div>
+            <span class="m-label">价值(U)</span>
+            <span class="m-val">{{ h.missing ? '—' : fmtMoney(h.valueUsdt, '$') }}</span>
+          </div>
+          <div>
+            <span class="m-label">估值(¥)</span>
+            <span class="m-val">{{ h.missing ? '—' : fmtMoney(h.valueCny, '¥') }}</span>
+          </div>
+          <div>
+            <span class="m-label">今日变动</span>
+            <span class="m-val" :class="trendClass(h.changeCny)">{{ h.missing ? '—' : fmtSigned(h.changeCny) }}</span>
+          </div>
+        </div>
+      </article>
+    </div>
+
     <div class="add-row">
       <select v-model="addType">
         <option value="crypto">币价</option>
@@ -258,7 +298,7 @@ defineExpose({ reload: load })
           {{ o.name && o.name !== o.symbol ? `${o.name} (${o.symbol})` : o.symbol }}
         </option>
       </select>
-      <input v-model="addQty" type="number" min="0" step="any" placeholder="数量" />
+      <input v-model="addQty" type="number" min="0" step="any" inputmode="decimal" placeholder="数量" />
       <button type="button" class="ghost-btn" @click="addRow">添加</button>
       <button type="button" class="primary-btn" :disabled="saving || loading" @click="saveHoldings">保存持仓</button>
     </div>
@@ -341,10 +381,6 @@ defineExpose({ reload: load })
   table-layout: fixed;
 }
 
-.lab-short {
-  display: none;
-}
-
 .holdings-table th {
   text-align: left;
   padding: 10px 12px;
@@ -404,6 +440,8 @@ defineExpose({ reload: load })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--coin);
+  font-weight: 700;
 }
 
 .tag {
@@ -440,6 +478,16 @@ defineExpose({ reload: load })
   text-align: center;
   color: var(--muted);
   padding: 20px !important;
+}
+
+.empty.soft {
+  margin: 0;
+  padding: 16px 8px !important;
+  font-size: 13px;
+}
+
+.mobile-only {
+  display: none;
 }
 
 .add-row {
@@ -492,7 +540,8 @@ defineExpose({ reload: load })
   white-space: nowrap;
 }
 
-.link-btn:hover {
+.link-btn:hover,
+.link-btn.danger {
   color: var(--warning);
 }
 
@@ -525,84 +574,105 @@ defineExpose({ reload: load })
   color: var(--muted);
 }
 
+.holding-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  display: grid;
+  gap: 10px;
+}
+
+.holding-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.holding-qty {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.holding-qty .qty {
+  max-width: none;
+  font-size: 16px;
+  padding: 10px 12px;
+}
+
+.holding-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.holding-metrics .m-label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.holding-metrics .m-val {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 680px) {
-  /* 前 4 列铺满可视宽度，末列「移除」需右滑点击 */
-  .table-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    container-type: inline-size;
-    container-name: holdings;
-  }
-
-  .holdings-table {
-    table-layout: fixed;
-    width: calc(100cqw + 2.75rem);
-    min-width: calc(100cqw + 2.75rem);
-    font-size: 11px;
-  }
-
-  .lab-full {
+  .desktop-only {
     display: none;
   }
 
-  .lab-short {
-    display: inline;
+  .mobile-only {
+    display: grid;
+    gap: 10px;
   }
 
-  .col-coin {
-    width: 15cqw;
-  }
-  .col-num {
-    width: 32cqw;
-  }
-  .col-val {
-    width: 26.5cqw;
-  }
-  .col-est {
-    width: 26.5cqw;
-  }
-  .col-act {
-    display: table-cell;
-    width: 2.75rem;
-    min-width: 2.75rem;
-    padding-left: 4px;
-    padding-right: 6px;
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .holdings-table th,
-  .holdings-table td {
-    padding: 6px 2px;
-  }
-
-  .holdings-table th.num,
-  .holdings-table td.num {
-    white-space: nowrap;
-    letter-spacing: -0.03em;
-    font-size: 10.5px;
-  }
-
-  .qty {
+  .principal {
     width: 100%;
-    max-width: none;
-    padding: 4px 2px;
-    font-size: 11px;
   }
 
-  .estimated .chg {
-    font-size: 10px;
-  }
-
-  .tag {
-    display: none;
-  }
-
-  .col-act .link-btn {
-    font-size: 11px;
-  }
-
-  .add-row .primary-btn,
-  .add-row .ghost-btn {
+  .principal label {
     flex: 1 1 auto;
+  }
+
+  .principal input {
+    width: 100%;
+  }
+
+  .principal .ghost-btn {
+    flex: 0 0 auto;
+  }
+
+  .add-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .add-row select,
+  .add-row input,
+  .add-row .ghost-btn,
+  .add-row .primary-btn {
+    flex: none;
+    width: 100%;
+  }
+
+  .add-row .ghost-btn,
+  .add-row .primary-btn {
+    min-height: 40px;
   }
 }
 </style>

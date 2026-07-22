@@ -342,4 +342,47 @@ defineExpose({ reload: load })
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 680px) {
+  .reports-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ranges {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .range-btn {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+  }
+
+  .summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .sum-item {
+    padding: 10px;
+  }
+
+  .value {
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .chart-el {
+    height: 180px;
+  }
+
+  .chart-card,
+  .alloc-card {
+    padding: 10px;
+  }
+}
 </style>
