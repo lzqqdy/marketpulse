@@ -158,9 +158,20 @@ gold, silver, crude
 - Primary endpoint: `GET https://push2.eastmoney.com/api/qt/stock/get?fltt=2&secid=118.AU9999`
 - Fallback endpoint: `GET https://hq.sinajs.cn/?list=gds_AUTD` (Referer: `https://finance.sina.com.cn`)
 - Polling follows gold market window: active `1m`, inactive `1h`.
-- Normalized id: `sge-au9999` (stable public id; UI label 国内金价).
+- Normalized id: `sge-au9999` (stable public id / legacy name; **no SGE HTML scrape**).
 - Health: `eastmoney_gold` (primary), `sina_gold` (fallback).
 - Ingest status: `domestic_gold` (`ok` / `degraded` / `error`).
+
+## Downstream Consumers (non-ingest)
+
+Business modules must consume market data via `MarketDataService` / Store events — never call provider packages directly.
+
+| Module | How it uses market data |
+| --- | --- |
+| `alerts` | Evaluates rules on Store change events for `spot` / `index` / `alpha` |
+| `portfolio` | Values holdings from crypto + alpha quotes and OTC USDT/CNY |
+
+See `docs/MODULES.md` for ownership boundaries.
 
 ## Macro and Metadata
 

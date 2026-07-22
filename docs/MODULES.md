@@ -70,17 +70,18 @@ The exact interface can evolve, but callers should depend on an interface owned 
 Owns price monitoring and notification workflow (`alerts.enabled` 灰度开关).
 
 - Stores alert rules and trigger history in MySQL; cooldown / inbox in Redis.
-- Evaluates rules from MarketStore change events (no direct exchange calls).
+- Evaluates rules from MarketStore change events for `spot` / `index` / `alpha` (no direct exchange calls).
 - Sends notifications through `in_app` / email / PushPlus.
 - Frontend: 用户中心规则与记录面板 + 全局 `AlertToastHost` WS 站内提醒.
 
 ### portfolio
 
-Owns asset and holding state.
+Owns asset and holding state (`portfolio.enabled` 灰度开关).
 
-- Stores assets, positions, and valuation snapshots.
-- Uses market data quotes for live valuation and allocation.
-- Serves asset report series (trend / PnL charts) from snapshots.
+- Stores holdings, principal, and daily valuation snapshots in MySQL.
+- Uses market data quotes (crypto + alpha) and OTC rate for live valuation.
+- Serves asset report series (trend / PnL charts) and allocation from snapshots / live holdings.
+- Daily snapshot job + optional legacy `assets_log` import CLI.
 - Does not mutate market data state.
 
 ### ai

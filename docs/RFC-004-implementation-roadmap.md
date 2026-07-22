@@ -5,7 +5,7 @@
 | 状态 | Active |
 | 依赖 | RFC-001、RFC-002、RFC-003 |
 | 日期 | 2026-05-16 |
-| 最后对齐 | 2026-07-11 |
+| 最后对齐 | 2026-07-22 |
 
 > **用法**：每次只做一个 Step，完成「验收标准」后再进入下一步。  
 > 对 AI 说：「做 Step X」或「继续 Step X+1」即可。
@@ -21,8 +21,9 @@
 | **C 前端看板** | 7–14 | 首屏 + 实时 UI | ✅ |
 | **D 慢数据** | 15–17 | 汇率、股指、宏观 | ✅ |
 | **E 部署** | 18–19 | HK 上线、连通性 | ✅ |
-| **F 增强** | 20–25 | K 线、美股参考、行情中心、Provider 健康 | ✅ 大部分 |
-| **G 后续** | 26+ | 排行榜、设置页、板块钻取 | 规划中 |
+| **F 增强** | 20–25 | K 线、美股参考、行情中心、Provider 健康、快讯 | ✅ 大部分 |
+| **H 业务模块** | 28–32 | 用户中心、告警推送、资产中心与报告 | ✅ |
+| **G 后续** | 26+ | 排行榜、设置页、板块钻取、AI | 规划中 |
 
 预估：**MVP（A+B+C 核心）≈ Step 0–14**；完整看板 + 慢数据 ≈ Step 0–19。
 
@@ -276,7 +277,7 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 
 - [x] `internal/marketdata/ingest/baidu`：百度主源（WS + REST）
 - [x] `internal/marketdata/ingest/equity`：腾讯/东财备用
-- [x] `internal/marketdata/ingest/metals`：上金所国内黄金
+- [x] `internal/marketdata/ingest/metals`：国内金价（东财 AU9999 主源 + 新浪 gds_AUTD 备用；对外 id `sge-au9999`）
 - [x] WS `type: indices`
 
 ---
@@ -326,9 +327,25 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 | 22 | Provider 健康：providers/status + ProviderStatusWidget | ✅ |
 | 23 | 行情中心：market/center API + MarketCenterPanel | ✅ |
 | 24 | 百度指数主源切换（specs/001） | ✅ |
+| 24b | 7×24 快讯（specs/003） | ✅ |
 | 25 | 排行榜：CoinGecko markets + RankTable | 规划中 |
 | 26 | 自选币种：config.yaml + 设置页 | 规划中 |
 | 27 | 板块详情钻取 | 规划中 |
+
+---
+
+## Phase H — 业务模块（users / alerts / portfolio）
+
+| Step | 内容 | 状态 |
+|------|------|------|
+| 28 | 用户中心：登录、资料、头像、改密、登录防刷（MySQL + Redis） | ✅ |
+| 29 | 价格告警：规则引擎、in_app / email / PushPlus、站内 Toast WS（specs/004） | ✅ |
+| 29b | 告警支持美股参考 `alpha` 标的 | ✅ |
+| 30 | 资产中心一期：持仓/本金、总览、日快照、迁移 CLI（specs/005） | ✅ |
+| 31 | 资产报告：净值/收益/分布图表 API + UI（specs/006） | ✅ |
+| 32 | 运维：ship 保留 `data/uploads`；国内金价切东财主源 | ✅ |
+
+灰度：各模块 `enabled` 开关；依赖链见 `config/config.example.yaml`。
 
 ---
 
@@ -363,3 +380,4 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 |------|------|------|
 | 0.1 | 2026-05-16 | 初稿 |
 | 0.2 | 2026-07-11 | 对齐实现：Step 7–24 完成状态、新增行情中心/美股参考/Provider 健康 |
+| 0.3 | 2026-07-22 | Phase H users/alerts/portfolio；Step 16 金价表述；快讯 24b |

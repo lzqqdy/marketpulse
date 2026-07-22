@@ -222,9 +222,13 @@ make ship SHIP_NO_SOURCE=1    # 只更新 bin/web/config，不同步源码
 |-------------|------|
 | `sync_source: true` | 同步完整源码（见 `deploy/rsync-excludes.txt`） |
 | `SHIP_NO_SOURCE=1` | 临时关闭源码同步 |
+| `sync_config: false` | 默认**不覆盖**线上 `config/config.yaml`；首次不存在时仍会初始化 |
+| `SHIP_SYNC_CONFIG=1` | 本次强制用 `config.remote.yaml.example` 覆盖远程 config |
 | `git_auto_commit: true` | 每次 `make ship` 后自动提交 |
 | `SHIP_GIT_COMMIT=1` | 仅本次自动提交 |
 | `SHIP_GIT_MSG` | 提交说明，覆盖 `git_commit_message` |
+
+启用 users/alerts/portfolio：在服务器 config 打开对应 `enabled` 并配置 MySQL/Redis/SMTP；模板见 `deploy/config.remote.yaml.example`。
 
 ### 2.5 源码同步排除项
 
@@ -374,7 +378,7 @@ make test
 | 文件 | 说明 |
 |------|------|
 | `deploy.local.yaml.example` | 本机 SSH 配置模板 → 复制为 `deploy.local.yaml` |
-| `config.remote.yaml.example` | 远程 `config.yaml` 模板（ship 时按 `app_addr` 生成） |
+| `config.remote.yaml.example` | 远程 `config.yaml` 模板（含业务模块开关，默认关；ship 按 `app_addr` 生成） |
 | `rsync-excludes.txt` | ship 同步源码时的排除列表 |
 | `remote-restart.sh` | 服务器重启 `marketd` |
 | `remote-git-commit.sh` | 服务器端提交脚本 |
@@ -395,3 +399,4 @@ make test
 | 0.3 | 2026-07-11 | 增加 Windows 开发说明；embed 改为 static_dir |
 | 0.4 | 2026-07-14 | 增加 Docker Compose 部署（可选 MySQL/Redis profile） |
 | 0.5 | 2026-07-14 | 补全 Docker 正式章节（架构、命令、验收、FAQ） |
+| 0.6 | 2026-07-22 | 远程 config 模板对齐业务模块；说明 sync_config 默认不覆盖线上 |

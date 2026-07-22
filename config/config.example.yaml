@@ -1,4 +1,10 @@
 # MarketPulse 配置模板 — 复制为 config/config.yaml（已 gitignore）
+#
+# 依赖链（灰度开关，默认全关 → 行为与「仅行情」一致）：
+#   users     需要 mysql + redis
+#   alerts    需要 mysql + redis + users；邮件通道另需 smtp
+#   portfolio 需要 mysql + users（不强制 redis）
+# 依赖未开时对应模块会 soft-skip 并打 warn，行情仍可启动。
 
 app:
   addr: ":8080"

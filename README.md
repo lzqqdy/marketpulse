@@ -1,11 +1,12 @@
 # MarketPulse
 
-个人加密货币行情看板：实时币价（WebSocket）、全球股指、宏观指标、衍生品数据、美股参考、行情中心。
+个人加密货币行情看板：实时币价（WebSocket）、全球股指、宏观指标、衍生品数据、美股参考、行情中心；可选用户中心、价格告警与资产中心。
 
 - 设计文档：[docs/README.md](./docs/README.md)
 - 架构 RFC：[docs/RFC-001-architecture.md](./docs/RFC-001-architecture.md)
 - API 契约：[docs/RFC-002-api-contract.md](./docs/RFC-002-api-contract.md)
 - 数据源：[docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md)
+- 模块边界：[docs/MODULES.md](./docs/MODULES.md)
 
 ## 仓库结构
 
@@ -65,11 +66,17 @@ curl -s http://127.0.0.1:8080/api/v1/market/snapshot
 |------|------|
 | 币价表 | Binance WS 实时推送，USDT/¥ 双价 |
 | 宏观指标 | 总市值、恐惧贪婪、多空比、资金费率、爆仓等 |
-| 全球速览 | 14 个指数/商品（百度主源，腾讯/东财备用） |
+| 全球速览 | 14 个指数/商品（百度主源，腾讯/东财备用）+ 国内金价 |
 | 行情中心 | A股/港股/美股涨跌分布、热力图、资金流、热门板块 |
 | 美股参考 | Bitget USDT-FUTURES 代币化美股（Binance Alpha 备用） |
+| 7×24 快讯 | 百度财经快讯瀑布流 |
 | K 线抽屉 | lightweight-charts，crypto/alpha WS 实时，指数 REST |
 | 数据源健康 | Provider 状态面板，30s 轮询 |
+| 用户中心 | 登录 / 资料 / 头像 / 改密（需 `mysql` + `redis` + `users.enabled`） |
+| 价格告警 | 规则评测 + 站内 / 邮箱 / PushPlus；标的含现货、指数、美股参考 |
+| 资产中心 | 持仓/本金、实时总览、日快照、报告图表（需 `mysql` + `users` + `portfolio.enabled`） |
+
+启用业务模块时，在 `config/config.yaml` 打开对应开关；依赖说明见 `config/config.example.yaml`。
 
 ## 部署
 
@@ -111,6 +118,6 @@ make ship SHIP_GIT_COMMIT=1   # 单次自动提交
 ### Vibe Coding（增量改造）
 
 - 后端改动：`internal/`、`cmd/`
-- 前端改动：`web/src/features/market/`
+- 前端改动：`web/src/features/{market,auth,alerts,portfolio}/`
 - 契约变更：先改 `docs/RFC-002-api-contract.md`
 - 路线图：按 `docs/RFC-004-implementation-roadmap.md` 逐步推进

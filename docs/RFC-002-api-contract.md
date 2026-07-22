@@ -5,7 +5,7 @@
 | 状态 | Active |
 | 依赖 | RFC-001 |
 | 日期 | 2026-05-16 |
-| 最后对齐 | 2026-07-14 |
+| 最后对齐 | 2026-07-22 |
 
 > 实现前后端时以此为准；变更需更新本文并 bump 修订记录。
 
@@ -23,7 +23,14 @@
 { "error": { "code": "INVALID_SYMBOL", "message": "..." } }
 ```
 
-常见错误码：`INVALID_SYMBOL`、`INVALID_INDEX`、`INVALID_INTERVAL`、`INVALID_MARKET`、`UPSTREAM_ERROR`
+常见错误码：
+
+- 行情：`INVALID_SYMBOL`、`INVALID_INDEX`、`INVALID_INTERVAL`、`INVALID_MARKET`、`UPSTREAM_ERROR`
+- 用户：`users_disabled`、`unauthorized`、`invalid_credentials`、`rate_limited`、`login_locked`
+- 告警：`alerts_disabled`、`alert_condition_already_met`、`alert_invalid_params`、`alert_symbol_unavailable`、`alert_not_found`
+- 资产：`portfolio_disabled`、`symbol_unavailable`（及持仓参数类业务码）
+
+鉴权头（业务接口）：`Authorization: Bearer <token>` 或 `X-Session-Token: <token>`；告警 WS 另支持 query `?token=`。
 
 ---
 
@@ -315,7 +322,7 @@ K 线历史。支持 crypto 和 alpha 标的。
 
 ## 9. Users API（`/api/v1/users`）
 
-用户中心模块。需配置 `users.enabled=true` 且 MySQL + Redis 可用。无公开注册；账号通过配置 `users.seed` 或后续管理录入创建。鉴权使用不透明 Session Token（存 Redis），请求头：`Authorization: Bearer <token>`。
+用户中心模块。需配置 `users.enabled=true` 且 MySQL + Redis 可用。无公开注册；账号通过配置 `users.seed` 或后续管理录入创建。鉴权使用不透明 Session Token（存 Redis），请求头：`Authorization: Bearer <token>` 或 `X-Session-Token: <token>`。
 
 首页行情接口不鉴权。用户中心页面由前端路由守卫要求登录。
 
@@ -426,7 +433,7 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 
 **WebSocket** `GET /ws/v1/alerts/stream?token=` — 连接后推送 `inbox_snapshot`，实时 `alert` 事件；客户端可发 `{"type":"ack","deliveryIds":[...]}`。
 
-规则 `ruleType` 1–5（上涨/下跌/区间/振幅%/5分钟波动）；通道 `in_app` / `email` / `pushplus`；频率 `once` / `loop` / `daily`。
+规则 `ruleType` 1–5（上涨/下跌/区间/振幅%/5分钟波动）；通道 `in_app` / `email` / `pushplus`；频率 `once` / `loop` / `daily`。标的 `assetType` ∈ `spot|index|alpha`；评测由 Store 变更驱动。细节见 `specs/004-alert-push/contracts/api.md`。
 
 ---
 
@@ -441,7 +448,7 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 | PUT | `/api/v1/portfolio/settings` | 设置本金 `principalCny`（¥） |
 | GET | `/api/v1/portfolio/overview` | 总资产 / U溢价 / 今日·7日·30日·历史收益 |
 | GET | `/api/v1/portfolio/snapshots` | 日快照分页；`page`/`pageSize`/`from`/`to`/`sort`/`order`；默认仅 `kind=daily` |
-| GET | `/api/v1/portfolio/eligible-symbols` | 可添加的 crypto / alpha 列表 |
+| GET | `/api/v1/portfolio/eligible-symbols` | 可添加标的：`{ "crypto": [...], "alpha": [...] }` |
 | GET | `/api/v1/portfolio/reports/series` | 资产报告时序：`range=7d\|30d\|90d\|180d\|1y\|all`；净值/日盈亏/累计收益点 |
 | GET | `/api/v1/portfolio/reports/allocation` | 当前持仓资产分布（实时估值） |
 
@@ -560,6 +567,9 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | `Candle`、`KlineInterval` | `web/src/features/market/types/chart.ts` |
 | `MarketCenterResponse` | `web/src/features/market/types/marketCenter.ts` |
 | `ProviderStatusResponse` | `web/src/features/market/types/providers.ts` |
+| 用户 / 登录 | `web/src/features/auth/types/user.ts` |
+| 告警规则 / 投递 | `web/src/features/alerts/types.ts` |
+| 资产持仓 / 报告 | `web/src/features/portfolio/types.ts` |
 
 字段与本文保持一致。
 
@@ -585,3 +595,4 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | 1.2 | 2026-07-14 | 增加 `/api/v1/alerts` 规则/投递/WS 站内推送；healthz.alerts |
 | 1.3 | 2026-07-22 | 增加 `/api/v1/portfolio` 持仓/本金/总览/快照；healthz.portfolio |
 | 1.4 | 2026-07-22 | 增加 portfolio 报告 `reports/series`、`reports/allocation` |
+| 1.5 | 2026-07-22 | 补齐业务错误码、双鉴权头、alerts alpha、前端类型索引 |

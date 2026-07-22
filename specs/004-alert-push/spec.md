@@ -2,14 +2,15 @@
 
 **Feature Branch**: `004-alert-push`  
 **Created**: 2026-07-14  
-**Status**: Draft  
-**Input**: 对首页可正常获取数据源的标的（币价、指数等）支持规则告警；检查频率对齐数据更新频率；通道含站内弹窗 / 邮箱 / PushPlus；频率含一次 / 循环 / 每日一次；与用户绑定；可操作配置 UI + 推送记录。参考 go-coin / mine-web，仅作参考不照搬。
+**Status**: Implemented  
+**Input**: 对首页可正常获取数据源的标的（币价、指数、美股参考等）支持规则告警；检查频率对齐数据更新频率；通道含站内弹窗 / 邮箱 / PushPlus；频率含一次 / 循环 / 每日一次；与用户绑定；可操作配置 UI + 推送记录。参考 go-coin / mine-web，仅作参考不照搬。
 
 ## 背景
 
-- MarketPulse 已规划 `alerts` 模块（`docs/MODULES.md`），当前无规则引擎、无推送投递、无告警表。
-- `users` 已落库 `email`、`wechat_push_token`，用户中心告警 Tab 为占位。
-- 行情统一进入内存 Store；告警必须经 `MarketDataService` / 公开事件消费，禁止直连交易所或 ingest 内部（Constitution）。
+- `alerts` 模块已落地（`internal/alerts`、`/api/v1/alerts`、用户中心「价格告警」Tab、全局 `AlertToastHost`）。
+- 用户资料含 `email`、`wechatPushToken`，供邮件 / PushPlus 通道使用。
+- 行情统一进入内存 Store；告警经 `MarketDataService` / Store 变更事件评测，禁止直连交易所或 ingest 内部（Constitution）。
+- 标的类型：`spot`（现货）、`index`（全球指数）、`alpha`（美股参考）。
 
 ## 已确认决策
 
@@ -150,7 +151,7 @@
 - **FR-011**: 系统 MUST 持久化推送记录供用户查询（分页）；记录归属校验 uid。
 - **FR-012**: 冷却与未读 inbox、投递限流等非必要持久状态 MUST 优先使用 **Redis**；评测热路径可用 **内存索引**；MySQL 仅存必要表（规则 + 推送记录）。
 - **FR-013**: 告警模块 MUST 可通过配置开关关闭且不影响行情主流程（灰度/回滚）。
-- **FR-014**: 前端 MUST 提供易用告警设置（标的点选、类型切换表单、通道/频率、启停）与推送记录视图；落地用户中心占位 Tab。
+- **FR-014**: 前端 MUST 提供易用告警设置（标的点选、类型切换表单、通道/频率、启停）与推送记录视图；用户中心「价格告警」Tab + 全局 Toast 已落地。
 - **FR-015**: `loop.interval_minutes` MUST 允许用户配置；产品默认档位建议 5/10/30/60，允许自定义但需有上下界（建议 1–1440）。
 
 ### Key Entities
@@ -173,9 +174,9 @@
 
 ## Assumptions
 
-- 一期标的优先覆盖首页 **现货报价 + 全球指数**；汇率/宏观等用同一 `asset_type` 模型扩展，UI 可后续加选项。
+- 标的覆盖首页 **现货报价 + 全球指数 + 美股参考（alpha）**；汇率/宏观等可用同一 `asset_type` 模型扩展，UI 可后续加选项。
 - 不做短信、不做浏览器原生 Desktop Notification；站内弹窗 ≠ Web Notification API。
-- 邮箱一期不强制验证码绑定（填写即视为可投递），与现有 `PUT /me` 一致。
+- 邮箱不强制验证码绑定（填写即视为可投递），与现有 `PUT /me` 一致。
 - PushPlus 使用一对一消息接口；用户自备 token，额度/封禁由第三方负责，产品侧做好错误提示。
 - `daily` 按 `Asia/Shanghai` 自然日；暂不开放用户自定义时区。
 - `interval_minutes` 默认推荐 10；上下界 1–1440。

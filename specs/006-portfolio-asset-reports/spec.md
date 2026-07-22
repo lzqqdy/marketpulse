@@ -2,7 +2,7 @@
 
 **Feature Branch**: `006-portfolio-asset-reports`  
 **Created**: 2026-07-22  
-**Status**: Draft  
+**Status**: Complete  
 **Input**: 基于每日资产快照与当前持仓，在资产中心提供「资产报告」页：市面常见的净值走势、累计收益/收益率、每日盈亏柱状图、资产分布等图表；支持时间范围切换。
 
 ## 背景

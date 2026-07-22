@@ -1,4 +1,6 @@
-# Contract: Portfolio API（草案）
+# Contract: Portfolio API
+
+**Status**: Implemented（已同步 `docs/RFC-002-api-contract.md` §11.1）
 
 **Feature**: `005-portfolio-asset-center`  
 **Base**: `/api/v1/portfolio`  

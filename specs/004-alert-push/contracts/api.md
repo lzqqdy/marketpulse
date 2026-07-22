@@ -1,10 +1,11 @@
 # API Contract: 推送告警
 
 **Feature**: `004-alert-push`  
-**Auth**: 除特别说明外均需登录（Bearer session），与 users 模块一致。  
-**开关**: `alerts.enabled=false` 时返回业务错误码（建议 `alerts_disabled`），HTTP 503 或 403（实现时与现有 users_disabled 风格对齐）。
+**Status**: Implemented  
+**Auth**: 除特别说明外均需登录（Bearer / `X-Session-Token`），与 users 模块一致。  
+**开关**: `alerts.enabled=false` 时返回 `alerts_disabled`（HTTP 503）。
 
-实现前须同步摘要到 `docs/RFC-002-api-contract.md`。
+已同步摘要到 `docs/RFC-002-api-contract.md` §11。`assetType` ∈ `spot|index|alpha`。
 
 ## REST
 
@@ -12,7 +13,7 @@
 
 列出当前用户未删除规则。
 
-Query（可选）: `status=active|disabled`
+Query（可选）: `status=active|disabled`、`assetType`、`symbol`、`ruleType`、`page`、`pageSize`、`sortBy`、`sortOrder`
 
 **200**
 
@@ -29,14 +30,32 @@ Query（可选）: `status=active|disabled`
       "channels": ["in_app", "pushplus"],
       "frequency": "loop",
       "intervalMinutes": 10,
-      "setPrice": "98000.12",
+      "setPrice": "97000.12",
       "status": "active",
-      "lastTriggeredAt": null,
       "triggerCount": 0,
-      "createdAt": 1710000000,
-      "updatedAt": 1710000000
+      "createdAt": 1715850000,
+      "updatedAt": 1715850000
+    },
+    {
+      "id": 2,
+      "assetType": "alpha",
+      "symbol": "nvda",
+      "field": "price",
+      "ruleType": 1,
+      "params": { "target": 150 },
+      "channels": ["in_app", "email"],
+      "frequency": "once",
+      "intervalMinutes": 10,
+      "setPrice": "140.5",
+      "status": "active",
+      "triggerCount": 0,
+      "createdAt": 1715850100,
+      "updatedAt": 1715850100
     }
-  ]
+  ],
+  "page": 1,
+  "pageSize": 20,
+  "total": 2
 }
 ```
 

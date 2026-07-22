@@ -2,16 +2,16 @@
 
 **Feature Branch**: `005-portfolio-asset-center`  
 **Created**: 2026-07-22  
-**Status**: Draft  
-**Input**: 用户中心新增「资产中心」：持仓设置（币价 + 美股参考）与本金；资产总览实时更新；每日资产快照列表。后续基于快照做累计收益/收益率图、资产走势、资产分布。逻辑参考 go-coin / mine-web；老库 `assets_log` 数年历史需可同步到新项目。UI 可参考旧资产页截图，允许按 MarketPulse 视觉体系发挥。
+**Status**: Implemented  
+**Input**: 用户中心「资产中心」：持仓设置（币价 + 美股参考）与本金；资产总览实时更新；每日资产快照列表。后续基于快照做累计收益/收益率图、资产走势、资产分布。逻辑参考 go-coin / mine-web；老库 `assets_log` 数年历史需可同步到新项目。UI 可参考旧资产页截图，允许按 MarketPulse 视觉体系发挥。
 
 ## 背景
 
-- MarketPulse 已规划 `portfolio` 模块（`docs/MODULES.md`），当前无持仓、本金、估值、快照实现。
-- 用户中心仅有「账户资料」「价格告警」Tab；需新增「资产中心」。
-- 旧系统：`mine-web-master` 提供资产 UI/API；`go-coin-master` 每日 cron 写 `assets_log`。
-- 行情估值必须经 `MarketDataService` / 公开行情 API，禁止 portfolio 直连交易所或 ingest（Constitution）。
-- 老项目 `assets_log` 含多年日级快照，迁移兼容是硬性约束。
+- `portfolio` 模块已落地（`internal/portfolio`、`/api/v1/portfolio`、用户中心第三 Tab）。
+- 用户中心 Tab：`profile` / `alerts` / `portfolio`。
+- 行情估值经 `MarketDataService`，禁止 portfolio 直连交易所或 ingest（Constitution）。
+- 老项目 `assets_log` 迁移：`cmd/migrate-assets-log`（按 uid 映射；未映射行记为 skip）。
+- 图表报告见 **006**（已完成）。
 
 ## 分期范围
 
@@ -157,7 +157,7 @@
 - **FR-008**: 系统 MUST 提供历史 `assets_log` 迁移方案（脚本 + 字段映射 + uid 映射）。
 - **FR-009**: 系统 MUST 以 `portfolio.enabled`（及依赖 mysql）支持灰度与回滚。
 - **FR-010**: 估值与快照计算 MUST NOT 直连交易所；只读 MarketData 公开接口/服务。
-- **FR-011**: 一期 MUST NOT 实现图表报告 UI；但快照数据模型 MUST 足够支撑二期累计收益曲线、走势、分布。
+- **FR-011**: 图表报告 UI 已迁至 **006** 并完成；本 spec（005）范围止于持仓/本金/总览/日快照/迁移。
 
 ### Non-Functional
 

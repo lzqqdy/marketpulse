@@ -30,8 +30,8 @@ make ship-commit       # 部署 + 服务器 git commit
 | 文件 | 用途 |
 |------|------|
 | `deploy.local.yaml.example` | 本机 SSH / 远程目录 / 是否自动 commit |
-| `config.remote.yaml.example` | 远程生产 `config.yaml` 模板 |
-| `rsync-excludes.txt` | `make ship` 同步源码时的排除规则 |
+| `config.remote.yaml.example` | 远程生产 `config.yaml` 模板（含 mysql/redis/users/alerts/portfolio，默认关） |
+| `rsync-excludes.txt` | `make ship` 同步源码时的排除规则（含保留 `data/` 上传目录） |
 | `remote-restart.sh` | 上传为 `scripts/restart.sh`，重启 marketd |
 | `remote-git-commit.sh` | 上传为 `deploy/remote-git-commit.sh`，服务器提交 |
 | `nginx.conf.example` | nginx 分离部署 |
@@ -42,8 +42,11 @@ make ship-commit       # 部署 + 服务器 git commit
 ```yaml
 remote_dir: "/home/lzqqdy/github/marketpulse"
 sync_source: true
+sync_config: false       # true 或 SHIP_SYNC_CONFIG=1 才会覆盖线上 config
 git_auto_commit: false
 ```
+
+**配置提示**：默认不覆盖服务器 `config/config.yaml`。要启用用户/告警/资产，请在服务器上手动合并 `config.remote.yaml.example` / `config.example.yaml` 中的 mysql/redis/users/alerts/portfolio/smtp 段，或临时 `make ship SHIP_SYNC_CONFIG=1`（会覆盖远程 config，慎用）。
 
 ## 命令速查
 

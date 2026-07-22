@@ -1,4 +1,10 @@
 # 远程生产配置模板 — 由 deploy-remote.sh 根据 deploy.local.yaml 生成并上传
+#
+# 注意：
+# - deploy.local.yaml 默认 sync_config: false，不会覆盖服务器已有 config/config.yaml
+# - 首次部署或不存在远程 config 时，会用本模板初始化
+# - 启用 users / alerts / portfolio 时，请在服务器 config 中打开对应开关并填密钥
+# - 完整字段说明见 config/config.example.yaml
 
 app:
   addr: "0.0.0.0:8080"
@@ -9,6 +15,77 @@ app:
 
 cors:
   allowed_origins: []
+
+# 平台持久化（users / alerts / portfolio 依赖）
+# 默认关闭：仅行情时保持 enabled: false
+mysql:
+  enabled: false
+  host: "127.0.0.1"
+  port: 3306
+  user: "marketpulse"
+  password: ""
+  database: "marketpulse"
+  params: "parseTime=true&loc=Local&charset=utf8mb4"
+  max_open_conns: 20
+  max_idle_conns: 5
+  conn_max_lifetime: 1h
+  conn_max_idle_time: 10m
+
+redis:
+  enabled: false
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 0
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+
+# 用户中心（需 mysql + redis）
+users:
+  enabled: false
+  auto_migrate: true
+  session_ttl: 720h
+  seed:
+    phone: ""
+    password: ""
+    display_name: "管理员"
+  security:
+    max_attempts_per_ip: 30
+    max_attempts_per_phone: 15
+    window: 15m
+    lockout_failures: 5
+    lockout_ttl: 15m
+
+# 推送告警（需 mysql + redis + users）
+alerts:
+  enabled: false
+  auto_migrate: true
+  daily_timezone: Asia/Shanghai
+  loop_interval_min: 1
+  loop_interval_max: 1440
+  inbox_max_len: 100
+
+# 资产中心（需 mysql + users；不强制 redis）
+portfolio:
+  enabled: false
+  auto_migrate: true
+  daily_timezone: Asia/Shanghai
+  default_usdt_cny: 6.5
+
+# 邮件告警通道（alerts 选 email 时需要）
+smtp:
+  host: ""
+  port: 465
+  username: ""
+  password: ""
+  from: ""
+
+upload:
+  dir: "data/uploads"
+  public_path: "/uploads"
+  max_avatar_bytes: 10485760
 
 symbols:
   - BTC
@@ -53,12 +130,23 @@ alpha:
     - id: tsla
       name: 特斯拉
       symbol: TSLAUSDT
+    - id: mu
+      name: 美光
+      symbol: MUUSDT
 
 ingest:
   binance:
     # 国内云主机若 stream.binance.com 连不上，可改用仅行情镜像：
     # ws_base: "wss://data-stream.binance.vision/stream"
     ws_base: "wss://stream.binance.com:9443/stream"
+  baidu:
+    enabled: true
+    base_url: "https://finance.pae.baidu.com"
+    ws_url: "wss://finance-ws.pae.baidu.com"
+    ws_enabled: true
+    ws_reconnect_max: 5
+    ws_reconnect_delay: 3s
+    ws_patch_interval: 60s
   otc:
     usdt_cny_interval: 30s
   forex:
@@ -66,6 +154,7 @@ ingest:
   equity:
     interval: 60s
     providers:
+      - baidu
       - tencent
       - eastmoney
     index_ids:
