@@ -122,6 +122,11 @@ defineExpose({ reload: () => load(page.value) })
 </template>
 
 <style scoped>
+.snapshots-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .snapshots-panel h2 {
   margin: 0 0 10px;
   font-size: 15px;
@@ -131,11 +136,13 @@ defineExpose({ reload: () => load(page.value) })
 .err {
   color: var(--warning);
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .up {
@@ -165,5 +172,9 @@ defineExpose({ reload: () => load(page.value) })
 
 :deep(tr.zebra td) {
   background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+:deep(.mp-list) {
+  min-width: 0;
 }
 </style>

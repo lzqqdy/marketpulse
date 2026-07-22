@@ -65,6 +65,15 @@ onUnmounted(() => {
 .asset-center {
   display: grid;
   gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.asset-center :deep(.user-card) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .banner-err {
@@ -75,5 +84,16 @@ onUnmounted(() => {
   color: var(--warning);
   font-size: 13px;
   background: color-mix(in srgb, var(--warning) 10%, transparent);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 680px) {
+  .asset-center {
+    gap: 12px;
+  }
+
+  .asset-center :deep(.user-card) {
+    padding: 12px;
+  }
 }
 </style>

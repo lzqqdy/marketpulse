@@ -291,6 +291,9 @@ function goHome() {
   gap: 12px;
   text-align: left;
   padding-right: 8px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .user-top {
@@ -347,12 +350,17 @@ function goHome() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .user-card {
   background: var(--card);
   border-radius: 8px;
   padding: 16px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .card-head {

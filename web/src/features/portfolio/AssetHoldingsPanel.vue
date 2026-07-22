@@ -270,6 +270,8 @@ defineExpose({ reload: load })
 .holdings-panel {
   display: grid;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .toolbar {
@@ -278,6 +280,7 @@ defineExpose({ reload: load })
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .toolbar h2 {
@@ -291,6 +294,7 @@ defineExpose({ reload: load })
   flex-wrap: wrap;
   align-items: end;
   gap: 8px;
+  min-width: 0;
 }
 
 .principal label {
@@ -298,6 +302,7 @@ defineExpose({ reload: load })
   gap: 4px;
   font-size: 12px;
   color: var(--muted);
+  min-width: 0;
 }
 
 .principal input,
@@ -310,16 +315,26 @@ defineExpose({ reload: load })
   border-radius: 6px;
   padding: 7px 10px;
   font-size: 13px;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.principal input {
+  width: 140px;
 }
 
 .table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line);
   border-radius: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .holdings-table {
   width: 100%;
+  min-width: 420px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -330,11 +345,14 @@ defineExpose({ reload: load })
   color: var(--coin);
   font-weight: 600;
   border-bottom: 1px solid var(--line);
+  white-space: nowrap;
 }
 
 .holdings-table th.num,
 .holdings-table td.num {
   text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .holdings-table td {
@@ -364,7 +382,8 @@ defineExpose({ reload: load })
 }
 
 .qty {
-  width: 110px;
+  width: 96px;
+  max-width: 28vw;
 }
 
 .estimated .chg {
@@ -383,6 +402,18 @@ defineExpose({ reload: load })
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  min-width: 0;
+}
+
+.add-row select {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.add-row input {
+  flex: 1 1 88px;
+  min-width: 0;
+  width: auto;
 }
 
 .primary-btn,
@@ -413,6 +444,7 @@ defineExpose({ reload: load })
   background: transparent;
   color: var(--muted);
   padding: 0;
+  white-space: nowrap;
 }
 
 .link-btn:hover {
@@ -429,6 +461,7 @@ defineExpose({ reload: load })
   margin: 0;
   color: var(--warning);
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .ok {
@@ -445,5 +478,26 @@ defineExpose({ reload: load })
 }
 .flat {
   color: var(--muted);
+}
+
+@media (max-width: 680px) {
+  .holdings-table {
+    font-size: 12px;
+  }
+
+  .holdings-table th,
+  .holdings-table td {
+    padding: 8px 8px;
+  }
+
+  .qty {
+    width: 84px;
+    padding: 6px 8px;
+  }
+
+  .add-row .primary-btn,
+  .add-row .ghost-btn {
+    flex: 1 1 auto;
+  }
 }
 </style>

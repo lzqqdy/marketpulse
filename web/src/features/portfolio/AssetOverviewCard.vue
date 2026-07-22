@@ -102,6 +102,9 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
   border-radius: 8px;
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   padding: 16px 14px 12px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .overview-title {
@@ -114,6 +117,7 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
 
 .block {
   margin-bottom: 14px;
+  min-width: 0;
 }
 
 .label {
@@ -127,6 +131,7 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
   flex-wrap: wrap;
   align-items: baseline;
   gap: 8px;
+  min-width: 0;
 }
 
 .total-main {
@@ -134,37 +139,44 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
   font-weight: 700;
   color: var(--text-strong);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .total-sub {
   font-size: 13px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .pnl-line {
   font-size: 20px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .pnl-sm {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .period-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
   border-top: 1px solid var(--line);
   margin-top: 4px;
+  min-width: 0;
 }
 
 .period {
-  padding: 10px 8px 4px;
+  padding: 10px 6px 4px;
   text-align: center;
+  min-width: 0;
 }
 
 .period + .period {
@@ -175,6 +187,7 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
   margin: 0;
   font-size: 12px;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .hint.warn {
@@ -194,13 +207,26 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
   color: var(--text);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 680px) {
+  .total-main {
+    font-size: 18px;
+  }
+
+  .pnl-line {
+    font-size: 16px;
+  }
+
   .period-grid {
     grid-template-columns: 1fr;
   }
+
   .period + .period {
     border-left: none;
     border-top: 1px solid var(--line);
+  }
+
+  .pnl-sm {
+    font-size: 13px;
   }
 }
 </style>

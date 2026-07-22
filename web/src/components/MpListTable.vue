@@ -128,6 +128,8 @@ function sortMark(col: MpColumn): string {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .mp-list-head {
@@ -135,6 +137,7 @@ function sortMark(col: MpColumn): string {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 
 .mp-list-toolbar {
@@ -146,8 +149,11 @@ function sortMark(col: MpColumn): string {
 
 .mp-list-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line);
   border-radius: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .mp-table {
