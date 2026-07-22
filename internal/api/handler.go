@@ -8,6 +8,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/alerts"
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
+	"github.com/lzqqdy/marketpulse/internal/portfolio"
 	"github.com/lzqqdy/marketpulse/internal/users"
 )
 
@@ -18,6 +19,7 @@ type Handler struct {
 	Users       users.Service
 	Alerts      alerts.Service
 	AlertStream *alerts.StreamServer
+	Portfolio   portfolio.Service
 	StartedAt   time.Time
 }
 
@@ -31,6 +33,7 @@ type HealthResponse struct {
 	Ingest       map[string]string `json:"ingest"`
 	Users        string            `json:"users,omitempty"`
 	Alerts       string            `json:"alerts,omitempty"`
+	Portfolio    string            `json:"portfolio,omitempty"`
 }
 
 func (h *Handler) Healthz(c *gin.Context) {
@@ -42,6 +45,10 @@ func (h *Handler) Healthz(c *gin.Context) {
 	if h.Alerts != nil && h.Alerts.Enabled() {
 		alertsState = "enabled"
 	}
+	portfolioState := "disabled"
+	if h.Portfolio != nil && h.Portfolio.Enabled() {
+		portfolioState = "enabled"
+	}
 	c.JSON(http.StatusOK, HealthResponse{
 		Status:       "ok",
 		UptimeSec:    int64(time.Since(h.StartedAt).Seconds()),
@@ -51,6 +58,7 @@ func (h *Handler) Healthz(c *gin.Context) {
 		Ingest:       h.MarketData.IngestStatus(),
 		Users:        usersState,
 		Alerts:       alertsState,
+		Portfolio:    portfolioState,
 	})
 }
 

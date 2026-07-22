@@ -5,13 +5,15 @@ import AlertDeliveriesPanel from '@/features/alerts/AlertDeliveriesPanel.vue'
 import AlertRulesPanel from '@/features/alerts/AlertRulesPanel.vue'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { compressAvatar } from '@/features/auth/utils/compressImage'
+import AssetCenterPanel from '@/features/portfolio/AssetCenterPanel.vue'
 import { useThemeStore } from '@/stores/theme'
 
-type UserTab = 'profile' | 'alerts'
+type UserTab = 'profile' | 'alerts' | 'portfolio'
 
 const TABS: { id: UserTab; label: string }[] = [
   { id: 'profile', label: '账户资料' },
   { id: 'alerts', label: '价格告警' },
+  { id: 'portfolio', label: '资产中心' },
 ]
 
 const auth = useAuthStore()
@@ -236,9 +238,13 @@ function goHome() {
         </section>
       </template>
 
-      <template v-else>
+      <template v-else-if="activeTab === 'alerts'">
         <AlertRulesPanel />
         <AlertDeliveriesPanel />
+      </template>
+
+      <template v-else>
+        <AssetCenterPanel />
       </template>
     </div>
 

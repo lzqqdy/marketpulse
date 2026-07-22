@@ -21,7 +21,8 @@
 | [specs/002-market-center-panel/](../specs/002-market-center-panel/) | ✅ 已实现 | 行情中心面板（A股/港股/美股） |
 | [specs/003-express-news-panel/](../specs/003-express-news-panel/) | ✅ 已实现 | 7×24 财经快讯 |
 | [specs/004-alert-push/](../specs/004-alert-push/) | Draft | 推送告警（规则 / 多通道 / 记录） |
+| [specs/005-portfolio-asset-center/](../specs/005-portfolio-asset-center/) | Draft | 资产中心（持仓/本金、总览、日快照、历史迁移） |
 
-阅读顺序：**001 → 002 → 003 → DATA_SOURCES**；告警功能看 **004**；开发 checklist 用 **RFC-004** 与 **VIBE_GUIDE**；**新功能**用 **SPEC_KIT_GUIDE**。
+阅读顺序：**001 → 002 → 003 → DATA_SOURCES**；告警功能看 **004**；资产中心看 **005**；开发 checklist 用 **RFC-004** 与 **VIBE_GUIDE**；**新功能**用 **SPEC_KIT_GUIDE**。
 
 Docker 运维速查另见：[deploy/docker.md](../deploy/docker.md)。

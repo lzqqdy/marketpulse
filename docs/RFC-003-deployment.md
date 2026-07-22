@@ -318,10 +318,12 @@ make deploy DEPLOY_HOST=user@host        # 全量
 
 ### 3.3 模板
 
-- `deploy/nginx.conf.example` — `/` 静态，`/api/`、`/ws/`、`/healthz` 反代
+- `deploy/nginx.conf.example` — `/` 静态，`/api/`、`/uploads/`、`/ws/`、`/healthz` 反代
 - `deploy/marketpulse.service.example` — systemd
 
 改静态 **无需** restart `marketd`；改后端需 `systemctl restart marketpulse`。
+
+> **注意**：头像等上传文件由 `marketd` 的 `GET /uploads/...` 提供。Nginx 分离部署时必须把 `/uploads/` 反代到后端，否则浏览器会拿到前端 `index.html`，图片不显示。
 
 ---
 

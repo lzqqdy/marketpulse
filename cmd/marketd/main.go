@@ -13,6 +13,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/logging"
 	"github.com/lzqqdy/marketpulse/internal/alerts"
+	"github.com/lzqqdy/marketpulse/internal/portfolio"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformmysql "github.com/lzqqdy/marketpulse/internal/platform/mysql"
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
@@ -39,6 +40,9 @@ func main() {
 	}
 	if cfg.AlertsSkipReason != "" {
 		slog.Warn("alerts module skipped", "reason", cfg.AlertsSkipReason)
+	}
+	if cfg.PortfolioSkipReason != "" {
+		slog.Warn("portfolio module skipped", "reason", cfg.PortfolioSkipReason)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -93,6 +97,7 @@ func main() {
 
 	var alertSvc alerts.Service
 	var alertStream *alerts.StreamServer
+	var portfolioSvc portfolio.Service
 	if cfg.Alerts.Enabled {
 		alertSvc, err = alerts.Bootstrap(ctx, alerts.BootstrapArgs{
 			Alerts:     cfg.Alerts,
@@ -112,12 +117,29 @@ func main() {
 		}
 	}
 
+	if cfg.Portfolio.Enabled {
+		portfolioSvc, err = portfolio.Bootstrap(ctx, portfolio.BootstrapArgs{
+			Portfolio:  cfg.Portfolio,
+			DB:         db,
+			MarketData: marketData,
+			Users:      userSvc,
+		})
+		if err != nil {
+			slog.Error("bootstrap portfolio", "err", err)
+			os.Exit(1)
+		}
+		if portfolioSvc != nil && portfolioSvc.Enabled() {
+			slog.Info("portfolio module enabled")
+		}
+	}
+
 	srv := server.New(server.Deps{
 		Config:      cfg,
 		MarketData:  marketData,
 		Users:       userSvc,
 		Alerts:      alertSvc,
 		AlertStream: alertStream,
+		Portfolio:   portfolioSvc,
 		Upload:      uploadStore,
 		MySQL:       db,
 		Redis:       rdb,

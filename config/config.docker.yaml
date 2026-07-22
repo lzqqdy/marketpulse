@@ -57,6 +57,12 @@ alerts:
   loop_interval_max: 1440
   inbox_max_len: 100
 
+portfolio:
+  enabled: false
+  auto_migrate: true
+  daily_timezone: Asia/Shanghai
+  default_usdt_cny: 6.5
+
 smtp:
   host: ""
   port: 465

@@ -9,6 +9,18 @@ func Register(r *gin.Engine, h *Handler) {
 	RegisterLegacyMarketRoutes(r, h)
 	RegisterUsersRoutes(r, h)
 	RegisterAlertsRoutes(r, h)
+	RegisterPortfolioRoutes(r, h)
+}
+
+// RegisterPortfolioRoutes mounts /api/v1/portfolio endpoints.
+func RegisterPortfolioRoutes(r *gin.Engine, h *Handler) {
+	g := r.Group("/api/v1/portfolio")
+	g.GET("/holdings", h.GetPortfolioHoldings)
+	g.PUT("/holdings", h.PutPortfolioHoldings)
+	g.PUT("/settings", h.PutPortfolioSettings)
+	g.GET("/overview", h.GetPortfolioOverview)
+	g.GET("/snapshots", h.ListPortfolioSnapshots)
+	g.GET("/eligible-symbols", h.GetPortfolioEligibleSymbols)
 }
 
 // RegisterUsersRoutes mounts /api/v1/users endpoints.

@@ -407,7 +407,7 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 ```
 
 `ingest` 值为字符串状态：`starting`、`ok`、`error`、`connected`、`disconnected`、`reconnecting`、`degraded`、`circuit_open`、`disabled`。  
-`users` / `alerts`：`enabled` | `disabled`。
+`users` / `alerts` / `portfolio`：`enabled` | `disabled`。
 
 ---
 
@@ -427,6 +427,24 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 **WebSocket** `GET /ws/v1/alerts/stream?token=` — 连接后推送 `inbox_snapshot`，实时 `alert` 事件；客户端可发 `{"type":"ack","deliveryIds":[...]}`。
 
 规则 `ruleType` 1–5（上涨/下跌/区间/振幅%/5分钟波动）；通道 `in_app` / `email` / `pushplus`；频率 `once` / `loop` / `daily`。
+
+---
+
+## 11.1 资产中心 `/api/v1/portfolio/*`
+
+需登录；`portfolio.enabled=false` 时返回 `503` + `portfolio_disabled`（依赖 mysql + users）。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/portfolio/holdings` | 持仓列表（含实时估值）+ 本金 / USDT-CNY |
+| PUT | `/api/v1/portfolio/holdings` | 全量替换持仓；`assetType` ∈ `crypto\|alpha`；无报价标的拒绝 |
+| PUT | `/api/v1/portfolio/settings` | 设置本金 `principalCny`（¥） |
+| GET | `/api/v1/portfolio/overview` | 总资产 / U溢价 / 今日·7日·30日·历史收益 |
+| GET | `/api/v1/portfolio/snapshots` | 日快照分页；`page`/`pageSize`/`from`/`to`/`sort`/`order`；默认仅 `kind=daily` |
+| GET | `/api/v1/portfolio/eligible-symbols` | 可添加的 crypto / alpha 列表 |
+
+快照收益率字段为**小数**（`0.0164` = 1.64%）；总览 `pnlPct` 为**百分数**（`3.11` = 3.11%）。  
+历史迁移：`go run ./cmd/migrate-assets-log -legacy-dsn ... -mp-dsn ... -uid-map ...`。
 
 ---
 
@@ -562,3 +580,4 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | 1.0 | 2026-07-11 | 对齐实现：alpha、macro 衍生品、providers/status、index-klines、market/center、expressnews、healthz 字段 |
 | 1.1 | 2026-07-14 | 增加 `/api/v1/users` 登录/资料/改密；healthz.users |
 | 1.2 | 2026-07-14 | 增加 `/api/v1/alerts` 规则/投递/WS 站内推送；healthz.alerts |
+| 1.3 | 2026-07-22 | 增加 `/api/v1/portfolio` 持仓/本金/总览/快照；healthz.portfolio |

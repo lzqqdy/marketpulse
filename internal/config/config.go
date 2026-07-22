@@ -16,18 +16,37 @@ type Config struct {
 	CORS    CORSConfig   `yaml:"cors"`
 	MySQL   MySQLConfig  `yaml:"mysql"`
 	Redis   RedisConfig  `yaml:"redis"`
-	Users   UsersConfig   `yaml:"users"`
-	Alerts  AlertsConfig  `yaml:"alerts"`
-	SMTP    SMTPConfig    `yaml:"smtp"`
-	Upload  UploadConfig  `yaml:"upload"`
-	Symbols []string     `yaml:"symbols"`
-	Alpha   AlphaConfig  `yaml:"alpha"`
-	Ingest  IngestConfig `yaml:"ingest"`
+	Users     UsersConfig     `yaml:"users"`
+	Alerts    AlertsConfig    `yaml:"alerts"`
+	Portfolio PortfolioConfig `yaml:"portfolio"`
+	SMTP      SMTPConfig      `yaml:"smtp"`
+	Upload    UploadConfig    `yaml:"upload"`
+	Symbols   []string        `yaml:"symbols"`
+	Alpha     AlphaConfig     `yaml:"alpha"`
+	Ingest    IngestConfig    `yaml:"ingest"`
 
 	// UsersSkipReason is set when users.enabled was requested but deps are missing.
 	UsersSkipReason string `yaml:"-"`
 	// AlertsSkipReason is set when alerts.enabled was requested but deps are missing.
 	AlertsSkipReason string `yaml:"-"`
+	// PortfolioSkipReason is set when portfolio.enabled was requested but deps are missing.
+	PortfolioSkipReason string `yaml:"-"`
+}
+
+// PortfolioConfig configures the optional portfolio / asset-center module (requires mysql + users).
+type PortfolioConfig struct {
+	Enabled        bool    `yaml:"enabled"`
+	AutoMigrate    *bool   `yaml:"auto_migrate"`
+	DailyTimezone  string  `yaml:"daily_timezone"`
+	DefaultUsdtCny float64 `yaml:"default_usdt_cny"`
+}
+
+// IsAutoMigrate reports whether portfolio schema migrations should run on startup.
+func (c PortfolioConfig) IsAutoMigrate() bool {
+	if c.AutoMigrate == nil {
+		return true
+	}
+	return *c.AutoMigrate
 }
 
 // AlertsConfig configures the optional alerts module (requires mysql + redis + users).
@@ -309,6 +328,7 @@ func Load(path string) (*Config, error) {
 	cfg.applyEnv()
 	cfg.applyUsersGuard()
 	cfg.applyAlertsGuard()
+	cfg.applyPortfolioGuard()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -353,6 +373,25 @@ func (c *Config) applyAlertsGuard() {
 	case !c.Users.Enabled:
 		c.Alerts.Enabled = false
 		c.AlertsSkipReason = "users module is disabled"
+	}
+}
+
+// applyPortfolioGuard soft-disables portfolio when mysql/users are off.
+func (c *Config) applyPortfolioGuard() {
+	c.PortfolioSkipReason = ""
+	if !c.Portfolio.Enabled {
+		return
+	}
+	switch {
+	case !c.MySQL.Enabled && !c.Users.Enabled:
+		c.Portfolio.Enabled = false
+		c.PortfolioSkipReason = "mysql and users are disabled"
+	case !c.MySQL.Enabled:
+		c.Portfolio.Enabled = false
+		c.PortfolioSkipReason = "mysql is disabled"
+	case !c.Users.Enabled:
+		c.Portfolio.Enabled = false
+		c.PortfolioSkipReason = "users module is disabled"
 	}
 }
 
@@ -539,6 +578,12 @@ func (c *Config) applyDefaults() {
 	if c.Alerts.InboxMaxLen <= 0 {
 		c.Alerts.InboxMaxLen = 100
 	}
+	if c.Portfolio.DailyTimezone == "" {
+		c.Portfolio.DailyTimezone = "Asia/Shanghai"
+	}
+	if c.Portfolio.DefaultUsdtCny <= 0 {
+		c.Portfolio.DefaultUsdtCny = 6.5
+	}
 	if c.SMTP.Port <= 0 {
 		c.SMTP.Port = 465
 	}
@@ -639,6 +684,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MARKETPULSE_USERS_SEED_NAME"); v != "" {
 		c.Users.Seed.DisplayName = v
+	}
+	if v := os.Getenv("MARKETPULSE_PORTFOLIO_ENABLED"); v != "" {
+		c.Portfolio.Enabled = parseEnvBool(v)
 	}
 }
 

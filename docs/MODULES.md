@@ -8,7 +8,7 @@ MarketPulse is evolving from a single market dashboard into a modular product. T
 | --- | --- | --- | --- |
 | `marketdata` | Collect, normalize, cache, and stream market data | `internal/marketdata`, market routes in `internal/api` | Quotes, rates, indices, macro, derivatives, klines, alpha, market center, provider health |
 | `alerts` | Price and market-condition monitoring | Implemented | Alert rules, trigger history, in_app / email / PushPlus |
-| `portfolio` | Assets, positions, transactions, valuation | Planned | User holdings, cost basis, PnL, portfolio snapshots |
+| `portfolio` | Assets, positions, valuation, daily snapshots | Implemented（`specs/005-portfolio-asset-center/`；图表报告二期） | User holdings, principal, live overview, daily snapshots |
 | `ai` | Market analysis and assistant workflows | Planned | Analysis jobs, prompts, model responses, cached insights |
 | `users` | Identity and access control | `internal/users`, `/api/v1/users`, `web/src/features/auth` | Users, sessions (Redis), profile, password; seed account (no public register) |
 | `platform` | Shared infrastructure | `internal/config`, `internal/logging`, `internal/server`, `internal/platform/mysql`, `internal/platform/redis` | Config, logging, HTTP server, MySQL/Redis clients, future scheduler/jobs |

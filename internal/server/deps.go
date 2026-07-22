@@ -8,6 +8,7 @@ import (
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
 	"github.com/lzqqdy/marketpulse/internal/platform/upload"
 	"github.com/lzqqdy/marketpulse/internal/alerts"
+	"github.com/lzqqdy/marketpulse/internal/portfolio"
 	"github.com/lzqqdy/marketpulse/internal/users"
 )
 
@@ -18,6 +19,7 @@ type Deps struct {
 	Users       users.Service
 	Alerts      alerts.Service
 	AlertStream *alerts.StreamServer
+	Portfolio   portfolio.Service
 	Upload      *upload.Store
 	MySQL       *sql.DB
 	Redis       *platformredis.Client
