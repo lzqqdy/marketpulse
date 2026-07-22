@@ -442,9 +442,12 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 | GET | `/api/v1/portfolio/overview` | 总资产 / U溢价 / 今日·7日·30日·历史收益 |
 | GET | `/api/v1/portfolio/snapshots` | 日快照分页；`page`/`pageSize`/`from`/`to`/`sort`/`order`；默认仅 `kind=daily` |
 | GET | `/api/v1/portfolio/eligible-symbols` | 可添加的 crypto / alpha 列表 |
+| GET | `/api/v1/portfolio/reports/series` | 资产报告时序：`range=7d\|30d\|90d\|180d\|1y\|all`；净值/日盈亏/累计收益点 |
+| GET | `/api/v1/portfolio/reports/allocation` | 当前持仓资产分布（实时估值） |
 
-快照收益率字段为**小数**（`0.0164` = 1.64%）；总览 `pnlPct` 为**百分数**（`3.11` = 3.11%）。  
+快照收益率字段为**小数**（`0.0164` = 1.64%）；总览 / 报告 summary `pnlPct` 为**百分数**（`3.11` = 3.11%）。  
 历史迁移：`go run ./cmd/migrate-assets-log -legacy-dsn ... -mp-dsn ... -uid-map ...`。
+报告契约细节见 `specs/006-portfolio-asset-reports/contracts/api.md`。
 
 ---
 
@@ -581,3 +584,4 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | 1.1 | 2026-07-14 | 增加 `/api/v1/users` 登录/资料/改密；healthz.users |
 | 1.2 | 2026-07-14 | 增加 `/api/v1/alerts` 规则/投递/WS 站内推送；healthz.alerts |
 | 1.3 | 2026-07-22 | 增加 `/api/v1/portfolio` 持仓/本金/总览/快照；healthz.portfolio |
+| 1.4 | 2026-07-22 | 增加 portfolio 报告 `reports/series`、`reports/allocation` |

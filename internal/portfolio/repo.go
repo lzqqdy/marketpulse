@@ -182,6 +182,51 @@ FROM portfolio_snapshots %s ORDER BY %s %s LIMIT ? OFFSET ?`, where, sortBy, ord
 	return items, total, rows.Err()
 }
 
+// ListDailySnapshotsRange returns daily snapshots ASC by date (for charts). Max 2500 rows.
+func (r *repository) ListDailySnapshotsRange(ctx context.Context, userID int64, from, to string) ([]Snapshot, error) {
+	where := `WHERE user_id = ? AND kind = ?`
+	args := []any{userID, SnapshotKindDaily}
+	if from = strings.TrimSpace(from); from != "" {
+		where += ` AND date >= ?`
+		args = append(args, from)
+	}
+	if to = strings.TrimSpace(to); to != "" {
+		where += ` AND date <= ?`
+		args = append(args, to)
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,
+  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at
+FROM portfolio_snapshots `+where+` ORDER BY date ASC LIMIT 2500`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("portfolio_snapshots range: %w", err)
+	}
+	defer rows.Close()
+	var items []Snapshot
+	for rows.Next() {
+		s, err := scanSnapshot(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, s)
+	}
+	return items, rows.Err()
+}
+
+func (r *repository) EarliestDailyDate(ctx context.Context, userID int64) (string, error) {
+	var date string
+	err := r.db.QueryRowContext(ctx, `
+SELECT date FROM portfolio_snapshots WHERE user_id = ? AND kind = ? ORDER BY date ASC LIMIT 1`,
+		userID, SnapshotKindDaily).Scan(&date)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return date, nil
+}
+
 func (r *repository) GetLatestDaily(ctx context.Context, userID int64) (*Snapshot, error) {
 	return r.getOneSnapshot(ctx, `
 SELECT id, user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,

@@ -160,3 +160,35 @@ func (h *Handler) GetPortfolioEligibleSymbols(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, res)
 }
+
+func (h *Handler) GetPortfolioReportSeries(c *gin.Context) {
+	if !h.requirePortfolio(c) {
+		return
+	}
+	userID, ok := h.portfolioUserID(c)
+	if !ok {
+		return
+	}
+	res, err := h.Portfolio.ReportSeries(c.Request.Context(), userID, c.DefaultQuery("range", "30d"))
+	if err != nil {
+		writePortfolioError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+func (h *Handler) GetPortfolioReportAllocation(c *gin.Context) {
+	if !h.requirePortfolio(c) {
+		return
+	}
+	userID, ok := h.portfolioUserID(c)
+	if !ok {
+		return
+	}
+	res, err := h.Portfolio.ReportAllocation(c.Request.Context(), userID)
+	if err != nil {
+		writePortfolioError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}

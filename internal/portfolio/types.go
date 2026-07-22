@@ -152,3 +152,49 @@ type EligibleSymbol struct {
 	Name   string `json:"name,omitempty"`
 	Type   string `json:"assetType"`
 }
+
+// ReportSeriesPoint is one day on the report charts.
+type ReportSeriesPoint struct {
+	Date             string  `json:"date"`
+	TotalValue       float64 `json:"totalValue"`
+	TotalValueCny    float64 `json:"totalValueCny"`
+	DailyProfit      float64 `json:"dailyProfit"`
+	DailyProfitRate  float64 `json:"dailyProfitRate"`
+	TotalProfit      float64 `json:"totalProfit"`
+	TotalProfitRate  float64 `json:"totalProfitRate"`
+}
+
+// ReportSeriesSummary is the period strip above charts.
+type ReportSeriesSummary struct {
+	StartCny float64  `json:"startCny"`
+	EndCny   float64  `json:"endCny"`
+	PnlCny   float64  `json:"pnlCny"`
+	PnlPct   *float64 `json:"pnlPct"`
+}
+
+// ReportSeriesResult is GET /reports/series.
+type ReportSeriesResult struct {
+	Range   string               `json:"range"`
+	From    string               `json:"from"`
+	To      string               `json:"to"`
+	Summary ReportSeriesSummary  `json:"summary"`
+	Points  []ReportSeriesPoint  `json:"points"`
+}
+
+// AllocationItem is one slice of the allocation donut.
+type AllocationItem struct {
+	AssetType string  `json:"assetType"`
+	Symbol    string  `json:"symbol"`
+	ValueCny  float64 `json:"valueCny"`
+	ValueUsdt float64 `json:"valueUsdt"`
+	WeightPct float64 `json:"weightPct"`
+}
+
+// AllocationResult is GET /reports/allocation.
+type AllocationResult struct {
+	TotalCny       float64          `json:"totalCny"`
+	TotalUsdt      float64          `json:"totalUsdt"`
+	Items          []AllocationItem `json:"items"`
+	MissingSymbols []string         `json:"missingSymbols"`
+	RateFallback   bool             `json:"rateFallback,omitempty"`
+}

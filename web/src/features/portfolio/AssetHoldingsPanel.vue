@@ -204,11 +204,11 @@ defineExpose({ reload: load })
       <table class="holdings-table">
         <thead>
           <tr>
-            <th>Coin</th>
-            <th>Num</th>
-            <th class="num">Value</th>
-            <th class="num">Estimated</th>
-            <th></th>
+            <th class="col-coin">币种</th>
+            <th class="col-num">数量</th>
+            <th class="col-val num"><span class="lab-full">价值(U)</span><span class="lab-short">价值</span></th>
+            <th class="col-est num"><span class="lab-full">估值(¥)</span><span class="lab-short">估值</span></th>
+            <th class="col-act"></th>
           </tr>
         </thead>
         <tbody>
@@ -219,11 +219,14 @@ defineExpose({ reload: load })
             <td colspan="5" class="empty">暂无持仓，请在下方添加</td>
           </tr>
           <tr v-for="h in rows" :key="rowKey(h)">
-            <td class="coin">
-              {{ displaySymbol(h) }}
-              <span v-if="h.assetType === 'alpha'" class="tag">美股</span>
+            <td class="coin col-coin">
+              <div class="coin-cell">
+                <span class="coin-name">{{ displaySymbol(h) }}</span>
+                <span v-if="h.assetType === 'alpha'" class="tag">美股</span>
+                <button type="button" class="rm-mobile" aria-label="移除" @click="removeRow(h)">×</button>
+              </div>
             </td>
-            <td>
+            <td class="col-num">
               <input
                 v-model="draftQty[rowKey(h)]"
                 class="qty"
@@ -233,12 +236,12 @@ defineExpose({ reload: load })
                 @keydown.enter.prevent="saveHoldings"
               />
             </td>
-            <td class="num">{{ h.missing ? '—' : fmtMoney(h.valueUsdt, '$') }}</td>
-            <td class="num estimated">
+            <td class="num col-val">{{ h.missing ? '—' : fmtMoney(h.valueUsdt, '$') }}</td>
+            <td class="num estimated col-est">
               <div>{{ h.missing ? '—' : fmtMoney(h.valueCny, '¥') }}</div>
               <div class="chg" :class="trendClass(h.changeCny)">{{ h.missing ? '' : fmtSigned(h.changeCny) }}</div>
             </td>
-            <td>
+            <td class="col-act">
               <button type="button" class="link-btn" @click="removeRow(h)">移除</button>
             </td>
           </tr>
@@ -334,9 +337,13 @@ defineExpose({ reload: load })
 
 .holdings-table {
   width: 100%;
-  min-width: 420px;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
+}
+
+.lab-short {
+  display: none;
 }
 
 .holdings-table th {
@@ -365,25 +372,67 @@ defineExpose({ reload: load })
   border-bottom: none;
 }
 
+.col-coin {
+  width: 18%;
+}
+.col-num {
+  width: 26%;
+}
+.col-val {
+  width: 24%;
+}
+.col-est {
+  width: 24%;
+}
+.col-act {
+  width: 8%;
+}
+
 .coin {
   color: var(--coin);
   font-weight: 700;
+}
+
+.coin-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.coin-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.rm-mobile {
+  display: none;
+}
+
 .tag {
-  margin-left: 6px;
+  margin-left: 2px;
   font-size: 10px;
   font-weight: 500;
   color: var(--muted);
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 1px 5px;
+  padding: 1px 4px;
+  flex-shrink: 0;
 }
 
 .qty {
-  width: 96px;
-  max-width: 28vw;
+  width: 100%;
+  max-width: 120px;
+  min-width: 0;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.qty::-webkit-outer-spin-button,
+.qty::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .estimated .chg {
@@ -481,18 +530,83 @@ defineExpose({ reload: load })
 }
 
 @media (max-width: 680px) {
+  .table-wrap {
+    overflow-x: hidden;
+  }
+
   .holdings-table {
-    font-size: 12px;
+    min-width: 0;
+    width: 100%;
+    font-size: 11px;
+  }
+
+  .lab-full {
+    display: none;
+  }
+
+  .lab-short {
+    display: inline;
+  }
+
+  .col-coin {
+    width: 14%;
+  }
+  .col-num {
+    width: 32%;
+  }
+  .col-val {
+    width: 27%;
+  }
+  .col-est {
+    width: 27%;
+  }
+  .col-act {
+    display: none;
   }
 
   .holdings-table th,
   .holdings-table td {
-    padding: 8px 8px;
+    padding: 6px 2px;
+  }
+
+  .holdings-table th.num,
+  .holdings-table td.num {
+    white-space: nowrap;
+    letter-spacing: -0.03em;
+    font-size: 10.5px;
   }
 
   .qty {
-    width: 84px;
-    padding: 6px 8px;
+    width: 100%;
+    max-width: none;
+    padding: 4px 2px;
+    font-size: 11px;
+  }
+
+  .estimated .chg {
+    font-size: 10px;
+  }
+
+  .tag {
+    display: none;
+  }
+
+  .rm-mobile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
   }
 
   .add-row .primary-btn,

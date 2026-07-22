@@ -8,7 +8,7 @@ MarketPulse is evolving from a single market dashboard into a modular product. T
 | --- | --- | --- | --- |
 | `marketdata` | Collect, normalize, cache, and stream market data | `internal/marketdata`, market routes in `internal/api` | Quotes, rates, indices, macro, derivatives, klines, alpha, market center, provider health |
 | `alerts` | Price and market-condition monitoring | Implemented | Alert rules, trigger history, in_app / email / PushPlus |
-| `portfolio` | Assets, positions, valuation, daily snapshots | Implemented（`specs/005-portfolio-asset-center/`；图表报告二期） | User holdings, principal, live overview, daily snapshots |
+| `portfolio` | Assets, positions, valuation, daily snapshots, reports | Implemented（`specs/005` + `specs/006`） | User holdings, principal, live overview, daily snapshots, chart reports |
 | `ai` | Market analysis and assistant workflows | Planned | Analysis jobs, prompts, model responses, cached insights |
 | `users` | Identity and access control | `internal/users`, `/api/v1/users`, `web/src/features/auth` | Users, sessions (Redis), profile, password; seed account (no public register) |
 | `platform` | Shared infrastructure | `internal/config`, `internal/logging`, `internal/server`, `internal/platform/mysql`, `internal/platform/redis` | Config, logging, HTTP server, MySQL/Redis clients, future scheduler/jobs |
@@ -78,8 +78,9 @@ Owns price monitoring and notification workflow (`alerts.enabled` 灰度开关).
 
 Owns asset and holding state.
 
-- Stores assets, positions, transactions, and valuation snapshots.
-- Uses market data quotes for live valuation.
+- Stores assets, positions, and valuation snapshots.
+- Uses market data quotes for live valuation and allocation.
+- Serves asset report series (trend / PnL charts) from snapshots.
 - Does not mutate market data state.
 
 ### ai
@@ -141,9 +142,9 @@ Keep feature code grouped by domain as the UI grows:
 web/src/features/
   market/          # QuoteTable, MacroGrid, IndexGrid, MarketCenterPanel, AlphaStockPanel, KlineDrawer
   alerts/          # rules / deliveries / toast WS
-  portfolio/       # (planned)
+  portfolio/       # AssetCenter + reports charts
   ai/              # (planned)
-  auth/            # (planned)
+  auth/            # login / user center
 web/src/shared/    # (planned)
 web/src/stores/
   theme.ts         # global theme (not market-specific)

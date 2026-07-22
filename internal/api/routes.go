@@ -21,6 +21,8 @@ func RegisterPortfolioRoutes(r *gin.Engine, h *Handler) {
 	g.GET("/overview", h.GetPortfolioOverview)
 	g.GET("/snapshots", h.ListPortfolioSnapshots)
 	g.GET("/eligible-symbols", h.GetPortfolioEligibleSymbols)
+	g.GET("/reports/series", h.GetPortfolioReportSeries)
+	g.GET("/reports/allocation", h.GetPortfolioReportAllocation)
 }
 
 // RegisterUsersRoutes mounts /api/v1/users endpoints.

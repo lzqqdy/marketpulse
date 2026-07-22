@@ -1,10 +1,13 @@
 import type {
+  AllocationResult,
   EligibleSymbolsResult,
   HoldingInput,
   HoldingsResult,
   ListSnapshotsQuery,
   PortfolioOverview,
   PortfolioSettings,
+  ReportRange,
+  ReportSeriesResult,
   SnapshotsResult,
 } from './types'
 
@@ -76,6 +79,19 @@ export async function listSnapshots(token: string, opts: ListSnapshotsQuery = {}
 
 export async function getEligibleSymbols(token: string): Promise<EligibleSymbolsResult> {
   const res = await fetch('/api/v1/portfolio/eligible-symbols', { headers: authHeaders(token) })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
+}
+
+export async function getReportSeries(token: string, range: ReportRange = '30d'): Promise<ReportSeriesResult> {
+  const params = toParams({ range })
+  const res = await fetch(`/api/v1/portfolio/reports/series?${params}`, { headers: authHeaders(token) })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
+}
+
+export async function getReportAllocation(token: string): Promise<AllocationResult> {
+  const res = await fetch('/api/v1/portfolio/reports/allocation', { headers: authHeaders(token) })
   if (!res.ok) throw new Error(await parseError(res))
   return res.json()
 }

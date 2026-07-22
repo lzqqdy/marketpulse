@@ -7,12 +7,12 @@ import * as api from './api'
 import type { PortfolioSnapshot } from './types'
 
 const COLUMNS: MpColumn[] = [
-  { key: 'date', label: 'Date', sortable: true, width: '16%' },
-  { key: 'totalValueCny', label: 'Total', sortable: true, width: '16%', align: 'right' },
-  { key: 'dailyProfit', label: 'Daily', sortable: true, width: '16%', align: 'right' },
-  { key: 'dailyProfitRate', label: 'D PNL', sortable: false, width: '14%', align: 'right' },
-  { key: 'totalProfit', label: 'Profits', sortable: false, width: '18%', align: 'right' },
-  { key: 'totalProfitRate', label: 'P PNL', sortable: false, width: '14%', align: 'right' },
+  { key: 'date', label: '日期', sortable: true, width: '16%' },
+  { key: 'totalValueCny', label: '总资产', sortable: true, width: '16%', align: 'right' },
+  { key: 'dailyProfit', label: '日收益', sortable: true, width: '16%', align: 'right' },
+  { key: 'dailyProfitRate', label: '日收益率', sortable: false, width: '14%', align: 'right' },
+  { key: 'totalProfit', label: '累计收益', sortable: false, width: '18%', align: 'right' },
+  { key: 'totalProfitRate', label: '累计收益率', sortable: false, width: '14%', align: 'right' },
 ]
 
 const auth = useAuthStore()

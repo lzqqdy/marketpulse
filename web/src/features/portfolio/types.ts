@@ -84,3 +84,46 @@ export interface ListSnapshotsQuery {
   sort?: string
   order?: 'asc' | 'desc'
 }
+
+export type ReportRange = '7d' | '30d' | '90d' | '180d' | '1y' | 'all'
+
+export interface ReportSeriesPoint {
+  date: string
+  totalValue: number
+  totalValueCny: number
+  dailyProfit: number
+  dailyProfitRate: number
+  totalProfit: number
+  totalProfitRate: number
+}
+
+export interface ReportSeriesSummary {
+  startCny: number
+  endCny: number
+  pnlCny: number
+  pnlPct: number | null
+}
+
+export interface ReportSeriesResult {
+  range: ReportRange
+  from: string
+  to: string
+  summary: ReportSeriesSummary
+  points: ReportSeriesPoint[]
+}
+
+export interface AllocationItem {
+  assetType: PortfolioAssetType
+  symbol: string
+  valueCny: number
+  valueUsdt: number
+  weightPct: number
+}
+
+export interface AllocationResult {
+  totalCny: number
+  totalUsdt: number
+  items: AllocationItem[]
+  missingSymbols: string[]
+  rateFallback?: boolean
+}

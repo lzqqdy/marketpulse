@@ -23,6 +23,8 @@ type Service interface {
 	Overview(ctx context.Context, userID int64) (Overview, error)
 	ListSnapshots(ctx context.Context, userID int64, q ListSnapshotsQuery) (ListSnapshotsResult, error)
 	EligibleSymbols(ctx context.Context) (EligibleSymbolsResult, error)
+	ReportSeries(ctx context.Context, userID int64, rangeKey string) (ReportSeriesResult, error)
+	ReportAllocation(ctx context.Context, userID int64) (AllocationResult, error)
 	RunDailySnapshot(ctx context.Context, forDate string) (int, error)
 }
 

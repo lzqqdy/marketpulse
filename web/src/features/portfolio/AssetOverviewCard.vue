@@ -58,7 +58,7 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
     <h2 class="overview-title">资产总览</h2>
     <p v-if="loading && !overview" class="hint">加载中…</p>
     <template v-else-if="overview">
-      <div class="block">
+      <div class="block block-center">
         <div class="label">总资产(U溢价: {{ premium.toFixed(2) }}%)</div>
         <div class="total-line">
           <span class="total-main">{{ fmtMoney(overview.totalUsdt) }}</span>
@@ -70,7 +70,7 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
         </p>
       </div>
 
-      <div class="block">
+      <div class="block block-center">
         <div class="label">今日收益(CNY)</div>
         <div class="pnl-line" :class="windowClass(overview.today)">
           {{ windowText(overview.today) }}
@@ -79,15 +79,15 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
 
       <div class="period-grid">
         <div class="period">
-          <div class="label">7日收益</div>
+          <div class="label">近7日收益</div>
           <div class="pnl-sm" :class="windowClass(overview.d7)">{{ windowText(overview.d7) }}</div>
         </div>
         <div class="period">
-          <div class="label">30日收益</div>
+          <div class="label">近30日收益</div>
           <div class="pnl-sm" :class="windowClass(overview.d30)">{{ windowText(overview.d30) }}</div>
         </div>
         <div class="period">
-          <div class="label">历史收益</div>
+          <div class="label">累计收益</div>
           <div class="pnl-sm" :class="windowClass(overview.allTime)">{{ windowText(overview.allTime) }}</div>
         </div>
       </div>
@@ -118,6 +118,18 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
 .block {
   margin-bottom: 14px;
   min-width: 0;
+}
+
+.block-center {
+  text-align: center;
+}
+
+.block-center .total-line {
+  justify-content: center;
+}
+
+.block-center .hint {
+  text-align: center;
 }
 
 .label {
