@@ -50,7 +50,8 @@ Current provider names:
 | `bitget_alpha` | Bitget USDT-FUTURES | US stock reference primary |
 | `binance_alpha` | Binance Alpha | US stock reference fallback |
 | `baidu_market_center` | Baidu Market Center | Market center panel auxiliary |
-| `baidu_expressnews` | Baidu Express News | 7×24 express news auxiliary |
+| `baidu_expressnews` | Baidu Express News | 7×24 finance express news auxiliary |
+| `odaily_expressnews` | Odaily | Crypto 7×24 flash news (`tag=币圈`) |
 
 The `alpha` category is a legacy internal/API name for the "US stock reference" panel. UI text should call it `美股参考`.
 

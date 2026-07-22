@@ -35,6 +35,8 @@ interface ViewNewsItem {
   provider: string
   timeLabel: string
   contentText: string
+  important: boolean
+  thirdUrl?: string
   relatedLogos: ViewEntity[]
   entities: ViewEntity[]
 }
@@ -105,6 +107,8 @@ function toViewItem(item: ExpressNewsItem): ViewNewsItem {
     provider: item.provider || '--',
     timeLabel: formatNewsTime(item.publishTime),
     contentText: newsContent(item),
+    important: Boolean(item.important),
+    thirdUrl: item.thirdUrl,
     relatedLogos: entities.slice(0, 3).filter((e) => !!e.logoUrl),
     entities,
   }
@@ -256,7 +260,7 @@ onMounted(() => {
     <div v-else class="en-list">
       <template v-for="row in displayRows" :key="row.key">
         <div v-if="row.type === 'date'" class="en-date-row">{{ row.label }}</div>
-        <article v-else class="en-row">
+        <article v-else class="en-row" :class="{ important: row.item.important }">
           <time class="en-col-time">{{ row.item.timeLabel }}</time>
           <div class="en-col-related">
             <img
@@ -272,7 +276,17 @@ onMounted(() => {
             />
           </div>
           <div class="en-col-content">
-            <p class="en-text">{{ row.item.contentText }}</p>
+            <p class="en-text">
+              <span v-if="row.item.important" class="en-important" aria-label="重要">重要</span>
+              <a
+                v-if="row.item.thirdUrl"
+                class="en-link"
+                :href="row.item.thirdUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >{{ row.item.contentText }}</a>
+              <template v-else>{{ row.item.contentText }}</template>
+            </p>
             <div v-if="row.item.entities.length" class="en-entity-tags">
               <span
                 v-for="entity in row.item.entities"
@@ -333,6 +347,13 @@ onMounted(() => {
   gap: 4px;
   flex: 1 1 auto;
   min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.en-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .en-tab {
@@ -344,7 +365,8 @@ onMounted(() => {
   font-size: 13px;
   cursor: pointer;
   flex: 1 1 0;
-  min-width: 0;
+  min-width: 44px;
+  white-space: nowrap;
 }
 
 .en-tab.active {
@@ -361,9 +383,21 @@ onMounted(() => {
 .en-table-head,
 .en-row {
   display: grid;
-  grid-template-columns: 72px 56px 1fr 64px;
+  grid-template-columns: 72px 56px minmax(0, 1fr) 64px;
   gap: 8px;
   align-items: start;
+}
+
+@media (min-width: 641px) {
+  /* No related logos: drop the middle column so content keeps full width */
+  .express-news:not(:has(.en-logo)) .en-table-head,
+  .en-row:not(:has(.en-logo)) {
+    grid-template-columns: 72px minmax(0, 1fr) 64px;
+  }
+
+  .express-news:not(:has(.en-logo)) .en-table-head span:nth-child(2) {
+    display: none;
+  }
 }
 
 .en-table-head {
@@ -393,8 +427,30 @@ onMounted(() => {
 }
 
 .en-row {
-  padding: 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.en-important {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #fff;
+  background: var(--warning, #d97706);
+  vertical-align: 1px;
+}
+
+.en-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.en-link:hover {
+  color: var(--coin);
 }
 
 .en-col-time {
@@ -408,7 +464,11 @@ onMounted(() => {
   flex-direction: column;
   gap: 4px;
   align-items: center;
-  min-height: 22px;
+  min-height: 0;
+}
+
+.en-col-related:empty {
+  display: none;
 }
 
 .en-logo {
@@ -503,12 +563,24 @@ onMounted(() => {
     display: none;
   }
 
-  .en-row {
-    grid-template-columns: 64px 1fr;
+  /* Must beat desktop `.en-row:not(:has(.en-logo))` specificity */
+  .en-row,
+  .en-row:not(:has(.en-logo)),
+  .en-row:has(.en-logo) {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'time source'
+      'content content';
+    gap: 2px 8px;
+    padding: 8px 4px;
+  }
+
+  .en-row:has(.en-logo) {
     grid-template-areas:
       'time source'
       'related related'
       'content content';
+    gap: 4px 8px;
   }
 
   .en-col-time {
@@ -525,8 +597,16 @@ onMounted(() => {
     justify-content: flex-start;
   }
 
+  .en-col-related:empty {
+    display: none;
+  }
+
   .en-col-content {
     grid-area: content;
+  }
+
+  .en-text {
+    line-height: 1.5;
   }
 }
 </style>

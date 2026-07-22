@@ -21,6 +21,9 @@ const (
 	defaultRN   = 20
 	maxRN       = 50
 	expressPath = "/selfselect/expressnews"
+
+	// TagCrypto is the crypto flash-news tab powered by Odaily.
+	TagCrypto = "币圈"
 )
 
 var (
@@ -30,11 +33,12 @@ var (
 )
 
 var allowedTags = map[string]struct{}{
-	"":     {},
-	"A股":   {},
-	"港股":   {},
-	"美股":   {},
-	"异动":   {},
+	"":        {},
+	"A股":      {},
+	"港股":      {},
+	"美股":      {},
+	"异动":      {},
+	TagCrypto: {},
 }
 
 // Client fetches and caches Baidu express news.
@@ -116,12 +120,15 @@ func (c *Client) reportResult(start time.Time, err error) {
 
 // List loads a page of express news for the given tag.
 func (c *Client) List(tag string, pn, rn, filterByUserStocks int) (Response, error) {
-	if !c.cfg.Enabled {
-		return Response{}, ErrDisabled
-	}
 	tag = NormalizeTag(tag)
 	if _, ok := allowedTags[tag]; !ok {
 		return Response{}, ErrInvalidTag
+	}
+	if tag == TagCrypto {
+		return c.listOdaily(pn, rn)
+	}
+	if !c.cfg.Enabled {
+		return Response{}, ErrDisabled
 	}
 	if pn < 0 {
 		return Response{}, ErrInvalidPage

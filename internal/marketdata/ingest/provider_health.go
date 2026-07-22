@@ -95,6 +95,7 @@ func defaultProviderDefs(alphaEnabled bool, alphaProvider string, baiduEnabled b
 		{Name: "binance_liquidations", Label: "Binance Liquidations", Category: "derivatives", Role: "auxiliary", StaleAfter: 3 * time.Minute},
 		{Name: "baidu_market_center", Label: "Baidu Market Center", Category: "market", Role: "auxiliary", StaleAfter: 5 * time.Minute, Disabled: !baiduEnabled},
 		{Name: "baidu_expressnews", Label: "Baidu Express News", Category: "news", Role: "auxiliary", StaleAfter: 3 * time.Minute, Disabled: !baiduEnabled},
+		{Name: "odaily_expressnews", Label: "Odaily Crypto News", Category: "news", Role: "auxiliary", StaleAfter: 3 * time.Minute},
 	}
 	if alphaProvider == "binance" {
 		defs = append(defs, providerDef{Name: "binance_alpha", Label: "Binance Alpha", Category: "alpha", Role: "primary", StaleAfter: 90 * time.Second, Disabled: !alphaEnabled})

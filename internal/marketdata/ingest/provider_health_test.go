@@ -11,13 +11,16 @@ func TestDefaultProviderDefsIncludesOnDemandModules(t *testing.T) {
 	for _, d := range defs {
 		names[d.Name] = d
 	}
-	for _, name := range []string{"baidu_market_center", "baidu_expressnews"} {
+	for _, name := range []string{"baidu_market_center", "baidu_expressnews", "odaily_expressnews"} {
 		def, ok := names[name]
 		if !ok {
 			t.Fatalf("missing provider %s", name)
 		}
-		if def.Disabled {
+		if name != "odaily_expressnews" && def.Disabled {
 			t.Fatalf("%s should be enabled when baidu is enabled", name)
+		}
+		if name == "odaily_expressnews" && def.Disabled {
+			t.Fatalf("odaily_expressnews should stay enabled")
 		}
 	}
 }
@@ -29,6 +32,10 @@ func TestBaiduProvidersDisabledWhenBaiduOff(t *testing.T) {
 		case "baidu_index", "baidu_market_center", "baidu_expressnews":
 			if !d.Disabled {
 				t.Fatalf("%s should be disabled", d.Name)
+			}
+		case "odaily_expressnews":
+			if d.Disabled {
+				t.Fatalf("odaily_expressnews should remain enabled when baidu is off")
 			}
 		}
 	}

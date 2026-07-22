@@ -30,7 +30,7 @@ func writeExpressNewsError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, expressnews.ErrInvalidTag):
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{"code": "INVALID_TAG", "message": "tag must be empty, A股, 港股, 美股, or 异动"},
+			"error": gin.H{"code": "INVALID_TAG", "message": "tag must be empty, 币圈, A股, 港股, 美股, or 异动"},
 		})
 	case errors.Is(err, expressnews.ErrInvalidPage):
 		c.JSON(http.StatusBadRequest, gin.H{

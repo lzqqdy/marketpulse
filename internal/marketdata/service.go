@@ -371,7 +371,9 @@ func (s *Service) ExpressNews(tag string, pn, rn, filterByUserStocks int) (expre
 	if s.expressNews == nil {
 		return expressnews.Response{}, fmt.Errorf("express news unavailable")
 	}
-	if !s.cfg.Ingest.Baidu.IsEnabled() {
+	tag = expressnews.NormalizeTag(tag)
+	// Crypto tab uses Odaily and does not require Baidu.
+	if tag != expressnews.TagCrypto && !s.cfg.Ingest.Baidu.IsEnabled() {
 		return expressnews.Response{}, expressnews.ErrDisabled
 	}
 	return s.expressNews.List(tag, pn, rn, filterByUserStocks)

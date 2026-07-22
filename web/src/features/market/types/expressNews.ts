@@ -1,4 +1,4 @@
-export type ExpressNewsTag = '' | 'A股' | '港股' | '美股' | '异动'
+export type ExpressNewsTag = '' | '币圈' | 'A股' | '港股' | '美股' | '异动'
 
 export interface ExpressNewsEntity {
   code: string
@@ -35,6 +35,7 @@ export interface ExpressNewsResponse {
 
 export const EXPRESS_NEWS_TABS: { label: string; value: ExpressNewsTag }[] = [
   { label: '全部', value: '' },
+  { label: '币圈', value: '币圈' },
   { label: 'A股', value: 'A股' },
   { label: '港股', value: '港股' },
   { label: '美股', value: '美股' },

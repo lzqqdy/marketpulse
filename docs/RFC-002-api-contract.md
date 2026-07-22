@@ -275,14 +275,14 @@ K 线历史。支持 crypto 和 alpha 标的。
 
 ## 8. GET /api/v1/market/expressnews
 
-7×24 财经快讯（按需转发百度 `expressnews`，服务端缓存）。
+7×24 财经快讯（百度 `expressnews`）与币圈快讯（Odaily，`tag=币圈`），服务端缓存。
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `tag` | `""` | `""` `A股` `港股` `美股` `异动` |
+| `tag` | `""` | `""` `币圈` `A股` `港股` `美股` `异动` |
 | `pn` | `0` | 页码，从 0 起 |
 | `rn` | `20` | 每页条数，最大 50 |
-| `filterByUserStocks` | `0` | `1` 时仅返回自选股相关快讯 |
+| `filterByUserStocks` | `0` | `1` 时仅返回自选股相关快讯（百度源） |
 
 ```json
 {
@@ -316,7 +316,7 @@ K 线历史。支持 crypto 和 alpha 标的。
 
 缓存 TTL：首页有新快讯 30s；首页无变化 2min；历史页 10min。
 
-前置条件：`ingest.baidu.enabled=true`，否则返回 `UPSTREAM_ERROR`。
+前置条件：百度标签需 `ingest.baidu.enabled=true`；`tag=币圈` 走 Odaily，不依赖百度。
 
 ---
 
