@@ -11,9 +11,9 @@ import { useThemeStore } from '@/stores/theme'
 type UserTab = 'profile' | 'alerts' | 'portfolio'
 
 const TABS: { id: UserTab; label: string }[] = [
-  { id: 'profile', label: '账户资料' },
-  { id: 'alerts', label: '价格告警' },
   { id: 'portfolio', label: '资产中心' },
+  { id: 'alerts', label: '价格告警' },
+  { id: 'profile', label: '账户资料' },
 ]
 
 const TAB_IDS = new Set<UserTab>(TABS.map((t) => t.id))
@@ -24,8 +24,8 @@ const router = useRouter()
 const route = useRoute()
 
 const activeTab = computed<UserTab>(() => {
-  const tab = String(route.params.tab || 'profile') as UserTab
-  return TAB_IDS.has(tab) ? tab : 'profile'
+  const tab = String(route.params.tab || 'portfolio') as UserTab
+  return TAB_IDS.has(tab) ? tab : 'portfolio'
 })
 
 function selectTab(tab: UserTab) {

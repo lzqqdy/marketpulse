@@ -92,10 +92,10 @@ onUnmounted(() => {
 
     <template v-if="centerTab === 'overview'">
       <section class="user-card">
-        <AssetHoldingsPanel ref="holdingsRef" @saved="onSaved" />
+        <AssetOverviewCard :overview="overview" :loading="loading" />
       </section>
       <section class="user-card">
-        <AssetOverviewCard :overview="overview" :loading="loading" />
+        <AssetHoldingsPanel ref="holdingsRef" @saved="onSaved" />
       </section>
       <section class="user-card">
         <AssetSnapshotsPanel ref="snapshotsRef" />

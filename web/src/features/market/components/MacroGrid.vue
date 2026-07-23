@@ -124,9 +124,10 @@ const cards = computed<MetricCard[]>(() => [
   {
     title: 'BTC溢价',
     main: formatPremiumPct(funding.value.premiumPct),
+    // 手机窄列放不下 "Mark … / Idx …"，只保留两个价避免换行撕开
     sub:
       funding.value.markPrice && funding.value.indexPrice
-        ? `Mark ${formatNumber(funding.value.markPrice, 0)} / Idx ${formatNumber(funding.value.indexPrice, 0)}`
+        ? `${formatNumber(funding.value.markPrice, 0)}/${formatNumber(funding.value.indexPrice, 0)}`
         : '',
     subClass:
       (funding.value.premiumPct ?? 0) > 0 ? 'up' : (funding.value.premiumPct ?? 0) < 0 ? 'down' : 'flat',
@@ -321,6 +322,11 @@ const cards = computed<MetricCard[]>(() => [
   font-weight: bold;
   line-height: 1.3;
   color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .index-desc.up {

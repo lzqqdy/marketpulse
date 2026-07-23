@@ -18,7 +18,7 @@ const router = createRouter({
     },
     {
       path: '/user',
-      redirect: '/user/profile',
+      redirect: '/user/portfolio',
     },
     {
       path: '/user/:tab',
@@ -36,7 +36,7 @@ router.beforeEach(async (to) => {
   if (to.name === 'user') {
     const tab = String(to.params.tab || '')
     if (!USER_TABS.has(tab)) {
-      return { name: 'user', params: { tab: 'profile' }, replace: true }
+      return { name: 'user', params: { tab: 'portfolio' }, replace: true }
     }
   }
   const auth = useAuthStore()
@@ -50,7 +50,7 @@ router.beforeEach(async (to) => {
     }
   }
   if (to.meta.guestOnly && auth.isLoggedIn) {
-    return { name: 'user', params: { tab: 'profile' } }
+    return { name: 'user', params: { tab: 'portfolio' } }
   }
   return true
 })
