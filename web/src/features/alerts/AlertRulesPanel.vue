@@ -553,6 +553,14 @@ async function onDelete(r: AlertRule) {
   font-size: 13px;
 }
 
+.field input[type='checkbox'],
+.field input[type='radio'] {
+  width: auto;
+  padding: 0;
+  border: initial;
+  background: initial;
+}
+
 .tool select {
   padding: 6px 8px;
   font-size: 12px;
@@ -572,6 +580,7 @@ async function onDelete(r: AlertRule) {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  align-items: center;
 }
 
 .check {
@@ -581,6 +590,14 @@ async function onDelete(r: AlertRule) {
   color: var(--text);
   font-size: 13px;
   cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.check input {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .primary-btn {

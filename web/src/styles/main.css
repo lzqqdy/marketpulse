@@ -232,6 +232,13 @@ textarea:focus-visible {
   font-family: inherit;
 }
 
+.field input[type='checkbox'],
+.field input[type='radio'] {
+  width: auto;
+  padding: 0;
+  border-radius: 0;
+}
+
 .field input:focus,
 .field select:focus,
 .field textarea:focus {

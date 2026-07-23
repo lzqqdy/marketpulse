@@ -659,6 +659,18 @@ defineExpose({ reload: load })
   overflow-wrap: anywhere;
 }
 
+.holding-metrics .m-val.up {
+  color: var(--up);
+}
+
+.holding-metrics .m-val.down {
+  color: var(--down);
+}
+
+.holding-metrics .m-val.flat {
+  color: var(--muted);
+}
+
 @media (max-width: 680px) {
   .desktop-only {
     display: none;
