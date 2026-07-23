@@ -207,7 +207,10 @@ defineExpose({ reload: load })
             <th class="col-coin">币种</th>
             <th class="col-num">数量</th>
             <th class="col-val num">价值(U)</th>
-            <th class="col-est num">估值(¥)</th>
+            <th class="col-est num">
+              估值(¥)
+              <span class="th-sub">日涨跌估算</span>
+            </th>
             <th class="col-act"></th>
           </tr>
         </thead>
@@ -238,7 +241,13 @@ defineExpose({ reload: load })
             <td class="num col-val">{{ h.missing ? '—' : fmtMoney(h.valueUsdt, '$') }}</td>
             <td class="num estimated col-est">
               <div>{{ h.missing ? '—' : fmtMoney(h.valueCny, '¥') }}</div>
-              <div class="chg" :class="trendClass(h.changeCny)">{{ h.missing ? '' : fmtSigned(h.changeCny) }}</div>
+              <div
+                class="chg"
+                :class="trendClass(h.changeCny)"
+                title="按标的日涨跌幅估算，非相对昨日快照"
+              >
+                {{ h.missing ? '' : fmtSigned(h.changeCny) }}
+              </div>
             </td>
             <td class="col-act">
               <button type="button" class="link-btn" @click="removeRow(h)">移除</button>
@@ -281,7 +290,7 @@ defineExpose({ reload: load })
             <span class="m-val">{{ h.missing ? '—' : fmtMoney(h.valueCny, '¥') }}</span>
           </div>
           <div>
-            <span class="m-label">今日变动</span>
+            <span class="m-label">日涨跌估算</span>
             <span class="m-val" :class="trendClass(h.changeCny)">{{ h.missing ? '—' : fmtSigned(h.changeCny) }}</span>
           </div>
         </div>
@@ -397,6 +406,15 @@ defineExpose({ reload: load })
   white-space: nowrap;
   background: color-mix(in srgb, var(--panel) 94%, transparent);
   box-shadow: 0 1px 0 var(--line);
+}
+
+.holdings-table th .th-sub {
+  display: block;
+  margin-top: 2px;
+  font-weight: 500;
+  font-size: 10px;
+  opacity: 0.85;
+  white-space: nowrap;
 }
 
 .holdings-table th.num,

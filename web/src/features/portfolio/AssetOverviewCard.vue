@@ -70,8 +70,9 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
         </p>
       </div>
 
-      <div class="block block-center">
+      <div class="block block-center" title="当前总资产 CNY − 最近日快照总资产">
         <div class="label">今日收益(CNY)</div>
+        <div class="label-hint">相对昨日快照</div>
         <div class="pnl-line" :class="windowClass(overview.today)">
           {{ windowText(overview.today) }}
         </div>
@@ -133,6 +134,13 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
+}
+
+.label-hint {
+  font-size: 11px;
+  color: var(--muted-2, var(--muted));
+  margin: -4px 0 6px;
+  opacity: 0.9;
 }
 
 .total-line {

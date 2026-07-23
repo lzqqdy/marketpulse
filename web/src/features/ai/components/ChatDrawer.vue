@@ -289,6 +289,13 @@ watch(
     <img :src="AI_ASSISTANT_MARK" :alt="AI_ASSISTANT_NAME" width="48" height="48" />
   </button>
 
+  <div
+    v-if="open && showFab"
+    class="ai-backdrop"
+    aria-hidden="true"
+    @click="open = false"
+  />
+
   <div v-if="open && showFab" class="ai-drawer">
     <header class="ai-head">
       <div class="brand">
@@ -487,7 +494,7 @@ watch(
   position: fixed;
   right: 18px;
   bottom: 22px;
-  z-index: 40;
+  z-index: 42;
   width: 48px;
   height: 48px;
   padding: 0;
@@ -497,6 +504,29 @@ watch(
   cursor: pointer;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+}
+
+.ai-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(8, 10, 14, 0.42);
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  cursor: pointer;
+  animation: ai-backdrop-in 0.18s ease-out;
+}
+
+@keyframes ai-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .ai-fab img {
