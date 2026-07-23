@@ -13,6 +13,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/logging"
 	"github.com/lzqqdy/marketpulse/internal/alerts"
+	"github.com/lzqqdy/marketpulse/internal/ai"
 	"github.com/lzqqdy/marketpulse/internal/portfolio"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformmysql "github.com/lzqqdy/marketpulse/internal/platform/mysql"
@@ -43,6 +44,9 @@ func main() {
 	}
 	if cfg.PortfolioSkipReason != "" {
 		slog.Warn("portfolio module skipped", "reason", cfg.PortfolioSkipReason)
+	}
+	if cfg.AISkipReason != "" {
+		slog.Warn("ai module skipped", "reason", cfg.AISkipReason)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -133,6 +137,24 @@ func main() {
 		}
 	}
 
+	var aiSvc ai.Service
+	if cfg.AI.Enabled {
+		aiSvc, err = ai.Bootstrap(ctx, ai.BootstrapArgs{
+			AI:         cfg.AI,
+			DB:         db,
+			Redis:      rdb,
+			MarketData: marketData,
+			Users:      userSvc,
+		})
+		if err != nil {
+			slog.Error("bootstrap ai", "err", err)
+			os.Exit(1)
+		}
+		if aiSvc != nil && aiSvc.Enabled() {
+			slog.Info("ai module enabled", "model", cfg.AI.Model)
+		}
+	}
+
 	srv := server.New(server.Deps{
 		Config:      cfg,
 		MarketData:  marketData,
@@ -140,6 +162,7 @@ func main() {
 		Alerts:      alertSvc,
 		AlertStream: alertStream,
 		Portfolio:   portfolioSvc,
+		AI:          aiSvc,
 		Upload:      uploadStore,
 		MySQL:       db,
 		Redis:       rdb,

@@ -19,6 +19,7 @@ type Config struct {
 	Users     UsersConfig     `yaml:"users"`
 	Alerts    AlertsConfig    `yaml:"alerts"`
 	Portfolio PortfolioConfig `yaml:"portfolio"`
+	AI        AiConfig        `yaml:"ai"`
 	SMTP      SMTPConfig      `yaml:"smtp"`
 	Upload    UploadConfig    `yaml:"upload"`
 	Symbols   []string        `yaml:"symbols"`
@@ -31,6 +32,31 @@ type Config struct {
 	AlertsSkipReason string `yaml:"-"`
 	// PortfolioSkipReason is set when portfolio.enabled was requested but deps are missing.
 	PortfolioSkipReason string `yaml:"-"`
+	// AISkipReason is set when ai.enabled was requested but deps are missing.
+	AISkipReason string `yaml:"-"`
+}
+
+// AiConfig configures the optional AI chat assistant (requires mysql + users + api_key).
+type AiConfig struct {
+	Enabled             bool          `yaml:"enabled"`
+	AutoMigrate         *bool         `yaml:"auto_migrate"`
+	Provider            string        `yaml:"provider"`
+	BaseURL             string        `yaml:"base_url"`
+	APIKey              string        `yaml:"api_key"`
+	Model               string        `yaml:"model"`
+	Timeout             time.Duration `yaml:"timeout"`
+	MaxToolRounds       int           `yaml:"max_tool_rounds"`
+	MaxHistoryMessages  int           `yaml:"max_history_messages"`
+	DailyQuotaPerUser   int           `yaml:"daily_quota_per_user"`
+	SystemPrompt        string        `yaml:"system_prompt"`
+}
+
+// IsAutoMigrate reports whether AI schema migrations should run on startup.
+func (c AiConfig) IsAutoMigrate() bool {
+	if c.AutoMigrate == nil {
+		return true
+	}
+	return *c.AutoMigrate
 }
 
 // PortfolioConfig configures the optional portfolio / asset-center module (requires mysql + users).
@@ -330,6 +356,7 @@ func Load(path string) (*Config, error) {
 	cfg.applyUsersGuard()
 	cfg.applyAlertsGuard()
 	cfg.applyPortfolioGuard()
+	cfg.applyAIGuard()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -393,6 +420,29 @@ func (c *Config) applyPortfolioGuard() {
 	case !c.Users.Enabled:
 		c.Portfolio.Enabled = false
 		c.PortfolioSkipReason = "users module is disabled"
+	}
+}
+
+// applyAIGuard soft-disables AI when mysql/users/api_key are missing.
+func (c *Config) applyAIGuard() {
+	c.AISkipReason = ""
+	if !c.AI.Enabled {
+		return
+	}
+	key := strings.TrimSpace(c.AI.APIKey)
+	switch {
+	case !c.MySQL.Enabled && !c.Users.Enabled && key == "":
+		c.AI.Enabled = false
+		c.AISkipReason = "mysql, users and ai.api_key are missing"
+	case !c.MySQL.Enabled:
+		c.AI.Enabled = false
+		c.AISkipReason = "mysql is disabled"
+	case !c.Users.Enabled:
+		c.AI.Enabled = false
+		c.AISkipReason = "users module is disabled"
+	case key == "":
+		c.AI.Enabled = false
+		c.AISkipReason = "ai.api_key is empty"
 	}
 }
 
@@ -585,6 +635,27 @@ func (c *Config) applyDefaults() {
 	if c.Portfolio.DefaultUsdtCny <= 0 {
 		c.Portfolio.DefaultUsdtCny = 6.5
 	}
+	if c.AI.Provider == "" {
+		c.AI.Provider = "deepseek"
+	}
+	if c.AI.BaseURL == "" {
+		c.AI.BaseURL = "https://api.deepseek.com"
+	}
+	if c.AI.Model == "" {
+		c.AI.Model = "deepseek-v4-flash"
+	}
+	if c.AI.Timeout <= 0 {
+		c.AI.Timeout = 120 * time.Second
+	}
+	if c.AI.MaxToolRounds <= 0 {
+		c.AI.MaxToolRounds = 6
+	}
+	if c.AI.MaxHistoryMessages <= 0 {
+		c.AI.MaxHistoryMessages = 40
+	}
+	if c.AI.DailyQuotaPerUser <= 0 {
+		c.AI.DailyQuotaPerUser = 50
+	}
 	if c.SMTP.Port <= 0 {
 		c.SMTP.Port = 465
 	}
@@ -688,6 +759,20 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MARKETPULSE_PORTFOLIO_ENABLED"); v != "" {
 		c.Portfolio.Enabled = parseEnvBool(v)
+	}
+	if v := os.Getenv("MARKETPULSE_AI_ENABLED"); v != "" {
+		c.AI.Enabled = parseEnvBool(v)
+	}
+	if v := os.Getenv("MARKETPULSE_AI_API_KEY"); v != "" {
+		c.AI.APIKey = v
+	} else if v := os.Getenv("DEEPSEEK_API_KEY"); v != "" && c.AI.APIKey == "" {
+		c.AI.APIKey = v
+	}
+	if v := os.Getenv("MARKETPULSE_AI_BASE_URL"); v != "" {
+		c.AI.BaseURL = v
+	}
+	if v := os.Getenv("MARKETPULSE_AI_MODEL"); v != "" {
+		c.AI.Model = v
 	}
 }
 

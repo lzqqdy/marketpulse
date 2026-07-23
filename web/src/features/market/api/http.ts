@@ -7,6 +7,10 @@ export interface HealthzResponse {
   storeVersion: number
   appMode: string
   ingest: Record<string, string>
+  users?: string
+  alerts?: string
+  portfolio?: string
+  ai?: string
 }
 
 export async function fetchSnapshot(): Promise<MarketSnapshot> {

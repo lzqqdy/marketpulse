@@ -63,6 +63,19 @@ portfolio:
   daily_timezone: Asia/Shanghai
   default_usdt_cny: 6.5
 
+ai:
+  enabled: false
+  auto_migrate: true
+  provider: deepseek
+  base_url: "https://api.deepseek.com"
+  api_key: ""
+  model: "deepseek-v4-flash"
+  timeout: 120s
+  max_tool_rounds: 6
+  max_history_messages: 40
+  daily_quota_per_user: 50
+  system_prompt: ""
+
 smtp:
   host: ""
   port: 465

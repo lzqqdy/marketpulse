@@ -414,7 +414,7 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 ```
 
 `ingest` 值为字符串状态：`starting`、`ok`、`error`、`connected`、`disconnected`、`reconnecting`、`degraded`、`circuit_open`、`disabled`。  
-`users` / `alerts` / `portfolio`：`enabled` | `disabled`。
+`users` / `alerts` / `portfolio` / `ai`：`enabled` | `disabled`。
 
 ---
 
@@ -455,6 +455,24 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 快照收益率字段为**小数**（`0.0164` = 1.64%）；总览 / 报告 summary `pnlPct` 为**百分数**（`3.11` = 3.11%）。  
 历史迁移：`go run ./cmd/migrate-assets-log -legacy-dsn ... -mp-dsn ... -uid-map ...`。
 报告契约细节见 `specs/006-portfolio-asset-reports/contracts/api.md`。
+
+---
+
+## 11.2 AI 行情助手 `/api/v1/ai/*`
+
+需登录；`ai.enabled=false` 时返回 `503` + `ai_disabled`（依赖 mysql + users + `ai.api_key`）。  
+默认模型 `deepseek-v4-flash`（可改为 `deepseek-v4-pro`）。完整契约见 `specs/007-ai-assistant/contracts/api.md`。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/ai/chat` | 发送消息；**SSE**（`meta`/`token`/`tool_*`/`done`/`error`）；可选 `conversationId` + `context` |
+| GET | `/api/v1/ai/conversations` | 会话分页列表；`page`/`pageSize` |
+| GET | `/api/v1/ai/conversations/:conversationId/messages` | 消息历史（默认仅 user/assistant；`include=tools` 可选） |
+| DELETE | `/api/v1/ai/conversations/:conversationId` | 软删会话；`204` |
+| PATCH | `/api/v1/ai/conversations/:conversationId` | 改标题 `{ "title": "..." }` |
+
+业务错误码：`ai_disabled`、`ai_misconfigured`、`ai_conversation_busy`(409)、`ai_quota_exceeded`(429)、`ai_upstream`(502)、`invalid_request`、`not_found`。  
+日配额：Redis `ai:quota:{userId}:{yyyyMMdd}`（上海日），无 Redis 时用表 `ai_usage_daily`。
 
 ---
 
@@ -570,6 +588,7 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | 用户 / 登录 | `web/src/features/auth/types/user.ts` |
 | 告警规则 / 投递 | `web/src/features/alerts/types.ts` |
 | 资产持仓 / 报告 | `web/src/features/portfolio/types.ts` |
+| AI 对话 | `web/src/features/ai/types.ts` |
 
 字段与本文保持一致。
 
@@ -596,3 +615,4 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | 1.3 | 2026-07-22 | 增加 `/api/v1/portfolio` 持仓/本金/总览/快照；healthz.portfolio |
 | 1.4 | 2026-07-22 | 增加 portfolio 报告 `reports/series`、`reports/allocation` |
 | 1.5 | 2026-07-22 | 补齐业务错误码、双鉴权头、alerts alpha、前端类型索引 |
+| 1.6 | 2026-07-23 | 增加 `/api/v1/ai` 对话助手（SSE chat / 会话 CRUD）；healthz.ai |

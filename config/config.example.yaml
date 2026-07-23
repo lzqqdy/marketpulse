@@ -4,6 +4,7 @@
 #   users     需要 mysql + redis
 #   alerts    需要 mysql + redis + users；邮件通道另需 smtp
 #   portfolio 需要 mysql + users（不强制 redis）
+#   ai        需要 mysql + users + ai.api_key（DeepSeek 等）
 # 依赖未开时对应模块会 soft-skip 并打 warn，行情仍可启动。
 
 app:
@@ -76,6 +77,21 @@ portfolio:
   auto_migrate: true
   daily_timezone: Asia/Shanghai
   default_usdt_cny: 6.5
+
+# AI 行情助手（需 mysql + users + api_key；见 specs/007-ai-assistant）
+# 密钥可用环境变量 MARKETPULSE_AI_API_KEY 或 DEEPSEEK_API_KEY，勿提交真实 key
+ai:
+  enabled: false
+  auto_migrate: true
+  provider: deepseek
+  base_url: "https://api.deepseek.com"
+  api_key: ""
+  model: "deepseek-v4-flash" # 可改 deepseek-v4-pro
+  timeout: 120s
+  max_tool_rounds: 6
+  max_history_messages: 40
+  daily_quota_per_user: 50
+  system_prompt: ""
 
 smtp:
   host: ""

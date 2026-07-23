@@ -9,7 +9,7 @@ MarketPulse is evolving from a single market dashboard into a modular product. T
 | `marketdata` | Collect, normalize, cache, and stream market data | `internal/marketdata`, market routes in `internal/api` | Quotes, rates, indices, macro, derivatives, klines, alpha, market center, provider health |
 | `alerts` | Price and market-condition monitoring | Implemented | Alert rules, trigger history, in_app / email / PushPlus |
 | `portfolio` | Assets, positions, valuation, daily snapshots, reports | Implemented（`specs/005` + `specs/006`） | User holdings, principal, live overview, daily snapshots, chart reports |
-| `ai` | Market analysis and assistant workflows | Planned | Analysis jobs, prompts, model responses, cached insights |
+| `ai` | Market analysis and assistant workflows | Implemented（`specs/007-ai-assistant/`） | Conversations, messages, tool-grounded chat, daily quota |
 | `users` | Identity and access control | `internal/users`, `/api/v1/users`, `web/src/features/auth` | Users, sessions (Redis), profile, password; seed account (no public register) |
 | `platform` | Shared infrastructure | `internal/config`, `internal/logging`, `internal/server`, `internal/platform/mysql`, `internal/platform/redis` | Config, logging, HTTP server, MySQL/Redis clients, future scheduler/jobs |
 | `web` | Browser UI | `web/src` | Feature views, client state, API clients |
@@ -86,11 +86,12 @@ Owns asset and holding state (`portfolio.enabled` 灰度开关).
 
 ### ai
 
-Owns analysis workflows.
+Owns analysis workflows（规格：`specs/007-ai-assistant/`，OpenBB Rita 对话范式）。
 
 - Reads market data, portfolio summaries, and user context through public module APIs.
-- Stores prompts, analysis jobs, and generated insights.
-- Does not embed provider-specific market fetching logic.
+- Stores conversations, messages, and (future) analysis jobs / generated insights.
+- Streams chat via SSE；tool calling 只读 `MarketDataService`（二期可读 portfolio）。
+- Does not embed provider-specific market fetching logic; does not place trades.
 
 ### users
 
@@ -144,7 +145,7 @@ web/src/features/
   market/          # QuoteTable, MacroGrid, IndexGrid, MarketCenterPanel, AlphaStockPanel, KlineDrawer
   alerts/          # rules / deliveries / toast WS
   portfolio/       # AssetCenter + reports charts
-  ai/              # (planned)
+  ai/              # specs/007-ai-assistant（一期已实现）
   auth/            # login / user center
 web/src/shared/    # (planned)
 web/src/stores/

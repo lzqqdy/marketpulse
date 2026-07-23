@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lzqqdy/marketpulse/internal/alerts"
+	"github.com/lzqqdy/marketpulse/internal/ai"
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	"github.com/lzqqdy/marketpulse/internal/portfolio"
@@ -20,6 +21,7 @@ type Handler struct {
 	Alerts      alerts.Service
 	AlertStream *alerts.StreamServer
 	Portfolio   portfolio.Service
+	AI          ai.Service
 	StartedAt   time.Time
 }
 
@@ -34,6 +36,7 @@ type HealthResponse struct {
 	Users        string            `json:"users,omitempty"`
 	Alerts       string            `json:"alerts,omitempty"`
 	Portfolio    string            `json:"portfolio,omitempty"`
+	AI           string            `json:"ai,omitempty"`
 }
 
 func (h *Handler) Healthz(c *gin.Context) {
@@ -49,6 +52,10 @@ func (h *Handler) Healthz(c *gin.Context) {
 	if h.Portfolio != nil && h.Portfolio.Enabled() {
 		portfolioState = "enabled"
 	}
+	aiState := "disabled"
+	if h.AI != nil && h.AI.Enabled() {
+		aiState = "enabled"
+	}
 	c.JSON(http.StatusOK, HealthResponse{
 		Status:       "ok",
 		UptimeSec:    int64(time.Since(h.StartedAt).Seconds()),
@@ -59,6 +66,7 @@ func (h *Handler) Healthz(c *gin.Context) {
 		Users:        usersState,
 		Alerts:       alertsState,
 		Portfolio:    portfolioState,
+		AI:           aiState,
 	})
 }
 

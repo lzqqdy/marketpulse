@@ -23,7 +23,8 @@
 | [specs/004-alert-push/](../specs/004-alert-push/) | ✅ 已实现 | 推送告警（规则 / 多通道 / 记录；含 alpha） |
 | [specs/005-portfolio-asset-center/](../specs/005-portfolio-asset-center/) | ✅ 已实现 | 资产中心（持仓/本金、总览、日快照、历史迁移） |
 | [specs/006-portfolio-asset-reports/](../specs/006-portfolio-asset-reports/) | ✅ 已实现 | 资产报告（净值/收益/分布图表） |
+| [specs/007-ai-assistant/](../specs/007-ai-assistant/) | ✅ 一期已实现 | AI 行情分析助手（对话 Copilot / Rita 范式） |
 
-阅读顺序：**001 → 002 → 003 → DATA_SOURCES**；告警看 **004**；资产中心看 **005**；资产报告看 **006**；开发 checklist 用 **RFC-004** 与 **VIBE_GUIDE**；**新功能**用 **SPEC_KIT_GUIDE**。
+阅读顺序：**001 → 002 → 003 → DATA_SOURCES**；告警看 **004**；资产中心看 **005**；资产报告看 **006**；AI 助手看 **007**；开发 checklist 用 **RFC-004** 与 **VIBE_GUIDE**；**新功能**用 **SPEC_KIT_GUIDE**。
 
 Docker 运维速查另见：[deploy/docker.md](../deploy/docker.md)。

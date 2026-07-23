@@ -10,6 +10,17 @@ func Register(r *gin.Engine, h *Handler) {
 	RegisterUsersRoutes(r, h)
 	RegisterAlertsRoutes(r, h)
 	RegisterPortfolioRoutes(r, h)
+	RegisterAIRoutes(r, h)
+}
+
+// RegisterAIRoutes mounts /api/v1/ai endpoints.
+func RegisterAIRoutes(r *gin.Engine, h *Handler) {
+	g := r.Group("/api/v1/ai")
+	g.POST("/chat", h.PostAIChat)
+	g.GET("/conversations", h.ListAIConversations)
+	g.GET("/conversations/:conversationId/messages", h.ListAIMessages)
+	g.DELETE("/conversations/:conversationId", h.DeleteAIConversation)
+	g.PATCH("/conversations/:conversationId", h.PatchAIConversation)
 }
 
 // RegisterPortfolioRoutes mounts /api/v1/portfolio endpoints.

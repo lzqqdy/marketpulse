@@ -3,11 +3,12 @@ package server
 import (
 	"database/sql"
 
+	"github.com/lzqqdy/marketpulse/internal/alerts"
+	"github.com/lzqqdy/marketpulse/internal/ai"
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
 	"github.com/lzqqdy/marketpulse/internal/platform/upload"
-	"github.com/lzqqdy/marketpulse/internal/alerts"
 	"github.com/lzqqdy/marketpulse/internal/portfolio"
 	"github.com/lzqqdy/marketpulse/internal/users"
 )
@@ -20,6 +21,7 @@ type Deps struct {
 	Alerts      alerts.Service
 	AlertStream *alerts.StreamServer
 	Portfolio   portfolio.Service
+	AI          ai.Service
 	Upload      *upload.Store
 	MySQL       *sql.DB
 	Redis       *platformredis.Client
