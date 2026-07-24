@@ -453,7 +453,6 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 | GET | `/api/v1/portfolio/reports/allocation` | 当前持仓资产分布（实时估值） |
 
 快照收益率字段为**小数**（`0.0164` = 1.64%）；总览 / 报告 summary `pnlPct` 为**百分数**（`3.11` = 3.11%）。  
-历史迁移：`go run ./cmd/migrate-assets-log -legacy-dsn ... -mp-dsn ... -uid-map ...`。
 报告契约细节见 `specs/006-portfolio-asset-reports/contracts/api.md`。
 
 ---

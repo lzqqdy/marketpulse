@@ -81,7 +81,7 @@ Owns asset and holding state (`portfolio.enabled` 灰度开关).
 - Stores holdings, principal, and daily valuation snapshots in MySQL.
 - Uses market data quotes (crypto + alpha) and OTC rate for live valuation.
 - Serves asset report series (trend / PnL charts) and allocation from snapshots / live holdings.
-- Daily snapshot job + optional legacy `assets_log` import CLI.
+- Daily snapshot job.
 - Does not mutate market data state.
 
 ### ai

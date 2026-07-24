@@ -178,9 +178,8 @@ marketpulse/
 │   ├── config.example.yaml   # 本机配置模板
 │   └── config.docker.yaml    # 容器默认配置
 ├── cmd/
-│   ├── marketd/
-│   │   └── main.go           # 进程入口
-│   └── migrate-assets-log/   # 旧 assets_log → portfolio 迁移 CLI
+│   └── marketd/
+│       └── main.go           # 进程入口
 ├── internal/                 # 后端私有包（不对外 import）
 │   ├── config/
 │   ├── logging/

@@ -8,7 +8,7 @@
 - [x] holdings / settings / overview / snapshots / eligible-symbols API
 - [x] valuation 纯函数 + 单测
 - [x] 日终 snapshot job（Asia/Shanghai）
-- [x] `cmd/migrate-assets-log` 旧库导入
+- [x] ~~`cmd/migrate-assets-log` 旧库导入~~（已移除）
 
 ## Frontend
 

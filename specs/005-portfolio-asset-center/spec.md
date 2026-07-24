@@ -10,7 +10,7 @@
 - `portfolio` 模块已落地（`internal/portfolio`、`/api/v1/portfolio`、用户中心第三 Tab）。
 - 用户中心 Tab：`profile` / `alerts` / `portfolio`。
 - 行情估值经 `MarketDataService`，禁止 portfolio 直连交易所或 ingest（Constitution）。
-- 老项目 `assets_log` 迁移：`cmd/migrate-assets-log`（按 uid 映射；未映射行记为 skip）。
+- 老项目 `assets_log` 一次性导入工具已移除（历史数据如需补录可手工 SQL / 另行脚本）。
 - 图表报告见 **006**（已完成）。
 
 ## 分期范围

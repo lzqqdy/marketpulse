@@ -21,7 +21,7 @@
 | [specs/002-market-center-panel/](../specs/002-market-center-panel/) | ✅ 已实现 | 行情中心面板（A股/港股/美股） |
 | [specs/003-express-news-panel/](../specs/003-express-news-panel/) | ✅ 已实现 | 7×24 财经快讯 |
 | [specs/004-alert-push/](../specs/004-alert-push/) | ✅ 已实现 | 推送告警（规则 / 多通道 / 记录；含 alpha） |
-| [specs/005-portfolio-asset-center/](../specs/005-portfolio-asset-center/) | ✅ 已实现 | 资产中心（持仓/本金、总览、日快照、历史迁移） |
+| [specs/005-portfolio-asset-center/](../specs/005-portfolio-asset-center/) | ✅ 已实现 | 资产中心（持仓/本金、总览、日快照） |
 | [specs/006-portfolio-asset-reports/](../specs/006-portfolio-asset-reports/) | ✅ 已实现 | 资产报告（净值/收益/分布图表） |
 | [specs/007-ai-assistant/](../specs/007-ai-assistant/) | ✅ 一期已实现 | AI 行情分析助手（对话 Copilot / Rita 范式） |
 

@@ -341,7 +341,7 @@ curl -s http://localhost:8080/api/v1/snapshot | jq '.quotes[0]'
 | 28 | 用户中心：登录、资料、头像、改密、登录防刷（MySQL + Redis） | ✅ |
 | 29 | 价格告警：规则引擎、in_app / email / PushPlus、站内 Toast WS（specs/004） | ✅ |
 | 29b | 告警支持美股参考 `alpha` 标的 | ✅ |
-| 30 | 资产中心一期：持仓/本金、总览、日快照、迁移 CLI（specs/005） | ✅ |
+| 30 | 资产中心一期：持仓/本金、总览、日快照（specs/005） | ✅ |
 | 31 | 资产报告：净值/收益/分布图表 API + UI（specs/006） | ✅ |
 | 32 | 运维：ship 保留 `data/uploads`；国内金价切东财主源 | ✅ |
 
