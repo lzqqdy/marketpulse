@@ -24,7 +24,6 @@ deploy/deploy.local.yaml
 .vscode/
 .cursor/*
 !.cursor/skills/
-!.cursor/rules/
 *.swp
 .DS_Store
 
