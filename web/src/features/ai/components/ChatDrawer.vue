@@ -2,7 +2,6 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/features/auth/stores/auth'
-import { fetchHealthz } from '@/features/market/api/http'
 import { useChartStore } from '@/features/market/stores/chart'
 import { useMarketStore } from '@/features/market/stores/market'
 import {
@@ -24,15 +23,114 @@ const input = ref('')
 const messagesEl = ref<HTMLElement | null>(null)
 const composerEl = ref<HTMLTextAreaElement | null>(null)
 const historyOpen = ref(false)
-const showFab = ref(true)
 const copiedId = ref('')
 const renaming = ref(false)
 const renameDraft = ref('')
+/** 手机 sheet 贴合 visualViewport（键盘） */
+const sheetStyle = ref<Record<string, string>>({})
+const isCompact = ref(false)
+
+let lockedScrollY = 0
+let bodyLocked = false
 
 const auth = useAuthStore()
 const router = useRouter()
 const chart = useChartStore()
 const market = useMarketStore()
+
+/** 复用看板 healthz 轮询结果；未拉到前默认显示入口 */
+const showFab = computed(() => market.ingestHealth?.ai !== 'disabled')
+
+const composerPlaceholder = computed(() =>
+  isCompact.value ? '问问行情…' : '问问行情… Enter 发送，Shift+Enter 换行',
+)
+
+function updateCompact() {
+  isCompact.value = window.matchMedia('(max-width: 680px)').matches
+}
+
+function syncSheetToViewport() {
+  if (!open.value || !isCompact.value) {
+    sheetStyle.value = {}
+    return
+  }
+  const vv = window.visualViewport
+  if (!vv) {
+    sheetStyle.value = {
+      top: '0px',
+      left: '0px',
+      right: '0px',
+      width: '100%',
+      height: '100%',
+      bottom: 'auto',
+      borderRadius: '0',
+    }
+    return
+  }
+  // fixed 相对 layout viewport；用 offsetTop/height 对齐可见区（含键盘收起后的可视高度）
+  sheetStyle.value = {
+    top: `${vv.offsetTop}px`,
+    left: `${vv.offsetLeft}px`,
+    right: 'auto',
+    bottom: 'auto',
+    width: `${vv.width}px`,
+    height: `${vv.height}px`,
+    borderRadius: '0',
+    maxHeight: 'none',
+  }
+}
+
+function lockBodyScroll() {
+  if (bodyLocked) return
+  bodyLocked = true
+  lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0
+  document.documentElement.style.overflow = 'hidden'
+  document.body.style.overflow = 'hidden'
+  document.body.style.position = 'fixed'
+  document.body.style.top = `-${lockedScrollY}px`
+  document.body.style.left = '0'
+  document.body.style.right = '0'
+  document.body.style.width = '100%'
+}
+
+function unlockBodyScroll() {
+  if (!bodyLocked) return
+  bodyLocked = false
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
+  document.body.style.position = ''
+  document.body.style.top = ''
+  document.body.style.left = ''
+  document.body.style.right = ''
+  document.body.style.width = ''
+  window.scrollTo(0, lockedScrollY)
+}
+
+function onViewportChange() {
+  updateCompact()
+  syncSheetToViewport()
+}
+
+function bindViewport() {
+  window.visualViewport?.addEventListener('resize', onViewportChange)
+  window.visualViewport?.addEventListener('scroll', onViewportChange)
+  window.addEventListener('resize', onViewportChange)
+}
+
+function unbindViewport() {
+  window.visualViewport?.removeEventListener('resize', onViewportChange)
+  window.visualViewport?.removeEventListener('scroll', onViewportChange)
+  window.removeEventListener('resize', onViewportChange)
+}
+
+function onComposerFocus() {
+  syncSheetToViewport()
+  // 键盘弹起有动画，多拍几次对齐 visualViewport
+  window.setTimeout(syncSheetToViewport, 80)
+  window.setTimeout(syncSheetToViewport, 220)
+  window.setTimeout(syncSheetToViewport, 400)
+}
+
 const {
   messages,
   conversationId,
@@ -146,6 +244,12 @@ async function toggle() {
   }
 }
 
+function closeDrawer() {
+  open.value = false
+  historyOpen.value = false
+  renaming.value = false
+}
+
 async function onSend(text?: string) {
   if (!auth.token) {
     await router.push({ name: 'login' })
@@ -252,22 +356,34 @@ function onGlobalKeydown(e: KeyboardEvent) {
       renaming.value = false
       return
     }
-    open.value = false
+    closeDrawer()
   }
 }
 
-onMounted(async () => {
-  window.addEventListener('keydown', onGlobalKeydown)
-  try {
-    const h = await fetchHealthz()
-    if (h.ai === 'disabled') showFab.value = false
-  } catch {
-    /* healthz 失败时仍显示入口 */
+watch(open, async (v) => {
+  updateCompact()
+  if (v) {
+    lockBodyScroll()
+    bindViewport()
+    syncSheetToViewport()
+    await nextTick()
+    syncSheetToViewport()
+  } else {
+    unbindViewport()
+    sheetStyle.value = {}
+    unlockBodyScroll()
   }
+})
+
+onMounted(() => {
+  updateCompact()
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
+  unbindViewport()
+  unlockBodyScroll()
 })
 
 watch(
@@ -279,45 +395,56 @@ watch(
 </script>
 
 <template>
-  <button
-    v-if="showFab"
-    type="button"
-    class="ai-fab"
-    :title="`${AI_ASSISTANT_NAME} · ${AI_ASSISTANT_TAGLINE}`"
-    @click="toggle"
-  >
-    <img :src="AI_ASSISTANT_MARK" :alt="AI_ASSISTANT_NAME" width="48" height="48" />
-  </button>
+  <Teleport to="body">
+    <button
+      v-if="showFab && !open"
+      type="button"
+      class="ai-fab"
+      :title="`${AI_ASSISTANT_NAME} · ${AI_ASSISTANT_TAGLINE}`"
+      @click="toggle"
+    >
+      <img :src="AI_ASSISTANT_MARK" :alt="AI_ASSISTANT_NAME" width="48" height="48" />
+    </button>
 
-  <div
-    v-if="open && showFab"
-    class="ai-backdrop"
-    aria-hidden="true"
-    @click="open = false"
-  />
+    <div
+      v-if="open && showFab"
+      class="ai-backdrop"
+      :class="{ 'ai-backdrop--sheet': isCompact }"
+      aria-hidden="true"
+      @click="closeDrawer"
+      @touchmove.prevent
+    />
 
-  <div v-if="open && showFab" class="ai-drawer">
-    <header class="ai-head">
-      <div class="brand">
-        <img class="brand-mark" :src="AI_ASSISTANT_MARK" :alt="AI_ASSISTANT_NAME" width="28" height="28" />
-        <div class="brand-text">
-          <strong>{{ AI_ASSISTANT_NAME }}</strong>
-          <span>{{ AI_ASSISTANT_TAGLINE }}</span>
+    <div
+      v-if="open && showFab"
+      class="ai-drawer"
+      :class="{ 'ai-drawer--sheet': isCompact }"
+      :style="sheetStyle"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="AI_ASSISTANT_NAME"
+    >
+      <header class="ai-head">
+        <div class="brand">
+          <img class="brand-mark" :src="AI_ASSISTANT_MARK" :alt="AI_ASSISTANT_NAME" width="28" height="28" />
+          <div class="brand-text">
+            <strong>{{ AI_ASSISTANT_NAME }}</strong>
+            <span>{{ AI_ASSISTANT_TAGLINE }}</span>
+          </div>
         </div>
-      </div>
-      <div class="ai-actions">
-        <button
-          v-if="canUse"
-          type="button"
-          class="link mobile-only"
-          @click="historyOpen = !historyOpen"
-        >
-          {{ historyOpen ? '对话' : '历史' }}
-        </button>
-        <button type="button" class="link" @click="onNewChat">新对话</button>
-        <button type="button" class="link" @click="open = false">关闭</button>
-      </div>
-    </header>
+        <div class="ai-actions">
+          <button
+            v-if="canUse"
+            type="button"
+            class="link mobile-only"
+            @click="historyOpen = !historyOpen"
+          >
+            {{ historyOpen ? '对话' : '历史' }}
+          </button>
+          <button type="button" class="link" @click="onNewChat">新对话</button>
+          <button type="button" class="link" @click="closeDrawer">关闭</button>
+        </div>
+      </header>
 
     <div v-if="canUse" class="focus-bar" :title="focusHint">
       <span class="focus-k">当前</span>
@@ -469,9 +596,11 @@ watch(
             ref="composerEl"
             v-model="input"
             rows="1"
-            placeholder="问问行情… Enter 发送，Shift+Enter 换行"
+            :placeholder="composerPlaceholder"
+            enterkeyhint="send"
             :disabled="streaming"
             @keydown="onComposerKeydown"
+            @focus="onComposerFocus"
             @input="autosize"
           />
           <button
@@ -487,6 +616,7 @@ watch(
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -494,7 +624,7 @@ watch(
   position: fixed;
   right: 18px;
   bottom: 22px;
-  z-index: 42;
+  z-index: 1100;
   width: 48px;
   height: 48px;
   padding: 0;
@@ -509,15 +639,27 @@ watch(
 .ai-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 1090;
   border: none;
   padding: 0;
   margin: 0;
-  background: rgba(8, 10, 14, 0.42);
-  backdrop-filter: blur(10px) saturate(1.05);
-  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  background: rgba(8, 10, 14, 0.48);
   cursor: pointer;
   animation: ai-backdrop-in 0.18s ease-out;
+  touch-action: none;
+}
+
+.ai-backdrop--sheet {
+  background: rgba(8, 10, 14, 0.55);
+}
+
+/* 桌面端轻模糊；移动端只用遮罩，避免 backdrop-filter 掉帧 */
+@media (min-width: 681px) {
+  .ai-backdrop {
+    background: rgba(8, 10, 14, 0.38);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
 }
 
 @keyframes ai-backdrop-in {
@@ -568,7 +710,7 @@ watch(
   position: fixed;
   right: 16px;
   bottom: 80px;
-  z-index: 41;
+  z-index: 1095;
   width: min(560px, calc(100vw - 24px));
   height: min(560px, calc(100vh - 120px));
   display: flex;
@@ -577,6 +719,20 @@ watch(
   border: 1px solid var(--border, #333);
   border-radius: 12px;
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.ai-drawer--sheet {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
 }
 
 .ai-head {
@@ -725,6 +881,9 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .empty-state {
@@ -884,8 +1043,11 @@ watch(
   display: flex;
   gap: 8px;
   padding: 10px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border, #333);
   align-items: flex-end;
+  flex-shrink: 0;
+  background: var(--panel, #141414);
 }
 
 .ai-composer textarea {
@@ -901,6 +1063,8 @@ watch(
   resize: none;
   font: inherit;
   line-height: 1.4;
+  /* iOS 聚焦时减少页面被浏览器强行滚动 */
+  font-size: 16px;
 }
 
 .ai-composer button {
@@ -937,12 +1101,16 @@ watch(
     bottom: max(72px, calc(56px + env(safe-area-inset-bottom, 0px)));
   }
 
-  .ai-drawer {
+  .ai-drawer:not(.ai-drawer--sheet) {
     right: 8px;
     left: 8px;
     width: auto;
     bottom: max(132px, calc(116px + env(safe-area-inset-bottom, 0px)));
-    height: min(560px, calc(100vh - 160px));
+    height: min(560px, calc(100dvh - 160px));
+  }
+
+  .ai-head {
+    padding-top: max(10px, env(safe-area-inset-top, 0px));
   }
 }
 
