@@ -1,5 +1,6 @@
 # Go
 .cache/
+.gomodcache/
 bin/
 marketd
 marketd.exe
