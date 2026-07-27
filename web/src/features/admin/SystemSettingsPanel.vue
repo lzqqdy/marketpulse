@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, shallowRef } from 'vue'
 import { load as yamlLoad } from 'js-yaml'
+import MetricHelp from '@/components/MetricHelp.vue'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import * as api from './api'
 import ConfigField from './ConfigField.vue'
@@ -209,7 +210,13 @@ onMounted(() => {
     <template v-if="view && !loading">
       <section v-if="actionableGaps.length" class="gaps-card">
         <div class="gaps-head">
-          <h3>待对齐（相对 config.example.yaml）</h3>
+          <h3 class="gaps-title">
+            待对齐（相对 config.example.yaml）
+            <MetricHelp
+              title="待对齐"
+              text="对比当前 config.yaml 与 config.example.yaml。&#10;若 example 有、live 没有（或类型不一致），会出现在这里。勾选后保存才会合入；默认不会自动改配置。"
+            />
+          </h3>
           <div class="gaps-actions">
             <button type="button" class="ghost-btn" @click="selectAllGaps(true)">全选缺口</button>
             <button type="button" class="ghost-btn" @click="selectAllGaps(false)">清空</button>
@@ -242,7 +249,13 @@ onMounted(() => {
       </section>
 
       <section v-if="infoGaps.length" class="gaps-card soft">
-        <h3>仅 live 存在（不会一键删除）</h3>
+        <h3 class="gaps-title">
+          仅 live 存在（不会一键删除）
+          <MetricHelp
+            title="仅 live 存在"
+            text="这些键只在当前运行配置里有，example 模板里没有。&#10;对齐流程不会自动删除它们，避免误清线上配置。若确认不需要，请切到 Yaml 模式手动删除后再保存。"
+          />
+        </h3>
         <p v-for="g in infoGaps" :key="g.path" class="info-gap">{{ g.path }}</p>
       </section>
 
@@ -383,9 +396,14 @@ onMounted(() => {
 }
 
 .gaps-head h3,
-.gaps-card h3 {
+.gaps-card h3,
+.gaps-title {
   margin: 0;
   font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .gaps-actions {

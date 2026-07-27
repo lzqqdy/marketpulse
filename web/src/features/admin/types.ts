@@ -20,6 +20,7 @@ export interface FieldSchema {
   options?: string[]
   allowCustom?: boolean
   label?: string
+  help?: string
   itemFields?: ItemField[]
 }
 

@@ -1098,15 +1098,15 @@ watch(
   .ai-fab {
     /* dock 宽 40px，贴右；FAB 放左侧留 10px 间距 */
     right: 50px;
-    bottom: max(72px, calc(56px + env(safe-area-inset-bottom, 0px)));
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
   }
 
   .ai-drawer:not(.ai-drawer--sheet) {
     right: 8px;
     left: 8px;
     width: auto;
-    bottom: max(132px, calc(116px + env(safe-area-inset-bottom, 0px)));
-    height: min(560px, calc(100dvh - 160px));
+    bottom: max(72px, calc(56px + env(safe-area-inset-bottom, 0px)));
+    height: min(560px, calc(100dvh - 100px));
   }
 
   .ai-head {

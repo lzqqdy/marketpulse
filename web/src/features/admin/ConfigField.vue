@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import MetricHelp from '@/components/MetricHelp.vue'
 import type { FieldSchema, ItemField } from './types'
+import { resolveFieldHelp } from './fieldHelp'
 import { getAtPath, setAtPath, type ConfigTree } from './configTree'
 
 const props = defineProps<{
@@ -13,6 +15,7 @@ const emit = defineEmits<{ change: [] }>()
 
 const widget = computed(() => props.schema?.widget ?? inferWidget(props.path, value.value))
 const label = computed(() => props.schema?.label || props.path.split('.').slice(-1)[0])
+const helpText = computed(() => resolveFieldHelp(props.path, widget.value, props.schema?.help))
 
 const value = computed(() => getAtPath(props.tree, props.path))
 
@@ -110,7 +113,10 @@ function updateObjectField(i: number, key: string, text: string) {
 
 <template>
   <div class="cfg-field">
-    <span class="cfg-label">{{ label }}</span>
+    <span class="cfg-label">
+      <span>{{ label }}</span>
+      <MetricHelp v-if="helpText" :title="label" :text="helpText" />
+    </span>
     <span class="cfg-path">{{ path }}</span>
 
     <template v-if="widget === 'switch'">
@@ -239,6 +245,9 @@ function updateObjectField(i: number, key: string, text: string) {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-strong);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .cfg-path {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import MetricHelp from '@/components/MetricHelp.vue'
 import { useMarketStore } from '@/features/market/stores/market'
 import { useTrendClass } from '@/features/market/composables/useTrendClass'
 import { formatNumber, formatPct } from '@/utils/format'
@@ -111,6 +112,7 @@ interface MetricCard {
   main: string
   sub: string
   subClass: string
+  help?: string
 }
 
 const cards = computed<MetricCard[]>(() => [
@@ -120,6 +122,7 @@ const cards = computed<MetricCard[]>(() => [
     main: '$' + formatNumber(m.value.totalMarketCapUsd, 2),
     sub: formatPct(m.value.totalMarketCapChange24hPct),
     subClass: priceClass(m.value.totalMarketCapChange24hPct),
+    help: '加密市场全部代币流通市值合计，反映整体市场规模。下方数字为近 24 小时涨跌幅。',
   },
   {
     title: 'BTC溢价',
@@ -131,12 +134,14 @@ const cards = computed<MetricCard[]>(() => [
         : '',
     subClass:
       (funding.value.premiumPct ?? 0) > 0 ? 'up' : (funding.value.premiumPct ?? 0) < 0 ? 'down' : 'flat',
+    help: 'BTC 永续合约标记价相对现货指数价的溢价/折价。\n正值：合约价高于现货，偏多头拥挤；负值：合约价低于现货，偏空头或资金承压。\n下方为标记价/指数价。',
   },
   {
     title: '情绪',
     main: String(m.value.fearGreed.value),
     sub: fearLabelZh[m.value.fearGreed.label] ?? m.value.fearGreed.label,
     subClass: m.value.fearGreed.value >= 55 ? 'down' : m.value.fearGreed.value <= 45 ? 'up' : 'flat',
+    help: '恐惧与贪婪指数（Fear & Greed，0–100）。\n数值越低越恐惧，越高越贪婪；常用来观察市场情绪是否过热或过度悲观。',
   },
   {
     title: '大户多空',
@@ -145,36 +150,42 @@ const cards = computed<MetricCard[]>(() => [
       ? `多${topLongShort.value.longAccountPct.toFixed(1)}% / 空${topLongShort.value.shortAccountPct.toFixed(1)}%`
       : '',
     subClass: topLongShort.value.ratio >= 1 ? 'up' : 'down',
+    help: '大户账户的多空持仓比（多仓账户占比 / 空仓账户占比）。\n大于 1 表示大户整体偏多，小于 1 偏空。下方为多/空账户占比。',
   },
   {
     title: '资金费率',
     main: fundingLabel(funding.value.rate),
     sub: formatNextFunding(funding.value.nextFundingTime),
     subClass: 'flat',
+    help: '永续合约定期结算的资金费率。\n费率为正：多头向空头付费；为负：空头向多头付费。用来衡量多空杠杆拥挤程度。下方为下次结算时间。',
   },
   {
     title: '美元',
     main: '$ ' + rates.value.usdCny.toFixed(2),
     sub: 'U ' + rates.value.usdtCny.toFixed(2),
     subClass: 'usd',
+    help: '外汇与稳定币兑人民币参考价。\n上方为 USD/CNY（美元），下方为 USDT/CNY（U 溢价相关）。两者价差可侧面反映换汇成本与市场情绪。',
   },
   {
     title: '持仓量',
     main: '$' + formatCompactCnyUnit(openInterest.value.valueUsd, 1),
     sub: formatPct(openInterest.value.changePct),
     subClass: priceClass(openInterest.value.changePct),
+    help: 'BTC 永续未平仓合约名义价值（Open Interest），衡量杠杆资金规模。\n持仓量上升通常表示新开仓增多；下方为变化幅度。',
   },
   {
     title: '爆仓',
     main: '$' + formatCompactCnyUnit(liquidations.value.totalUsd, 0),
     sub: `近1h 多${formatCompactCnyUnit(liquidations.value.longUsd, 0)} / 空${formatCompactCnyUnit(liquidations.value.shortUsd, 0)}`,
     subClass: liquidations.value.longUsd >= liquidations.value.shortUsd ? 'down' : 'up',
+    help: '近 1 小时强制平仓（爆仓）金额合计。\n多头爆仓多常见于急跌，空头爆仓多常见于急涨；可用来观察短期踩踏方向。',
   },
   {
     title: '主动买卖',
     main: takerBuySell.value.ratio.toFixed(2),
     sub: `买${formatCompactCnyUnit(takerBuySell.value.buyVol, 0)} / 卖${formatCompactCnyUnit(takerBuySell.value.sellVol, 0)}`,
     subClass: takerBuySell.value.ratio >= 1 ? 'up' : 'down',
+    help: 'Taker 主动买入成交量 / 主动卖出成交量。\n大于 1 表示主动买盘更强，小于 1 表示主动卖盘更强。下方为买卖成交额。',
   },
   {
     title: '稳定币',
@@ -187,6 +198,7 @@ const cards = computed<MetricCard[]>(() => [
         ? formatPct(m.value.stablecoinMarketCapChange24hPct ?? 0)
         : '',
     subClass: priceClass(m.value.stablecoinMarketCapChange24hPct ?? 0),
+    help: '主要稳定币流通市值合计。\n规模上升通常意味着更多法币/稳定币进入加密市场，可侧面反映场内可用流动性。',
   },
   // 横向滑动区：次要 / 与首屏重复度较高
   {
@@ -194,21 +206,23 @@ const cards = computed<MetricCard[]>(() => [
     main: m.value.longShort?.ratio ? m.value.longShort.ratio.toFixed(2) : '--',
     sub: longShortText.value,
     subClass: 'flat',
+    help: '全市场账户多空比（偏散户视角）。\n与「大户多空」对照看：两边背离时，常提示多空力量分布不均。',
   },
   {
     title: 'BTC占比',
     main: m.value.btcDominancePct.toFixed(1) + '%',
     sub: `ETH ${m.value.ethDominancePct.toFixed(1)}%`,
     subClass: 'flat',
+    help: '比特币市值占加密总市值的比例（BTC Dominance）。\n占比上升常对应资金更偏避险/集中 BTC；下降则山寨币相对更活跃。下方为 ETH 占比。',
   },
   {
     title: '24h成交额',
     main: '$' + formatNumber(m.value.totalVolume24hUsd, 2),
     sub: '',
     subClass: 'flat',
+    help: '加密市场近 24 小时成交额合计，反映整体交投活跃度。成交额放大时常伴随波动加剧。',
   },
 ])
-
 </script>
 
 <template>
@@ -219,7 +233,10 @@ const cards = computed<MetricCard[]>(() => [
     <div class="metric-scroll">
       <div class="macro-grid">
         <article v-for="card in cards" :key="card.title" class="card">
-          <p class="index-title">{{ card.title }}</p>
+          <p class="index-title">
+            <span>{{ card.title }}</span>
+            <MetricHelp v-if="card.help" :title="card.title" :text="card.help" />
+          </p>
           <p class="index-box" :class="card.subClass === 'usd' ? '' : card.subClass">{{ card.main }}</p>
           <p v-if="card.sub" class="index-desc" :class="card.subClass">{{ card.sub }}</p>
         </article>
@@ -298,6 +315,11 @@ const cards = computed<MetricCard[]>(() => [
   font-size: 11px;
   line-height: 1.3;
   color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  max-width: 100%;
 }
 
 .index-box {

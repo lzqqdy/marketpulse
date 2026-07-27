@@ -346,7 +346,8 @@ textarea:focus-visible {
 
 @media (max-width: 680px) {
   .app-shell {
-    padding: 10px 14px max(88px, calc(28px + env(safe-area-inset-bottom, 0px)));
+    /* 仅给右下角 AI FAB 留出一点滚动余量，避免与页面内容叠出大块空白 */
+    padding: 10px 14px max(56px, calc(20px + env(safe-area-inset-bottom, 0px)));
     padding-right: max(14px, env(safe-area-inset-right, 0px));
   }
 }

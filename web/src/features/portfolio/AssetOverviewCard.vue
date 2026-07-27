@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import MetricHelp from '@/components/MetricHelp.vue'
 import type { PnLWindow, PortfolioOverview } from './types'
 
 const props = defineProps<{
@@ -59,7 +60,13 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
     <p v-if="loading && !overview" class="hint">加载中…</p>
     <template v-else-if="overview">
       <div class="block block-center">
-        <div class="label">总资产(U溢价: {{ premium.toFixed(2) }}%)</div>
+        <div class="label">
+          总资产(U溢价: {{ premium.toFixed(2) }}%)
+          <MetricHelp
+            title="U溢价"
+            text="U溢价 = (USDT/CNY − USD/CNY) / USD/CNY。&#10;正值表示 USDT 相对美元更贵，换汇成本偏高；负值则相反。总资产按 USDT 与人民币双口径展示。"
+          />
+        </div>
         <div class="total-line">
           <span class="total-main">{{ fmtMoney(overview.totalUsdt) }}</span>
           <span class="total-sub">≈ {{ fmtMoney(overview.totalCny) }} CNY</span>
@@ -70,8 +77,14 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
         </p>
       </div>
 
-      <div class="block block-center" title="当前总资产 CNY − 最近日快照总资产">
-        <div class="label">今日收益(CNY)</div>
+      <div class="block block-center">
+        <div class="label">
+          今日收益(CNY)
+          <MetricHelp
+            title="今日收益"
+            text="今日收益 = 当前总资产(CNY) − 最近一日资产快照总资产。&#10;依赖每日快照；若当日尚未生成快照或新录入持仓，数值可能暂时偏差。收益率按相对昨日快照计算。"
+          />
+        </div>
         <div class="label-hint">相对昨日快照</div>
         <div class="pnl-line" :class="windowClass(overview.today)">
           {{ windowText(overview.today) }}
@@ -88,7 +101,13 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
           <div class="pnl-sm" :class="windowClass(overview.d30)">{{ windowText(overview.d30) }}</div>
         </div>
         <div class="period">
-          <div class="label">累计收益</div>
+          <div class="label">
+            累计收益
+            <MetricHelp
+              title="累计收益"
+              text="相对持仓本金累计的盈亏（CNY）与收益率。&#10;本金来自持仓录入的成本口径，与「今日收益」的快照对比算法不同。"
+            />
+          </div>
           <div class="pnl-sm" :class="windowClass(overview.allTime)">{{ windowText(overview.allTime) }}</div>
         </div>
       </div>
@@ -134,6 +153,10 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
 }
 
 .label-hint {

@@ -600,7 +600,7 @@ function goHome() {
 
 @media (max-width: 680px) {
   .user-page {
-    padding: 0 2px 88px;
+    padding: 0 2px 8px;
     gap: 10px;
   }
 
@@ -610,7 +610,8 @@ function goHome() {
 
   .user-dock {
     top: auto;
-    bottom: max(88px, calc(72px + env(safe-area-inset-bottom, 0px)));
+    /* 贴底，避免为悬浮栏在文档流里硬留大块空白 */
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
   }
 
   .user-tabs {
