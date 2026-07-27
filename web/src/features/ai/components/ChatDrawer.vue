@@ -10,7 +10,18 @@ import {
   AI_ASSISTANT_TAGLINE,
 } from '../brand'
 import { useAiChatStream } from '../composables/useAiChatStream'
+import { useDraggableFab } from '../composables/useDraggableFab'
 import { renderAssistantHtml } from '../utils/renderMarkdown'
+
+const {
+  fabStyle,
+  fabDragging,
+  fabHasCustomPos,
+  onFabPointerDown,
+  onFabPointerMove,
+  onFabPointerUp,
+  onFabClick,
+} = useDraggableFab()
 
 const QUICK_PROMPTS = [
   'BTC 现在怎么样？',
@@ -400,10 +411,16 @@ watch(
       v-if="showFab && !open"
       type="button"
       class="ai-fab"
-      :title="`${AI_ASSISTANT_NAME} · ${AI_ASSISTANT_TAGLINE}`"
-      @click="toggle"
+      :class="{ 'ai-fab--dragging': fabDragging, 'ai-fab--custom': fabHasCustomPos }"
+      :style="fabStyle"
+      :title="`${AI_ASSISTANT_NAME} · ${AI_ASSISTANT_TAGLINE}（长按拖动）`"
+      @pointerdown="onFabPointerDown"
+      @pointermove="onFabPointerMove"
+      @pointerup="onFabPointerUp"
+      @pointercancel="onFabPointerUp"
+      @click="(e) => onFabClick(e, toggle)"
     >
-      <img :src="AI_ASSISTANT_MARK" :alt="AI_ASSISTANT_NAME" width="48" height="48" />
+      <img :src="AI_ASSISTANT_MARK" :alt="AI_ASSISTANT_NAME" width="48" height="48" draggable="false" />
     </button>
 
     <div
@@ -631,9 +648,20 @@ watch(
   border-radius: 50%;
   border: 1px solid var(--border, #333);
   background: var(--panel, #1a1a1a);
-  cursor: pointer;
+  cursor: grab;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.ai-fab--dragging {
+  cursor: grabbing;
+  transform: scale(1.06);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1200;
 }
 
 .ai-backdrop {
@@ -675,6 +703,7 @@ watch(
   display: block;
   width: 100%;
   height: 100%;
+  pointer-events: none;
 }
 
 .brand {
@@ -1095,7 +1124,7 @@ watch(
 
 /* 与 ProviderStatusWidget 移动端断点对齐：避开右下角 dock */
 @media (max-width: 680px) {
-  .ai-fab {
+  .ai-fab:not(.ai-fab--custom) {
     /* dock 宽 40px，贴右；FAB 放左侧留 10px 间距 */
     right: 50px;
     bottom: max(16px, env(safe-area-inset-bottom, 0px));

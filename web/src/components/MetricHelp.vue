@@ -4,6 +4,8 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 defineProps<{
   title: string
   text: string
+  docUrl?: string
+  docLabel?: string
 }>()
 
 const open = ref(false)
@@ -53,6 +55,16 @@ onBeforeUnmount(() => {
             <button type="button" class="metric-help-close" aria-label="关闭" @click="close">×</button>
           </header>
           <p class="metric-help-text">{{ text }}</p>
+          <a
+            v-if="docUrl"
+            class="metric-help-link"
+            :href="docUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            @click.stop
+          >
+            {{ docLabel || '查看文档' }}
+          </a>
           <button type="button" class="metric-help-ok" @click="close">知道了</button>
         </div>
       </div>
@@ -142,6 +154,18 @@ onBeforeUnmount(() => {
   line-height: 1.55;
   color: var(--text);
   white-space: pre-wrap;
+}
+
+.metric-help-link {
+  font-size: 13px;
+  color: var(--coin);
+  word-break: break-all;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.metric-help-link:hover {
+  filter: brightness(1.08);
 }
 
 .metric-help-ok {

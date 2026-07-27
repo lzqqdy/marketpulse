@@ -5,6 +5,7 @@ import AlertDeliveriesPanel from '@/features/alerts/AlertDeliveriesPanel.vue'
 import AlertRulesPanel from '@/features/alerts/AlertRulesPanel.vue'
 import SystemSettingsPanel from '@/features/admin/SystemSettingsPanel.vue'
 import { fetchAdminMe } from '@/features/admin/api'
+import MetricHelp from '@/components/MetricHelp.vue'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { compressAvatar } from '@/features/auth/utils/compressImage'
 import AssetCenterPanel from '@/features/portfolio/AssetCenterPanel.vue'
@@ -241,12 +242,20 @@ function goHome() {
               <input v-model="form.email" type="email" maxlength="128" placeholder="name@example.com" />
             </label>
             <label class="field">
-              <span>微信推送 Token</span>
+              <span class="field-label">
+                微信推送 Token
+                <MetricHelp
+                  title="微信推送 Token"
+                  text="告警微信推送使用 PushPlus 一对一通道。&#10;在 PushPlus 注册并获取自己的 token，填到此处；创建告警规则时勾选 PushPlus 通道即可推送到微信。&#10;额度与账号状态由 PushPlus 平台负责，请以官方说明为准。"
+                  doc-url="https://www.pushplus.plus/doc/"
+                  doc-label="PushPlus 官方文档 →"
+                />
+              </span>
               <input
                 v-model="form.wechatPushToken"
                 type="text"
                 maxlength="256"
-                placeholder="用于后续告警推送"
+                placeholder="PushPlus token"
               />
             </label>
             <p v-if="profileError" class="form-error">{{ profileError }}</p>
@@ -512,6 +521,12 @@ function goHome() {
   gap: 6px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .field input {
