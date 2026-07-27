@@ -11,6 +11,15 @@ func Register(r *gin.Engine, h *Handler) {
 	RegisterAlertsRoutes(r, h)
 	RegisterPortfolioRoutes(r, h)
 	RegisterAIRoutes(r, h)
+	RegisterAdminRoutes(r, h)
+}
+
+// RegisterAdminRoutes mounts /api/v1/admin endpoints.
+func RegisterAdminRoutes(r *gin.Engine, h *Handler) {
+	g := r.Group("/api/v1/admin")
+	g.GET("/me", h.AdminMe)
+	g.GET("/config", h.GetAdminConfig)
+	g.PUT("/config", h.PutAdminConfig)
 }
 
 // RegisterAIRoutes mounts /api/v1/ai endpoints.

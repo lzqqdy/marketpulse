@@ -346,6 +346,7 @@ textarea:focus-visible {
 
 @media (max-width: 680px) {
   .app-shell {
-    padding-bottom: max(72px, calc(28px + env(safe-area-inset-bottom, 0px)));
+    padding: 10px 14px max(88px, calc(28px + env(safe-area-inset-bottom, 0px)));
+    padding-right: max(14px, env(safe-area-inset-right, 0px));
   }
 }

@@ -363,6 +363,19 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// ParseYAML validates admin-edited config YAML without env overrides or soft-disable guards.
+func ParseYAML(data []byte) (*Config, error) {
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
 // applyUsersGuard soft-disables users when mysql/redis are off so market-only boot succeeds.
 func (c *Config) applyUsersGuard() {
 	c.UsersSkipReason = ""

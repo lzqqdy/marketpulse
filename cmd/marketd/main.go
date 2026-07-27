@@ -12,6 +12,7 @@ import (
 
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/logging"
+	"github.com/lzqqdy/marketpulse/internal/admin"
 	"github.com/lzqqdy/marketpulse/internal/alerts"
 	"github.com/lzqqdy/marketpulse/internal/ai"
 	"github.com/lzqqdy/marketpulse/internal/portfolio"
@@ -155,6 +156,8 @@ func main() {
 		}
 	}
 
+	adminSvc := admin.New("admin.txt", *configPath, admin.DefaultExamplePath(*configPath))
+
 	srv := server.New(server.Deps{
 		Config:      cfg,
 		MarketData:  marketData,
@@ -163,6 +166,7 @@ func main() {
 		AlertStream: alertStream,
 		Portfolio:   portfolioSvc,
 		AI:          aiSvc,
+		Admin:       adminSvc,
 		Upload:      uploadStore,
 		MySQL:       db,
 		Redis:       rdb,

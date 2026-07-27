@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lzqqdy/marketpulse/internal/alerts"
 	"github.com/lzqqdy/marketpulse/internal/ai"
+	"github.com/lzqqdy/marketpulse/internal/admin"
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	"github.com/lzqqdy/marketpulse/internal/portfolio"
@@ -22,6 +23,7 @@ type Handler struct {
 	AlertStream *alerts.StreamServer
 	Portfolio   portfolio.Service
 	AI          ai.Service
+	Admin       *admin.Service
 	StartedAt   time.Time
 }
 

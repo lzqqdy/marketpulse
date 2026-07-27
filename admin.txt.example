@@ -1,0 +1,4 @@
+# Admin phone for MarketPulse system settings.
+# Copy to admin.txt (gitignored) and put one phone number per line.
+# If this file is missing or empty, no user can open System Settings.
+13800138000

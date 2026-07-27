@@ -30,7 +30,7 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
-const USER_TABS = new Set(['profile', 'alerts', 'portfolio'])
+const USER_TABS = new Set(['profile', 'alerts', 'portfolio', 'settings'])
 
 router.beforeEach(async (to) => {
   if (to.name === 'user') {

@@ -9,12 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "js-yaml": "^5.2.2",
     "lightweight-charts": "^4.2.3",
     "pinia": "^2.3.0",
     "vue": "^3.5.13",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "~5.7.2",
     "vite": "^6.0.5",

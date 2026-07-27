@@ -36,6 +36,7 @@ func New(deps Deps) *Server {
 		AlertStream: deps.AlertStream,
 		Portfolio:   deps.Portfolio,
 		AI:          deps.AI,
+		Admin:       deps.Admin,
 		StartedAt:   time.Now().UTC(),
 	}
 	api.Register(r, h)

@@ -15,6 +15,7 @@ web/dist/
 # Config & secrets
 config/config.yaml
 deploy/deploy.local.yaml
+admin.txt
 .env
 .env.*
 !.env.example

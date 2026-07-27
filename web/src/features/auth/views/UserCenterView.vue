@@ -1,31 +1,39 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AlertDeliveriesPanel from '@/features/alerts/AlertDeliveriesPanel.vue'
 import AlertRulesPanel from '@/features/alerts/AlertRulesPanel.vue'
+import SystemSettingsPanel from '@/features/admin/SystemSettingsPanel.vue'
+import { fetchAdminMe } from '@/features/admin/api'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { compressAvatar } from '@/features/auth/utils/compressImage'
 import AssetCenterPanel from '@/features/portfolio/AssetCenterPanel.vue'
 import { useThemeStore } from '@/stores/theme'
 
-type UserTab = 'profile' | 'alerts' | 'portfolio'
+type UserTab = 'profile' | 'alerts' | 'portfolio' | 'settings'
 
-const TABS: { id: UserTab; label: string }[] = [
+const BASE_TABS: { id: UserTab; label: string }[] = [
   { id: 'portfolio', label: '资产中心' },
   { id: 'alerts', label: '价格告警' },
   { id: 'profile', label: '账户资料' },
 ]
 
-const TAB_IDS = new Set<UserTab>(TABS.map((t) => t.id))
-
 const auth = useAuthStore()
 const themeStore = useThemeStore()
 const router = useRouter()
 const route = useRoute()
+const isAdmin = ref(false)
+
+const TABS = computed(() => {
+  if (!isAdmin.value) return BASE_TABS
+  return [...BASE_TABS, { id: 'settings' as const, label: '系统设置' }]
+})
+
+const TAB_IDS = computed(() => new Set<UserTab>(TABS.value.map((t) => t.id)))
 
 const activeTab = computed<UserTab>(() => {
   const tab = String(route.params.tab || 'portfolio') as UserTab
-  return TAB_IDS.has(tab) ? tab : 'portfolio'
+  return TAB_IDS.value.has(tab) ? tab : 'portfolio'
 })
 
 function selectTab(tab: UserTab) {
@@ -59,7 +67,27 @@ const themeLabel = computed(() => (themeStore.mode === 'dark' ? '切换浅色模
 onMounted(async () => {
   await auth.refreshMe()
   syncForm()
+  if (auth.token) {
+    try {
+      const me = await fetchAdminMe(auth.token)
+      isAdmin.value = Boolean(me.isAdmin)
+    } catch {
+      isAdmin.value = false
+    }
+  }
+  if (String(route.params.tab) === 'settings' && !isAdmin.value) {
+    void router.replace({ name: 'user', params: { tab: 'portfolio' } })
+  }
 })
+
+watch(
+  () => [route.params.tab, isAdmin.value] as const,
+  ([tab, admin]) => {
+    if (tab === 'settings' && !admin) {
+      void router.replace({ name: 'user', params: { tab: 'portfolio' } })
+    }
+  },
+)
 
 function syncForm() {
   const u = auth.user
@@ -252,6 +280,10 @@ function goHome() {
       <template v-else-if="activeTab === 'alerts'">
         <AlertRulesPanel />
         <AlertDeliveriesPanel />
+      </template>
+
+      <template v-else-if="activeTab === 'settings' && isAdmin">
+        <SystemSettingsPanel />
       </template>
 
       <template v-else>
@@ -568,33 +600,46 @@ function goHome() {
 
 @media (max-width: 680px) {
   .user-page {
-    padding-right: 0;
-    padding-bottom: 72px;
+    padding: 0 2px 88px;
+    gap: 10px;
+  }
+
+  .user-top {
+    padding: 0 2px;
   }
 
   .user-dock {
     top: auto;
-    bottom: 72px;
+    bottom: max(88px, calc(72px + env(safe-area-inset-bottom, 0px)));
   }
 
   .user-tabs {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0;
+    overflow: visible;
   }
 
   .user-tab {
     flex: none;
     min-width: 0;
-    padding: 10px 4px;
-    font-size: 12px;
+    min-height: 44px;
+    padding: 10px 8px;
+    font-size: 13px;
     text-align: center;
+    white-space: nowrap;
+  }
+
+  .user-card {
+    padding: 14px 12px;
+    border-radius: 8px;
   }
 
   .card-head {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+    margin-bottom: 14px;
   }
 
   .avatar-mask {
@@ -608,6 +653,11 @@ function goHome() {
   .primary-btn {
     width: 100%;
     justify-self: stretch;
+  }
+
+  .field input {
+    font-size: 16px;
+    min-height: 40px;
   }
 }
 </style>
