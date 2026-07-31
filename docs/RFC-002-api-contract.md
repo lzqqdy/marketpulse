@@ -414,7 +414,7 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 ```
 
 `ingest` 值为字符串状态：`starting`、`ok`、`error`、`connected`、`disconnected`、`reconnecting`、`degraded`、`circuit_open`、`disabled`。  
-`users` / `alerts` / `portfolio` / `ai`：`enabled` | `disabled`。
+`users` / `alerts` / `portfolio` / `ai` / `event`：`enabled` | `disabled`。
 
 ---
 
@@ -472,6 +472,23 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 
 业务错误码：`ai_disabled`、`ai_misconfigured`、`ai_conversation_busy`(409)、`ai_quota_exceeded`(429)、`ai_upstream`(502)、`invalid_request`、`not_found`。  
 日配额：Redis `ai:quota:{userId}:{yyyyMMdd}`（上海日），无 Redis 时用表 `ai_usage_daily`。
+
+---
+
+## 11.3 市场异动 Event Engine `/api/v1/events*`
+
+**公开只读**（无需登录）；`event.enabled=false` 或缺 MySQL soft-skip 时返回 `503` + `event_disabled`。  
+一期仅加密检测；完整契约见 `specs/008-crypto-event-engine/contracts/api.md`。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/events` | 事件列表；筛选 `market`/`type`/`subType`/`severity`/`status`/`symbol`/`startTime`/`endTime`；`limit`/`cursor` |
+| GET | `/api/v1/events/:eventID` | 详情（含 signals） |
+| GET | `/api/v1/events/:eventID/timeline` | 时间线节点 |
+
+**WebSocket** `GET /ws/v1/events` — **公开**（无 token）；消息类型 `event.created` / `event.updated` / `event.resolved`；客户端可发文本 `ping`。
+
+`GET /healthz` 增加 `event`: `enabled` \| `disabled`。
 
 ---
 
@@ -615,3 +632,4 @@ wss://{host}/ws/v1/market/kline?symbol=BTC&interval=1h
 | 1.4 | 2026-07-22 | 增加 portfolio 报告 `reports/series`、`reports/allocation` |
 | 1.5 | 2026-07-22 | 补齐业务错误码、双鉴权头、alerts alpha、前端类型索引 |
 | 1.6 | 2026-07-23 | 增加 `/api/v1/ai` 对话助手（SSE chat / 会话 CRUD）；healthz.ai |
+| 1.7 | 2026-07-31 | 增加 `/api/v1/events` 与公开 `/ws/v1/events`（加密 Event Engine）；healthz.event |

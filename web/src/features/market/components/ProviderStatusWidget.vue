@@ -4,13 +4,19 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { useProviderStore } from '@/features/market/stores/providers'
 import { useThemeStore } from '@/stores/theme'
+import { useMarketStore } from '@/features/market/stores/market'
+import EventPanel from '@/features/events/components/EventPanel.vue'
 import type { ProviderHealth, ProviderState } from '@/features/market/types/providers'
 
 const store = useProviderStore()
+const marketStore = useMarketStore()
 const themeStore = useThemeStore()
 const auth = useAuthStore()
 const router = useRouter()
 const open = ref(false)
+const eventsOpen = ref(false)
+
+const eventsEnabled = computed(() => marketStore.ingestHealth?.event === 'enabled')
 
 const statusText: Record<ProviderState, string> = {
   healthy: '正常',
@@ -91,8 +97,14 @@ function categoryLabel(category: string) {
 }
 
 function togglePanel() {
+  eventsOpen.value = false
   open.value = !open.value
   if (open.value) void store.refresh()
+}
+
+function toggleEvents() {
+  open.value = false
+  eventsOpen.value = !eventsOpen.value
 }
 </script>
 
@@ -110,6 +122,19 @@ function togglePanel() {
           <path d="M4 7h11" />
           <path d="M4 12h16" />
           <path d="M4 17h11" />
+        </svg>
+      </button>
+      <button
+        v-if="eventsEnabled"
+        type="button"
+        class="dock-btn event-trigger"
+        :class="{ active: eventsOpen }"
+        aria-label="市场异动"
+        title="市场异动"
+        @click="toggleEvents"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M13 2v8h6l-8 12v-8H5l8-12Z" />
         </svg>
       </button>
       <button type="button" class="dock-btn user-trigger" :aria-label="userLabel" @click="goUserCenter">
@@ -181,6 +206,8 @@ function togglePanel() {
         </div>
       </section>
     </div>
+
+    <EventPanel :open="eventsOpen" @close="eventsOpen = false" />
   </aside>
 </template>
 
@@ -241,6 +268,14 @@ function togglePanel() {
 
 .provider-trigger {
   align-items: center;
+}
+
+.event-trigger svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .provider-panel {

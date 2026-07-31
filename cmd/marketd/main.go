@@ -15,6 +15,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/admin"
 	"github.com/lzqqdy/marketpulse/internal/alerts"
 	"github.com/lzqqdy/marketpulse/internal/ai"
+	"github.com/lzqqdy/marketpulse/internal/event"
 	"github.com/lzqqdy/marketpulse/internal/portfolio"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformmysql "github.com/lzqqdy/marketpulse/internal/platform/mysql"
@@ -48,6 +49,9 @@ func main() {
 	}
 	if cfg.AISkipReason != "" {
 		slog.Warn("ai module skipped", "reason", cfg.AISkipReason)
+	}
+	if cfg.EventSkipReason != "" {
+		slog.Warn("event module skipped", "reason", cfg.EventSkipReason)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -156,6 +160,23 @@ func main() {
 		}
 	}
 
+	var eventSvc event.Service
+	if cfg.Event.Enabled {
+		eventSvc, err = event.Bootstrap(ctx, event.BootstrapArgs{
+			Event:      cfg.Event,
+			DB:         db,
+			MarketData: marketData,
+		})
+		if err != nil {
+			slog.Error("bootstrap event", "err", err)
+			os.Exit(1)
+		}
+		if eventSvc != nil && eventSvc.Enabled() {
+			eventSvc.Start(ctx)
+			slog.Info("event module enabled", "symbols", cfg.Event.Symbols)
+		}
+	}
+
 	adminSvc := admin.New("admin.txt", *configPath, admin.DefaultExamplePath(*configPath))
 
 	srv := server.New(server.Deps{
@@ -166,6 +187,7 @@ func main() {
 		AlertStream: alertStream,
 		Portfolio:   portfolioSvc,
 		AI:          aiSvc,
+		Events:      eventSvc,
 		Admin:       adminSvc,
 		Upload:      uploadStore,
 		MySQL:       db,

@@ -20,6 +20,7 @@ type Config struct {
 	Alerts    AlertsConfig    `yaml:"alerts"`
 	Portfolio PortfolioConfig `yaml:"portfolio"`
 	AI        AiConfig        `yaml:"ai"`
+	Event     EventConfig     `yaml:"event"`
 	SMTP      SMTPConfig      `yaml:"smtp"`
 	Upload    UploadConfig    `yaml:"upload"`
 	Symbols   []string        `yaml:"symbols"`
@@ -34,6 +35,8 @@ type Config struct {
 	PortfolioSkipReason string `yaml:"-"`
 	// AISkipReason is set when ai.enabled was requested but deps are missing.
 	AISkipReason string `yaml:"-"`
+	// EventSkipReason is set when event.enabled was requested but deps are missing.
+	EventSkipReason string `yaml:"-"`
 }
 
 // AiConfig configures the optional AI chat assistant (requires mysql + users + api_key).
@@ -53,6 +56,57 @@ type AiConfig struct {
 
 // IsAutoMigrate reports whether AI schema migrations should run on startup.
 func (c AiConfig) IsAutoMigrate() bool {
+	if c.AutoMigrate == nil {
+		return true
+	}
+	return *c.AutoMigrate
+}
+
+// EventConfig configures the optional crypto event engine (requires mysql).
+type EventConfig struct {
+	Enabled          bool                         `yaml:"enabled"`
+	AutoMigrate      *bool                        `yaml:"auto_migrate"`
+	EvaluateInterval time.Duration                `yaml:"evaluate_interval"`
+	Symbols          []string                     `yaml:"symbols"`
+	AggregateWindow  time.Duration                `yaml:"aggregate_window"`
+	KlineTimeout     time.Duration                `yaml:"kline_timeout"`
+	Price            EventPriceConfig             `yaml:"price"`
+	Volume           EventVolumeConfig            `yaml:"volume"`
+	Volatility       EventVolatilityConfig        `yaml:"volatility"`
+	Liquidation      EventLiquidationConfig       `yaml:"liquidation"`
+}
+
+// EventPriceConfig maps candle interval → absolute change threshold percent.
+type EventPriceConfig map[string]EventPriceWindow
+
+// EventPriceWindow is one price detector threshold.
+type EventPriceWindow struct {
+	ThresholdPct float64 `yaml:"threshold_pct"`
+}
+
+// EventVolumeConfig configures volume spike detection.
+type EventVolumeConfig struct {
+	LookbackBars int     `yaml:"lookback_bars"`
+	RatioMedium  float64 `yaml:"ratio_medium"`
+	RatioHigh    float64 `yaml:"ratio_high"`
+	RatioExtreme float64 `yaml:"ratio_extreme"`
+}
+
+// EventVolatilityConfig configures volatility spike detection.
+type EventVolatilityConfig struct {
+	LookbackBars int     `yaml:"lookback_bars"`
+	Ratio        float64 `yaml:"ratio"`
+}
+
+// EventLiquidationConfig configures liquidation spike detection.
+type EventLiquidationConfig struct {
+	SampleInterval  time.Duration `yaml:"sample_interval"`
+	BaselineSamples int           `yaml:"baseline_samples"`
+	Ratio           float64       `yaml:"ratio"`
+}
+
+// IsAutoMigrate reports whether event schema migrations should run on startup.
+func (c EventConfig) IsAutoMigrate() bool {
 	if c.AutoMigrate == nil {
 		return true
 	}
@@ -357,6 +411,7 @@ func Load(path string) (*Config, error) {
 	cfg.applyAlertsGuard()
 	cfg.applyPortfolioGuard()
 	cfg.applyAIGuard()
+	cfg.applyEventGuard()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -456,6 +511,18 @@ func (c *Config) applyAIGuard() {
 	case key == "":
 		c.AI.Enabled = false
 		c.AISkipReason = "ai.api_key is empty"
+	}
+}
+
+// applyEventGuard soft-disables event engine when mysql is off.
+func (c *Config) applyEventGuard() {
+	c.EventSkipReason = ""
+	if !c.Event.Enabled {
+		return
+	}
+	if !c.MySQL.Enabled {
+		c.Event.Enabled = false
+		c.EventSkipReason = "mysql is disabled"
 	}
 }
 
@@ -668,6 +735,61 @@ func (c *Config) applyDefaults() {
 	}
 	if c.AI.DailyQuotaPerUser <= 0 {
 		c.AI.DailyQuotaPerUser = 50
+	}
+	if c.Event.EvaluateInterval <= 0 {
+		c.Event.EvaluateInterval = 20 * time.Second
+	}
+	if c.Event.AggregateWindow <= 0 {
+		c.Event.AggregateWindow = 10 * time.Minute
+	}
+	if c.Event.KlineTimeout <= 0 {
+		c.Event.KlineTimeout = 8 * time.Second
+	}
+	if len(c.Event.Symbols) == 0 {
+		c.Event.Symbols = []string{"BTC", "ETH"}
+	} else {
+		syms := make([]string, 0, len(c.Event.Symbols))
+		for _, s := range c.Event.Symbols {
+			s = strings.ToUpper(strings.TrimSpace(s))
+			if s != "" {
+				syms = append(syms, s)
+			}
+		}
+		c.Event.Symbols = syms
+	}
+	if len(c.Event.Price) == 0 {
+		c.Event.Price = EventPriceConfig{
+			"5m":  {ThresholdPct: 2},
+			"15m": {ThresholdPct: 3},
+			"1h":  {ThresholdPct: 5},
+		}
+	}
+	if c.Event.Volume.LookbackBars <= 0 {
+		c.Event.Volume.LookbackBars = 20
+	}
+	if c.Event.Volume.RatioMedium <= 0 {
+		c.Event.Volume.RatioMedium = 2
+	}
+	if c.Event.Volume.RatioHigh <= 0 {
+		c.Event.Volume.RatioHigh = 3
+	}
+	if c.Event.Volume.RatioExtreme <= 0 {
+		c.Event.Volume.RatioExtreme = 5
+	}
+	if c.Event.Volatility.LookbackBars <= 0 {
+		c.Event.Volatility.LookbackBars = 20
+	}
+	if c.Event.Volatility.Ratio <= 0 {
+		c.Event.Volatility.Ratio = 2
+	}
+	if c.Event.Liquidation.SampleInterval <= 0 {
+		c.Event.Liquidation.SampleInterval = time.Minute
+	}
+	if c.Event.Liquidation.BaselineSamples <= 0 {
+		c.Event.Liquidation.BaselineSamples = 60
+	}
+	if c.Event.Liquidation.Ratio <= 0 {
+		c.Event.Liquidation.Ratio = 3
 	}
 	if c.SMTP.Port <= 0 {
 		c.SMTP.Port = 465

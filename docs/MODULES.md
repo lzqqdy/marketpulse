@@ -10,6 +10,7 @@ MarketPulse is evolving from a single market dashboard into a modular product. T
 | `alerts` | Price and market-condition monitoring | Implemented | Alert rules, trigger history, in_app / email / PushPlus |
 | `portfolio` | Assets, positions, valuation, daily snapshots, reports | Implemented（`specs/005` + `specs/006`） | User holdings, principal, live overview, daily snapshots, chart reports |
 | `ai` | Market analysis and assistant workflows | Implemented（`specs/007-ai-assistant/`） | Conversations, messages, tool-grounded chat, daily quota |
+| `event` | Market anomaly → Signal → MarketEvent | Implemented（`specs/008-crypto-event-engine/`） | Detectors, aggregator, event store, public event REST/WS；一期加密优先、无个人推送 |
 | `users` | Identity and access control | `internal/users`, `/api/v1/users`, `web/src/features/auth` | Users, sessions (Redis), profile, password; seed account (no public register) |
 | `platform` | Shared infrastructure | `internal/config`, `internal/logging`, `internal/server`, `internal/platform/mysql`, `internal/platform/redis` | Config, logging, HTTP server, MySQL/Redis clients, future scheduler/jobs |
 | `web` | Browser UI | `web/src` | Feature views, client state, API clients |
@@ -21,7 +22,7 @@ Allowed direction:
 ```text
 platform
   <- marketdata
-  <- alerts / portfolio / ai / users
+  <- alerts / portfolio / ai / event / users
   <- api
   <- web
 ```
@@ -48,6 +49,7 @@ The market data module is not responsible for:
 - Alert rule storage.
 - Portfolio or transaction records.
 - AI prompts, model calls, or analysis history.
+- Market event detection, aggregation, or event store.
 - Feature-specific UI state.
 
 Future modules should consume market data through a narrow boundary similar to:
@@ -93,6 +95,17 @@ Owns analysis workflows（规格：`specs/007-ai-assistant/`，OpenBB Rita 对�
 - Streams chat via SSE；tool calling 只读 `MarketDataService`（二期可读 portfolio）。
 - Does not embed provider-specific market fetching logic; does not place trades.
 
+### event
+
+Owns system-level market anomaly detection and MarketEvent lifecycle（规格：`specs/008-crypto-event-engine/`，一期已实现）。
+
+- Consumes only `MarketDataService`（Listener、Klines、Snapshot/Macro.Liquidations）；never providers or ingest.
+- Rule detectors produce Signals； aggregator templates compose MarketEvents（crypto-first MVP）.
+- Persists events/signals in MySQL； public REST `/api/v1/events*` and public WS `/ws/v1/events`（no login）.
+- `event.enabled` soft-skip when MySQL missing； must not block marketdata ingest/WS.
+- Phase 1 does **not** own personal push, user subscriptions, email/PushPlus, or LLM-based detection.
+- Distinct from `alerts`：event = public market facts； alerts = per-user rule notifications.
+
 ### users
 
 Owns identity and preferences.
@@ -133,7 +146,9 @@ New modules should use their own namespaces:
 /api/v1/alerts
 /api/v1/portfolio
 /api/v1/ai
+/api/v1/events
 /api/v1/users
+WS /ws/v1/events
 ```
 
 ## Frontend Module Plan
@@ -146,6 +161,7 @@ web/src/features/
   alerts/          # rules / deliveries / toast WS
   portfolio/       # AssetCenter + reports charts
   ai/              # specs/007-ai-assistant（一期已实现）
+  events/          # specs/008-crypto-event-engine（看板异动面板，公开只读）
   auth/            # login / user center
 web/src/shared/    # (planned)
 web/src/stores/

@@ -7,6 +7,7 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/ai"
 	"github.com/lzqqdy/marketpulse/internal/admin"
 	"github.com/lzqqdy/marketpulse/internal/config"
+	"github.com/lzqqdy/marketpulse/internal/event"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
 	"github.com/lzqqdy/marketpulse/internal/platform/upload"
@@ -23,6 +24,7 @@ type Deps struct {
 	AlertStream *alerts.StreamServer
 	Portfolio   portfolio.Service
 	AI          ai.Service
+	Events      event.Service
 	Admin       *admin.Service
 	Upload      *upload.Store
 	MySQL       *sql.DB

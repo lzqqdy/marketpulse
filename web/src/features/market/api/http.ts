@@ -11,6 +11,7 @@ export interface HealthzResponse {
   alerts?: string
   portfolio?: string
   ai?: string
+  event?: string
 }
 
 export async function fetchSnapshot(): Promise<MarketSnapshot> {

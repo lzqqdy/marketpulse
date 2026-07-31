@@ -1,0 +1,42 @@
+CREATE TABLE IF NOT EXISTS market_event (
+  id            VARCHAR(64)  NOT NULL PRIMARY KEY,
+  type          VARCHAR(64)  NOT NULL,
+  sub_type      VARCHAR(64)  NOT NULL DEFAULT '',
+  title         VARCHAR(256) NOT NULL,
+  description   TEXT         NOT NULL,
+  severity      VARCHAR(16)  NOT NULL,
+  score         DOUBLE       NOT NULL DEFAULT 0,
+  peak_score    DOUBLE       NOT NULL DEFAULT 0,
+  status        VARCHAR(32)  NOT NULL,
+  start_time    DATETIME(3)  NOT NULL,
+  end_time      DATETIME(3)  NULL,
+  symbols_json  JSON         NOT NULL,
+  markets_json  JSON         NOT NULL,
+  context_json  JSON         NOT NULL,
+  created_at    DATETIME(3)  NOT NULL,
+  updated_at    DATETIME(3)  NOT NULL,
+  KEY idx_event_status_start (status, start_time),
+  KEY idx_event_type_start (type, start_time),
+  KEY idx_event_severity_start (severity, start_time),
+  KEY idx_event_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS market_event_signal (
+  id            VARCHAR(64)  NOT NULL PRIMARY KEY,
+  event_id      VARCHAR(64)  NOT NULL,
+  signal_type   VARCHAR(64)  NOT NULL,
+  symbol        VARCHAR(64)  NOT NULL,
+  market        VARCHAR(32)  NOT NULL,
+  value         DOUBLE       NOT NULL DEFAULT 0,
+  baseline      DOUBLE       NOT NULL DEFAULT 0,
+  ratio         DOUBLE       NOT NULL DEFAULT 0,
+  change_pct    DOUBLE       NOT NULL DEFAULT 0,
+  window_label  VARCHAR(16)  NOT NULL DEFAULT '',
+  direction     VARCHAR(16)  NOT NULL DEFAULT '',
+  ts            DATETIME(3)  NOT NULL,
+  metadata_json JSON         NOT NULL,
+  KEY idx_sig_event (event_id),
+  KEY idx_sig_symbol_ts (symbol, ts),
+  KEY idx_sig_type_ts (signal_type, ts),
+  CONSTRAINT fk_sig_event FOREIGN KEY (event_id) REFERENCES market_event(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

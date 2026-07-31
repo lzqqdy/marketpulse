@@ -93,6 +93,32 @@ ai:
   daily_quota_per_user: 50
   system_prompt: ""
 
+# 市场异动 Event Engine（需 mysql；公开 REST/WS，无需登录；见 specs/008-crypto-event-engine）
+# 阈值修改后需重启进程生效
+event:
+  enabled: false
+  auto_migrate: true
+  evaluate_interval: 20s
+  aggregate_window: 10m
+  kline_timeout: 8s
+  symbols: [BTC, ETH]
+  price:
+    "5m": { threshold_pct: 2 }
+    "15m": { threshold_pct: 3 }
+    "1h": { threshold_pct: 5 }
+  volume:
+    lookback_bars: 20
+    ratio_medium: 2
+    ratio_high: 3
+    ratio_extreme: 5
+  volatility:
+    lookback_bars: 20
+    ratio: 2
+  liquidation:
+    sample_interval: 1m
+    baseline_samples: 60
+    ratio: 3
+
 smtp:
   host: ""
   port: 465

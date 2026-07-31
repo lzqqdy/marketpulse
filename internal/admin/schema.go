@@ -34,7 +34,7 @@ func DefaultSections() []SectionMeta {
 	return []SectionMeta{
 		{ID: "basic", Label: "基础", Keys: []string{"app", "cors", "symbols"}},
 		{ID: "platform", Label: "平台", Keys: []string{"mysql", "redis", "upload"}},
-		{ID: "business", Label: "业务", Keys: []string{"users", "alerts", "portfolio", "ai", "smtp"}},
+		{ID: "business", Label: "业务", Keys: []string{"users", "alerts", "portfolio", "ai", "event", "smtp"}},
 		{ID: "ingest", Label: "采集", Keys: []string{"ingest", "alpha"}},
 	}
 }
@@ -99,6 +99,12 @@ var knownSchemas = []FieldSchema{
 	{Path: "ai.max_history_messages", Widget: "number"},
 	{Path: "ai.daily_quota_per_user", Widget: "number"},
 	{Path: "ai.system_prompt", Widget: "textarea"},
+
+	{Path: "event.enabled", Widget: "switch"},
+	{Path: "event.auto_migrate", Widget: "switch"},
+	{Path: "event.evaluate_interval", Widget: "duration"},
+	{Path: "event.aggregate_window", Widget: "duration"},
+	{Path: "event.kline_timeout", Widget: "duration"},
 
 	{Path: "smtp.host", Widget: "text"},
 	{Path: "smtp.port", Widget: "number"},

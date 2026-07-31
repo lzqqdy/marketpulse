@@ -70,6 +70,7 @@ curl -s http://127.0.0.1:8080/api/v1/market/snapshot
 | 行情中心 | A股/港股/美股涨跌分布、热力图、资金流、热门板块 |
 | 美股参考 | Bitget USDT-FUTURES 代币化美股（Binance Alpha 备用） |
 | 7×24 快讯 | 百度财经快讯瀑布流 |
+| 市场异动 | 加密异常检测 → Signal/Event 聚合；公开 REST/WS；看板异动面板（需 `mysql` + `event.enabled`） |
 | K 线抽屉 | lightweight-charts，crypto/alpha WS 实时，指数 REST |
 | 数据源健康 | Provider 状态面板，30s 轮询 |
 | 用户中心 | 登录 / 资料 / 头像 / 改密（需 `mysql` + `redis` + `users.enabled`） |

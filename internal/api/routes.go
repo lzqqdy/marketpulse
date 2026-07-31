@@ -11,7 +11,18 @@ func Register(r *gin.Engine, h *Handler) {
 	RegisterAlertsRoutes(r, h)
 	RegisterPortfolioRoutes(r, h)
 	RegisterAIRoutes(r, h)
+	RegisterEventRoutes(r, h)
 	RegisterAdminRoutes(r, h)
+}
+
+// RegisterEventRoutes mounts public /api/v1/events and /ws/v1/events.
+func RegisterEventRoutes(r *gin.Engine, h *Handler) {
+	g := r.Group("/api/v1/events")
+	g.GET("", h.ListEvents)
+	g.GET("/:eventID", h.GetEvent)
+	g.GET("/:eventID/timeline", h.GetEventTimeline)
+
+	r.GET("/ws/v1/events", h.EventsStreamWS)
 }
 
 // RegisterAdminRoutes mounts /api/v1/admin endpoints.
