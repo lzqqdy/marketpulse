@@ -8,6 +8,10 @@ type PageContext struct {
 	AssetClass      string   `json:"assetClass,omitempty"`
 	Page            string   `json:"page,omitempty"`
 	VisibleSymbols  []string `json:"visibleSymbols,omitempty"`
+	FearGreedValue  int      `json:"fearGreedValue,omitempty"`
+	FearGreedLabel  string   `json:"fearGreedLabel,omitempty"`
+	BtcDominancePct float64  `json:"btcDominancePct,omitempty"`
+	UsdtCny         float64  `json:"usdtCny,omitempty"`
 }
 
 // ChatRequest is the POST /api/v1/ai/chat body.

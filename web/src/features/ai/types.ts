@@ -3,6 +3,10 @@ export interface PageContext {
   assetClass?: string
   page?: string
   visibleSymbols?: string[]
+  fearGreedValue?: number
+  fearGreedLabel?: string
+  btcDominancePct?: number
+  usdtCny?: number
 }
 
 export interface ChatRequest {

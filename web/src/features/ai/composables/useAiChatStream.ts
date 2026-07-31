@@ -12,9 +12,11 @@ import { formatAiError } from '../utils/formatAiError'
 const CONV_KEY = 'marketpulse-ai-conversation-id'
 
 const TOOL_LABELS: Record<string, string> = {
+  get_symbol_brief: '标的简报',
   get_quote: '报价',
   get_snapshot_summary: '盘面摘要',
   get_klines_summary: 'K线摘要',
+  compare_symbols: '标的对比',
   get_express_news: '快讯',
   get_market_breadth: '涨跌广度',
 }

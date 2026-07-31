@@ -24,9 +24,9 @@ const {
 } = useDraggableFab()
 
 const QUICK_PROMPTS = [
-  'BTC 现在怎么样？',
-  '今天 A 股涨跌家数多少？',
-  '最近有什么重要快讯？',
+  'BTC 现在怎么样？结合盘面一起看',
+  '对比一下 BTC 和 ETH 谁更强',
+  '今天 A 股涨跌家数和热门板块',
 ] as const
 
 const open = ref(false)
@@ -204,11 +204,16 @@ function buildContext() {
         ? chart.alphaQuote?.id || chart.symbol
         : chart.indexQuote?.id || chart.symbol
     : market.quotes[0]?.symbol
+  const fg = market.macro?.fearGreed
   return {
     focusSymbol: focus || undefined,
     assetClass: chart.visible ? chart.kind : 'crypto',
     page: 'dashboard',
     visibleSymbols: market.quotes.slice(0, 8).map((q) => q.symbol),
+    fearGreedValue: fg?.value || undefined,
+    fearGreedLabel: fg?.label || undefined,
+    btcDominancePct: market.macro?.btcDominancePct || undefined,
+    usdtCny: market.rates?.usdtCny || undefined,
   }
 }
 

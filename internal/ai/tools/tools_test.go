@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/websocket"
@@ -120,8 +121,13 @@ func TestKlinesSummary(t *testing.T) {
 			Interval: "1d",
 			Source:   "stub",
 			Candles: []binance.Candle{
-				{Time: 1, Open: 100, High: 110, Low: 90, Close: 105},
-				{Time: 2, Open: 105, High: 120, Low: 100, Close: 115},
+				{Time: 1, Open: 100, High: 110, Low: 90, Close: 105, Volume: 10},
+				{Time: 2, Open: 105, High: 120, Low: 100, Close: 115, Volume: 12},
+				{Time: 3, Open: 115, High: 130, Low: 110, Close: 125, Volume: 11},
+				{Time: 4, Open: 125, High: 140, Low: 120, Close: 135, Volume: 13},
+				{Time: 5, Open: 135, High: 150, Low: 130, Close: 145, Volume: 14},
+				{Time: 6, Open: 145, High: 155, Low: 140, Close: 150, Volume: 15},
+				{Time: 7, Open: 150, High: 160, Low: 145, Close: 158, Volume: 30},
 			},
 		},
 	})
@@ -134,11 +140,63 @@ func TestKlinesSummary(t *testing.T) {
 	if m["ok"] != true {
 		t.Fatalf("%s", out)
 	}
-	if m["candleCount"].(float64) != 2 {
+	if m["candleCount"].(float64) != 7 {
 		t.Fatalf("count=%v", m["candleCount"])
 	}
 	if _, ok := m["rangeChangePct"]; !ok {
 		t.Fatal("missing rangeChangePct")
+	}
+	if _, ok := m["sma7"]; !ok {
+		t.Fatal("missing sma7")
+	}
+	if m["closeVsSma7"] != "above" && m["closeVsSma7"] != "below" {
+		t.Fatalf("closeVsSma7=%v", m["closeVsSma7"])
+	}
+	if _, ok := m["volumeNote"]; !ok {
+		t.Fatal("missing volumeNote")
+	}
+}
+
+func TestCompareSymbols(t *testing.T) {
+	reg := NewRegistry(&stubMD{
+		ok: true,
+		quote: marketdata.Quote{
+			Symbol:       "BTC",
+			PriceUsdt:    100000,
+			Change24hPct: 1.5,
+		},
+		klines: marketdata.KlineResponse{
+			Symbol:   "BTC",
+			Interval: "1d",
+			Candles: []binance.Candle{
+				{Time: 1, Open: 100, High: 110, Low: 90, Close: 105, Volume: 10},
+				{Time: 2, Open: 105, High: 120, Low: 100, Close: 115, Volume: 20},
+			},
+		},
+	})
+	out, err := reg.Execute(context.Background(), "compare_symbols", `{"symbols":["BTC","ETH"]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	_ = json.Unmarshal([]byte(out), &m)
+	if m["ok"] != true {
+		t.Fatalf("%s", out)
+	}
+	items, _ := m["items"].([]any)
+	if len(items) != 2 {
+		t.Fatalf("items=%d", len(items))
+	}
+}
+
+func TestCompactBoardBriefing(t *testing.T) {
+	reg := NewRegistry(&stubMD{
+		ok:    true,
+		quote: marketdata.Quote{Symbol: "BTC", Change24hPct: 3, PriceUsdt: 1},
+	})
+	text := reg.CompactBoardBriefing()
+	if text == "" || !strings.Contains(text, "看板实时盘面摘要") {
+		t.Fatalf("briefing=%q", text)
 	}
 }
 
@@ -160,6 +218,48 @@ func TestMarketBreadth(t *testing.T) {
 	breadth := m["breadth"].(map[string]any)
 	if breadth["up"].(float64) != 10 {
 		t.Fatalf("up=%v", breadth["up"])
+	}
+}
+
+func TestSymbolBrief(t *testing.T) {
+	reg := NewRegistry(&stubMD{
+		ok: true,
+		quote: marketdata.Quote{
+			Symbol:       "BTC",
+			PriceUsdt:    100000,
+			Change24hPct: 1.5,
+		},
+		klines: marketdata.KlineResponse{
+			Symbol:   "BTC",
+			Interval: "1d",
+			Source:   "stub",
+			Candles: []binance.Candle{
+				{Time: 1, Open: 100, High: 110, Low: 90, Close: 105},
+				{Time: 2, Open: 105, High: 120, Low: 100, Close: 115},
+			},
+		},
+	})
+	out, err := reg.Execute(context.Background(), "get_symbol_brief", `{"symbol":"BTC"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["ok"] != true {
+		t.Fatalf("%s", out)
+	}
+	quote, _ := m["quote"].(map[string]any)
+	if quote["ok"] != true {
+		t.Fatalf("quote=%v", quote)
+	}
+	kline, _ := m["kline1d"].(map[string]any)
+	if kline["ok"] != true {
+		t.Fatalf("kline=%v", kline)
+	}
+	if _, ok := kline["nearRangeHigh"]; !ok {
+		t.Fatal("missing nearRangeHigh")
 	}
 }
 

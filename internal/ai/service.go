@@ -173,7 +173,16 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 	}
 	hist := make([]agent.HistoryMessage, 0, len(history))
 	for _, m := range history {
-		hist = append(hist, agent.HistoryMessage{Role: m.Role, Content: m.Content})
+		hm := agent.HistoryMessage{Role: m.Role, Content: m.Content}
+		if m.Role == "assistant" && len(m.Metadata) > 0 {
+			var meta struct {
+				Grounding string `json:"grounding"`
+			}
+			if json.Unmarshal(m.Metadata, &meta) == nil {
+				hm.Grounding = meta.Grounding
+			}
+		}
+		hist = append(hist, hm)
 	}
 
 	var meta json.RawMessage
@@ -199,11 +208,20 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 	var page *agent.PageContext
 	if req.Context != nil {
 		page = &agent.PageContext{
-			FocusSymbol:    req.Context.FocusSymbol,
-			AssetClass:     req.Context.AssetClass,
-			Page:           req.Context.Page,
-			VisibleSymbols: req.Context.VisibleSymbols,
+			FocusSymbol:     req.Context.FocusSymbol,
+			AssetClass:      req.Context.AssetClass,
+			Page:            req.Context.Page,
+			VisibleSymbols:  req.Context.VisibleSymbols,
+			FearGreedValue:  req.Context.FearGreedValue,
+			FearGreedLabel:  req.Context.FearGreedLabel,
+			BtcDominancePct: req.Context.BtcDominancePct,
+			UsdtCny:         req.Context.UsdtCny,
 		}
+	} else {
+		page = &agent.PageContext{}
+	}
+	if s.runner != nil && s.runner.Tools != nil {
+		page.BoardBriefing = s.runner.Tools.CompactBoardBriefing()
 	}
 
 	runCtx := ctx
@@ -213,7 +231,8 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 		defer cancel()
 	}
 
-	text, runErr := s.runner.RunChat(runCtx, hist, msg, page, streamHandler{emit: emit})
+	result, runErr := s.runner.RunChat(runCtx, hist, msg, page, streamHandler{emit: emit})
+	text := result.Text
 	if runErr != nil {
 		_ = emit(StreamEvent{Event: "error", Data: map[string]string{
 			"code":    "ai_upstream",
@@ -221,7 +240,11 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 		}})
 		text = ensureDisclaimer(text)
 		if strings.TrimSpace(text) != "" {
-			assistMeta, _ := json.Marshal(map[string]any{"incomplete": true, "model": s.cfg.Model})
+			assistMeta, _ := json.Marshal(map[string]any{
+				"incomplete": true,
+				"model":      s.cfg.Model,
+				"grounding":  compactGrounding(result.Groundings),
+			})
 			_, _ = s.repo.AppendMessage(ctx, conv.ID, "assistant", text, assistMeta)
 		}
 		return fmt.Errorf("%w: %v", ErrUpstream, runErr)
@@ -232,7 +255,11 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 		text += extra
 	}
 
-	assistMeta, _ := json.Marshal(map[string]any{"finishReason": "stop", "model": s.cfg.Model})
+	assistMeta, _ := json.Marshal(map[string]any{
+		"finishReason": "stop",
+		"model":        s.cfg.Model,
+		"grounding":    compactGrounding(result.Groundings),
+	})
 	_, err = s.repo.AppendMessage(ctx, conv.ID, "assistant", text, assistMeta)
 	if err != nil {
 		return err
@@ -242,6 +269,28 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 		"finishReason":   "stop",
 		"conversationId": conv.PublicID,
 	}})
+}
+
+func compactGrounding(items []agent.ToolGrounding) string {
+	if len(items) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for i, g := range items {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		status := "ok"
+		if !g.OK {
+			status = "fail"
+		}
+		fmt.Fprintf(&b, "- %s [%s]: %s", g.Name, status, g.Summary)
+	}
+	s := b.String()
+	if len([]rune(s)) > 2000 {
+		s = string([]rune(s)[:2000]) + "…"
+	}
+	return s
 }
 
 func ensureDisclaimer(text string) string {
