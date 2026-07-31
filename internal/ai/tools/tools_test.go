@@ -15,25 +15,67 @@ import (
 )
 
 type stubMD struct {
-	quote   marketdata.Quote
-	ok      bool
-	newsRN  int
-	klines  marketdata.KlineResponse
-	center  marketcenter.CenterResponse
+	quote      marketdata.Quote
+	ok         bool
+	newsRN     int
+	klines     marketdata.KlineResponse
+	center     marketcenter.CenterResponse
+	indices    []marketdata.IndexQuote
+	alphaIdx   []marketdata.AlphaQuote
+	alphaStk   []marketdata.AlphaQuote
+	macro      store.MacroSnapshot
+	rates      store.Rates
+	indexByID  map[string]marketdata.IndexQuote
+	alphaByID  map[string]marketdata.AlphaQuote
 }
 
-func (s *stubMD) Start(ctx context.Context)                              {}
+func (s *stubMD) Start(ctx context.Context) {}
 func (s *stubMD) Snapshot() marketdata.Snapshot {
+	quotes := []store.Quote{s.quote, {Symbol: "ETH", Change24hPct: -2, PriceUsdt: 3000}}
+	macro := s.macro
+	if macro.FearGreed.Value == 0 && macro.FearGreed.Label == "" {
+		macro.FearGreed = store.FearGreed{Value: 40, Label: "Fear"}
+	}
 	return marketdata.Snapshot{
-		Quotes: []store.Quote{s.quote, {Symbol: "ETH", Change24hPct: -2, PriceUsdt: 3000}},
-		Macro:  store.MacroSnapshot{FearGreed: store.FearGreed{Value: 40, Label: "Fear"}},
+		Quotes:  quotes,
+		Rates:   s.rates,
+		Indices: s.indices,
+		Alpha:   store.AlphaSnapshot{Indices: s.alphaIdx, Stocks: s.alphaStk, Source: "stub"},
+		Macro:   macro,
 	}
 }
 func (s *stubMD) Quote(symbol string) (marketdata.Quote, bool) {
 	return s.quote, s.ok && s.quote.Symbol == symbol
 }
-func (s *stubMD) IndexQuote(id string) (marketdata.IndexQuote, bool) { return marketdata.IndexQuote{}, false }
-func (s *stubMD) AlphaQuote(id string) (marketdata.AlphaQuote, bool) { return marketdata.AlphaQuote{}, false }
+func (s *stubMD) IndexQuote(id string) (marketdata.IndexQuote, bool) {
+	if s.indexByID != nil {
+		q, ok := s.indexByID[id]
+		return q, ok
+	}
+	for _, q := range s.indices {
+		if q.ID == id {
+			return q, true
+		}
+	}
+	return marketdata.IndexQuote{}, false
+}
+func (s *stubMD) AlphaQuote(id string) (marketdata.AlphaQuote, bool) {
+	if s.alphaByID != nil {
+		q, ok := s.alphaByID[id]
+		return q, ok
+	}
+	for _, q := range s.alphaIdx {
+		if q.ID == id {
+			return q, true
+		}
+	}
+	for _, q := range s.alphaStk {
+		if q.ID == id {
+			return q, true
+		}
+	}
+	return marketdata.AlphaQuote{}, false
+}
 func (s *stubMD) AddListener(listener store.ChangeListener)          {}
 func (s *stubMD) Version() uint64                                    { return 1 }
 func (s *stubMD) SymbolCount() int                                   { return 1 }
@@ -201,20 +243,21 @@ func TestCompactBoardBriefing(t *testing.T) {
 }
 
 func TestMarketBreadth(t *testing.T) {
-	reg := NewRegistry(&stubMD{
+	stub := &stubMD{
 		center: marketcenter.CenterResponse{
 			ChgDiagram: marketcenter.ChgDiagram{Up: 10, Down: 5, Balance: 2},
 		},
-	})
+	}
+	reg := NewRegistry(stub)
 	out, err := reg.Execute(context.Background(), "get_market_breadth", `{"market":"cn"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if stub.center.Market != "ab" {
+		t.Fatalf("expected cn normalized to ab before call, got %q", stub.center.Market)
+	}
 	var m map[string]any
 	_ = json.Unmarshal([]byte(out), &m)
-	if m["market"] != "cn" {
-		t.Fatalf("%v", m["market"])
-	}
 	breadth := m["breadth"].(map[string]any)
 	if breadth["up"].(float64) != 10 {
 		t.Fatalf("up=%v", breadth["up"])
@@ -276,5 +319,102 @@ func TestSnapshotSummary(t *testing.T) {
 	_ = json.Unmarshal([]byte(out), &m)
 	if m["ok"] != true {
 		t.Fatal(out)
+	}
+}
+
+func TestMacroMetrics(t *testing.T) {
+	reg := NewRegistry(&stubMD{
+		macro: store.MacroSnapshot{
+			TotalMarketCapUsd: 1e12,
+			Funding:           store.FundingRate{Symbol: "BTCUSDT", Rate: 0.0001, PremiumPct: 0.02},
+			Liquidations:      store.Liquidations{Window: "24h", TotalUsd: 1e8},
+		},
+		rates: store.Rates{USDTCNY: 7.2, USDCNY: 7.1},
+	})
+	out, err := reg.Execute(context.Background(), "get_macro_metrics", `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	_ = json.Unmarshal([]byte(out), &m)
+	if m["ok"] != true {
+		t.Fatal(out)
+	}
+	macro := m["macro"].(map[string]any)
+	funding := macro["funding"].(map[string]any)
+	if funding["rate"].(float64) != 0.0001 {
+		t.Fatalf("funding=%v", funding)
+	}
+}
+
+func TestIndexAndAlphaBoard(t *testing.T) {
+	reg := NewRegistry(&stubMD{
+		indices: []marketdata.IndexQuote{{ID: "dji", Name: "道指", Price: 40000, ChangePct: 0.5}},
+		alphaStk: []marketdata.AlphaQuote{{ID: "aapl", Name: "苹果", Symbol: "AAPL", Price: 200, ChangeDayPct: 1.2, Category: "stock"}},
+		alphaByID: map[string]marketdata.AlphaQuote{
+			"aapl": {ID: "aapl", Name: "苹果", Symbol: "AAPL", Price: 200, ChangeDayPct: 1.2, Category: "stock"},
+		},
+	})
+	out, err := reg.Execute(context.Background(), "get_index_board", `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	_ = json.Unmarshal([]byte(out), &m)
+	if m["count"].(float64) != 1 {
+		t.Fatalf("index count=%v", m["count"])
+	}
+
+	out, err = reg.Execute(context.Background(), "get_alpha_board", `{"category":"stock"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = json.Unmarshal([]byte(out), &m)
+	stocks, _ := m["stocks"].([]any)
+	if len(stocks) != 1 {
+		t.Fatalf("stocks=%d", len(stocks))
+	}
+
+	out, err = reg.Execute(context.Background(), "get_quote", `{"symbol":"aapl"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = json.Unmarshal([]byte(out), &m)
+	if m["assetClass"] != "alpha" {
+		t.Fatalf("expected alpha, got %v (%s)", m["assetClass"], out)
+	}
+}
+
+func TestMarketBreadthExtras(t *testing.T) {
+	stub := &stubMD{
+		center: marketcenter.CenterResponse{
+			ChgDiagram: marketcenter.ChgDiagram{
+				Up: 10, Down: 5, Balance: 2,
+				Bars: []marketcenter.ChgDiagramBar{{Title: ">7%", Status: "up", Count: 3}},
+			},
+			Heatmap: marketcenter.Heatmap{Items: []marketcenter.HeatmapItem{{Code: "bk1", Name: "半导体", PxChangeRate: 2.1}}},
+			Fundflow: marketcenter.Fundflow{Groups: []marketcenter.FundflowGroup{{
+				BlockType: "hy", BlockTypeName: "行业",
+				Items: []marketcenter.FundflowItem{{Code: "bk1", Name: "半导体", NetAmount: 1e8}},
+			}}},
+		},
+	}
+	reg := NewRegistry(stub)
+	out, err := reg.Execute(context.Background(), "get_market_breadth", `{"market":"ab"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	_ = json.Unmarshal([]byte(out), &m)
+	if _, ok := m["heatmapTop"]; !ok {
+		t.Fatal("missing heatmapTop")
+	}
+	if _, ok := m["fundflow"]; !ok {
+		t.Fatal("missing fundflow")
+	}
+	breadth := m["breadth"].(map[string]any)
+	bars, _ := breadth["bars"].([]any)
+	if len(bars) != 1 {
+		t.Fatalf("bars=%d", len(bars))
 	}
 }

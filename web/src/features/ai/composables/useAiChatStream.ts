@@ -15,10 +15,13 @@ const TOOL_LABELS: Record<string, string> = {
   get_symbol_brief: '标的简报',
   get_quote: '报价',
   get_snapshot_summary: '盘面摘要',
+  get_macro_metrics: '币圈指标',
+  get_index_board: '指数看板',
+  get_alpha_board: '美股参考',
   get_klines_summary: 'K线摘要',
   compare_symbols: '标的对比',
   get_express_news: '快讯',
-  get_market_breadth: '涨跌广度',
+  get_market_breadth: '行情中心',
 }
 
 function toolLabel(name: string) {

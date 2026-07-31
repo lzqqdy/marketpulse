@@ -15,6 +15,14 @@ const (
 func NormalizeMarket(raw string) (string, error) {
 	m := strings.ToLower(strings.TrimSpace(raw))
 	switch m {
+	case "cn", "china", "a股", "ashare", "a-share", "沪深", "a", "上证", "深证":
+		m = MarketAB
+	case "usa", "nyse", "nasdaq", "美股", "美国":
+		m = MarketUS
+	case "港股", "hongkong", "hong kong", "hkex":
+		m = MarketHK
+	}
+	switch m {
 	case MarketAB, MarketHK, MarketUS:
 		return m, nil
 	default:

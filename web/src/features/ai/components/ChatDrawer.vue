@@ -25,8 +25,8 @@ const {
 
 const QUICK_PROMPTS = [
   'BTC 现在怎么样？结合盘面一起看',
-  '对比一下 BTC 和 ETH 谁更强',
-  '今天 A 股涨跌家数和热门板块',
+  '资金费率和爆仓现在什么水平？',
+  '今天 A 股涨跌家数、热门板块和资金流',
 ] as const
 
 const open = ref(false)
@@ -1036,6 +1036,77 @@ watch(
 
 .body.md :deep(p:last-child) {
   margin-bottom: 0;
+}
+
+.body.md :deep(h1),
+.body.md :deep(h2),
+.body.md :deep(h3) {
+  margin: 0.85em 0 0.4em;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text, #eee);
+}
+
+.body.md :deep(h1:first-child),
+.body.md :deep(h2:first-child),
+.body.md :deep(h3:first-child) {
+  margin-top: 0.15em;
+}
+
+.body.md :deep(h1) {
+  font-size: 1.12em;
+}
+
+.body.md :deep(h2) {
+  font-size: 1.05em;
+}
+
+.body.md :deep(h3) {
+  font-size: 1em;
+}
+
+.body.md :deep(blockquote) {
+  margin: 0.55em 0;
+  padding: 0.35em 0 0.35em 0.75em;
+  border-left: 3px solid rgba(240, 185, 11, 0.55);
+  color: var(--muted, #aaa);
+}
+
+.body.md :deep(blockquote p) {
+  margin: 0.2em 0;
+}
+
+.body.md :deep(.md-table-wrap) {
+  margin: 0.55em 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid var(--border, #333);
+}
+
+.body.md :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+  min-width: 240px;
+}
+
+.body.md :deep(th),
+.body.md :deep(td) {
+  padding: 0.45em 0.6em;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #333);
+  white-space: nowrap;
+}
+
+.body.md :deep(th) {
+  font-weight: 600;
+  color: var(--muted, #bbb);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.body.md :deep(tbody tr:last-child td) {
+  border-bottom: none;
 }
 
 .body.md :deep(ul),

@@ -9,6 +9,14 @@ func TestNormalizeMarket(t *testing.T) {
 	if _, err := NormalizeMarket("ab"); err != nil {
 		t.Fatal(err)
 	}
+	got, err := NormalizeMarket("cn")
+	if err != nil || got != MarketAB {
+		t.Fatalf("cn -> %q err=%v", got, err)
+	}
+	got, err = NormalizeMarket("美股")
+	if err != nil || got != MarketUS {
+		t.Fatalf("美股 -> %q err=%v", got, err)
+	}
 	if _, err := NormalizeMarket("xx"); err == nil {
 		t.Fatal("expected error")
 	}

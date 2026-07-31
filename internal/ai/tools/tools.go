@@ -71,11 +71,40 @@ func (r *Registry) Definitions() []Definition {
 			Type: "function",
 			Function: FunctionSchema{
 				Name:        "get_snapshot_summary",
-				Description: "币圈盘面摘要：汇率、总市值、恐贪情绪、BTC占比、涨跌幅 TopN。问「大盘/整体/情绪/涨跌榜」时用。",
+				Description: "币圈盘面摘要：汇率、总市值、恐贪情绪、BTC占比、涨跌幅 TopN。问「大盘/整体/情绪/涨跌榜」时用。更细的资金费率/爆仓/多空等用 get_macro_metrics。",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"limit": map[string]any{"type": "integer", "description": "涨跌榜条数，默认5，最大20"},
+					},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionSchema{
+				Name:        "get_macro_metrics",
+				Description: "币圈宏观指标全集（与首页 MacroGrid 对齐）：总市值/成交额、恐贪、BTC/ETH 占比、稳定币市值、资金费率与溢价、持仓量、爆仓、多空比、大户多空、主动买卖比。问资金费率/爆仓/多空/稳定币时用。",
+				Parameters: map[string]any{"type": "object", "properties": map[string]any{}},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionSchema{
+				Name:        "get_index_board",
+				Description: "全球指数看板列表（与首页指数区对齐）：各指数现价与涨跌幅。问「指数怎么样/纳指道指沪深」时用。",
+				Parameters: map[string]any{"type": "object", "properties": map[string]any{}},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionSchema{
+				Name:        "get_alpha_board",
+				Description: "美股参考/代币化股票看板（与首页 Alpha 区对齐）：指数与个股参考价、涨跌。问「美股参考/aapl/特斯拉参考价」时用。",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"category": map[string]any{"type": "string", "description": "all|index|stock，默认 all"},
 					},
 				},
 			},
@@ -134,11 +163,14 @@ func (r *Registry) Definitions() []Definition {
 			Type: "function",
 			Function: FunctionSchema{
 				Name:        "get_market_breadth",
-				Description: "股市涨跌家数与热门板块（A股 cn / 港股 hk / 美股 us）。问「涨跌家数、市场宽度、热门板块」时用。",
+				Description: "股市行情中心（与首页行情中心对齐）：涨跌家数、涨跌分布 bars、热门板块、热力图 Top、主力资金流 Top。market：A股 ab（可用 cn）、港股 hk、美股 us。问涨跌家数/热门板块/资金流/热力图时用；休市时仍可能返回上一交易时段数据。",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"market": map[string]any{"type": "string", "enum": []string{"cn", "hk", "us"}},
+						"market": map[string]any{
+							"type":        "string",
+							"description": "ab/cn=A股，hk=港股，us/usa/美股=美股",
+						},
 					},
 					"required": []string{"market"},
 				},
@@ -173,6 +205,12 @@ func (r *Registry) Execute(ctx context.Context, name, argumentsJSON string) (str
 		return r.getExpressNews(ctx, args)
 	case "get_market_breadth":
 		return r.getMarketBreadth(ctx, args)
+	case "get_macro_metrics":
+		return r.getMacroMetrics(args)
+	case "get_index_board":
+		return r.getIndexBoard(args)
+	case "get_alpha_board":
+		return r.getAlphaBoard(args)
 	default:
 		return "", fmt.Errorf("unknown tool %q", name)
 	}
@@ -211,7 +249,7 @@ func (r *Registry) getQuote(args map[string]any) (string, error) {
 	}
 	asset := strings.ToLower(asString(args["assetClass"]))
 	if asset == "" {
-		asset = guessAssetClass(symbol)
+		asset = r.guessAssetClass(symbol)
 	}
 	switch asset {
 	case "index":
@@ -221,7 +259,8 @@ func (r *Registry) getQuote(args map[string]any) (string, error) {
 		}
 		return marshal(map[string]any{
 			"ok": true, "assetClass": "index", "id": q.ID, "name": q.Name,
-			"price": q.Price, "changePct": q.ChangePct, "updatedAt": q.UpdatedAt,
+			"price": q.Price, "changePct": q.ChangePct, "source": q.Source,
+			"stale": q.Stale, "updatedAt": q.UpdatedAt,
 		})
 	case "alpha":
 		id := strings.ToLower(symbol)
@@ -230,32 +269,73 @@ func (r *Registry) getQuote(args map[string]any) (string, error) {
 		if !ok {
 			return marshal(map[string]any{"ok": false, "error": "alpha quote not found", "symbol": symbol})
 		}
-		return marshal(map[string]any{
+		out := map[string]any{
 			"ok": true, "assetClass": "alpha", "id": q.ID, "name": q.Name, "symbol": q.Symbol,
-			"price": q.Price, "changeDayPct": q.ChangeDayPct, "change24hPct": q.Change24hPct, "updatedAt": q.UpdatedAt,
-		})
+			"price": q.Price, "changeDayPct": q.ChangeDayPct, "change24hPct": q.Change24hPct,
+			"volume": q.Volume, "category": q.Category, "source": q.Source, "updatedAt": q.UpdatedAt,
+		}
+		if q.MarkPrice > 0 {
+			out["markPrice"] = q.MarkPrice
+		}
+		if q.IndexPrice > 0 {
+			out["indexPrice"] = q.IndexPrice
+		}
+		if q.FundingRate != 0 {
+			out["fundingRate"] = q.FundingRate
+		}
+		return marshal(out)
 	default:
 		base := normalizeCryptoSymbol(symbol)
 		q, ok := r.md.Quote(base)
 		if !ok {
 			return marshal(map[string]any{"ok": false, "error": "crypto quote not found", "symbol": base})
 		}
-		return marshal(map[string]any{
+		out := map[string]any{
 			"ok": true, "assetClass": "crypto", "symbol": q.Symbol,
 			"priceUsdt": q.PriceUsdt, "priceCny": q.PriceCny,
 			"change24hPct": q.Change24hPct, "changeDayPct": q.ChangeDayPct, "updatedAt": q.UpdatedAt,
-		})
+		}
+		if q.Rank > 0 {
+			out["rank"] = q.Rank
+		}
+		if q.MarketCapUsd > 0 {
+			out["marketCapUsd"] = q.MarketCapUsd
+		}
+		if q.Volume24hUsd > 0 {
+			out["volume24hUsd"] = q.Volume24hUsd
+		}
+		return marshal(out)
 	}
 }
 
-func guessAssetClass(symbol string) string {
-	s := strings.ToLower(symbol)
-	if strings.HasPrefix(s, "sh") || strings.HasPrefix(s, "sz") || strings.Contains(s, "000001") {
+func (r *Registry) guessAssetClass(symbol string) string {
+	s := strings.ToLower(strings.TrimSpace(symbol))
+	if s == "" {
+		return "crypto"
+	}
+	if strings.HasPrefix(s, "sh") || strings.HasPrefix(s, "sz") {
 		return "index"
 	}
 	switch s {
-	case "hsi", "nikkei", "dji", "ixic", "spx", "ftse", "gdaui", "ndx":
+	case "hsi", "nikkei", "dji", "ixic", "spx", "ftse", "gdaui", "ndx", "sh000001", "sz399001", "sz399006":
 		return "index"
+	}
+	if r != nil && r.md != nil {
+		if _, ok := r.md.IndexQuote(s); ok {
+			return "index"
+		}
+		alphaID := strings.TrimSuffix(s, "usdt")
+		if _, ok := r.md.AlphaQuote(alphaID); ok {
+			return "alpha"
+		}
+		base := normalizeCryptoSymbol(symbol)
+		if _, ok := r.md.Quote(base); ok {
+			return "crypto"
+		}
+		// common US tickers configured as alpha even if not yet loaded
+		if _, ok := r.md.AlphaQuote(s); ok {
+			return "alpha"
+		}
 	}
 	return "crypto"
 }
@@ -467,7 +547,7 @@ func (r *Registry) getSymbolBrief(ctx context.Context, args map[string]any) (str
 	}
 	asset := strings.ToLower(asString(args["assetClass"]))
 	if asset == "" {
-		asset = guessAssetClass(symbol)
+		asset = r.guessAssetClass(symbol)
 	}
 
 	quoteRaw, err := r.getQuote(args)
@@ -527,7 +607,7 @@ func (r *Registry) compareSymbols(ctx context.Context, args map[string]any) (str
 		if sym == "" {
 			continue
 		}
-		asset := guessAssetClass(sym)
+		asset := r.guessAssetClass(sym)
 		quoteRaw, _ := r.getQuote(map[string]any{"symbol": sym, "assetClass": asset})
 		var quoteObj map[string]any
 		_ = json.Unmarshal([]byte(quoteRaw), &quoteObj)
@@ -668,6 +748,18 @@ func (r *Registry) getExpressNews(ctx context.Context, args map[string]any) (str
 			"title": it.Title, "body": body, "publishTime": it.PublishTime,
 			"tag": it.Tag, "important": it.Important,
 		})
+		if len(it.Entities) > 0 {
+			ents := make([]map[string]any, 0, len(it.Entities))
+			for _, e := range it.Entities {
+				if len(ents) >= 3 {
+					break
+				}
+				ents = append(ents, map[string]any{
+					"code": e.Code, "name": e.Name, "changePct": e.ChangePct, "price": e.Price,
+				})
+			}
+			items[len(items)-1]["entities"] = ents
+		}
 	}
 	return marshal(map[string]any{
 		"ok": true, "tag": resp.Tag, "source": resp.Source, "fetchedAt": resp.FetchedAt, "items": items,
@@ -676,34 +768,225 @@ func (r *Registry) getExpressNews(ctx context.Context, args map[string]any) (str
 
 func (r *Registry) getMarketBreadth(ctx context.Context, args map[string]any) (string, error) {
 	_ = ctx
-	market := strings.ToLower(asString(args["market"]))
-	if market == "" {
-		market = "cn"
-	}
+	market := normalizeBreadthMarket(asString(args["market"]))
 	resp, err := r.md.MarketCenter(market)
 	if err != nil {
 		return marshal(map[string]any{"ok": false, "error": err.Error(), "market": market})
 	}
-	hot := make([]map[string]any, 0, 5)
+
+	hot := make([]map[string]any, 0, 8)
 	if len(resp.Overview.Tabs) > 0 {
 		for i, item := range resp.Overview.Tabs[0].Items {
-			if i >= 5 {
+			if i >= 8 {
 				break
 			}
 			hot = append(hot, map[string]any{
 				"name": item.Name, "changePct": item.ChangePct, "leadName": item.LeadName,
+				"leadChangePct": item.LeadChangePct, "price": item.Price,
 			})
 		}
 	}
+
+	heatmap := make([]map[string]any, 0, 12)
+	for i, item := range resp.Heatmap.Items {
+		if i >= 12 {
+			break
+		}
+		heatmap = append(heatmap, map[string]any{
+			"code": item.Code, "name": item.Name, "changePct": item.PxChangeRate,
+			"amount": item.Amount, "marketValue": item.MarketValue,
+		})
+	}
+	if len(hot) == 0 {
+		for i, item := range heatmap {
+			if i >= 5 {
+				break
+			}
+			hot = append(hot, map[string]any{
+				"name": item["name"], "changePct": item["changePct"], "code": item["code"],
+			})
+		}
+	}
+
+	bars := make([]map[string]any, 0, len(resp.ChgDiagram.Bars))
+	for _, b := range resp.ChgDiagram.Bars {
+		bars = append(bars, map[string]any{"title": b.Title, "status": b.Status, "count": b.Count})
+	}
+
+	fundflow := make([]map[string]any, 0, 3)
+	for _, g := range resp.Fundflow.Groups {
+		items := make([]map[string]any, 0, 5)
+		for i, it := range g.Items {
+			if i >= 5 {
+				break
+			}
+			items = append(items, map[string]any{
+				"code": it.Code, "name": it.Name,
+				"netAmount": it.NetAmount, "mainNetTurnover": it.MainNetTurnover,
+			})
+		}
+		if len(items) == 0 {
+			continue
+		}
+		fundflow = append(fundflow, map[string]any{
+			"blockType": g.BlockType, "blockTypeName": g.BlockTypeName, "items": items,
+		})
+	}
+
+	breadthTotal := resp.ChgDiagram.Up + resp.ChgDiagram.Down + resp.ChgDiagram.Balance
+	if breadthTotal == 0 && len(hot) == 0 && len(heatmap) == 0 && len(fundflow) == 0 {
+		return marshal(map[string]any{
+			"ok":           false,
+			"error":        "empty market breadth from upstream",
+			"market":       resp.Market,
+			"marketActive": resp.MarketActive,
+			"hint":         "上游暂无涨跌家数/板块；可改问指数或个股报价",
+		})
+	}
+
+	sessionNote := "latest_available"
+	if !resp.MarketActive {
+		sessionNote = "outside_session_showing_last_available"
+	}
 	return marshal(map[string]any{
-		"ok": true, "market": resp.Market, "marketActive": resp.MarketActive, "source": resp.Source,
+		"ok":           true,
+		"market":       resp.Market,
+		"marketActive": resp.MarketActive,
+		"sessionNote":  sessionNote,
+		"source":       resp.Source,
 		"breadth": map[string]any{
 			"up": resp.ChgDiagram.Up, "down": resp.ChgDiagram.Down, "balance": resp.ChgDiagram.Balance,
 			"totalTitle": resp.ChgDiagram.TotalTitle, "totalValue": resp.ChgDiagram.TotalValue,
+			"bars": bars,
 		},
 		"hotSectors": hot,
+		"heatmapTop": heatmap,
+		"fundflow":   fundflow,
 		"fetchedAt":  resp.FetchedAt,
+		"hint":       "若 marketActive=false，数据仍是最近可得盘面，请说明为上一交易时段而非编造「暂无数据」",
 	})
+}
+
+func (r *Registry) getMacroMetrics(args map[string]any) (string, error) {
+	_ = args
+	snap := r.md.Snapshot()
+	m := snap.Macro
+	return marshal(map[string]any{
+		"ok": true,
+		"ts": snap.Ts,
+		"rates": map[string]any{
+			"usdtCny": snap.Rates.USDTCNY,
+			"usdCny":  snap.Rates.USDCNY,
+			"updatedAt": snap.Rates.UpdatedAt,
+		},
+		"macro": map[string]any{
+			"totalMarketCapUsd":               m.TotalMarketCapUsd,
+			"totalVolume24hUsd":               m.TotalVolume24hUsd,
+			"totalMarketCapChange24hPct":      m.TotalMarketCapChange24hPct,
+			"fearGreed":                       m.FearGreed,
+			"btcDominancePct":                 m.BTCDominancePct,
+			"ethDominancePct":                 m.ETHDominancePct,
+			"stablecoinMarketCapUsd":          m.StablecoinMarketCapUsd,
+			"stablecoinMarketCapChange24hPct": m.StablecoinMarketCapChange24hPct,
+			"funding": map[string]any{
+				"symbol": m.Funding.Symbol, "rate": m.Funding.Rate,
+				"premiumPct": m.Funding.PremiumPct, "markPrice": m.Funding.MarkPrice,
+				"indexPrice": m.Funding.IndexPrice, "nextFundingTime": m.Funding.NextFundingTime,
+				"updatedAt": m.Funding.UpdatedAt,
+			},
+			"openInterest": map[string]any{
+				"symbol": m.OpenInterest.Symbol, "valueUsd": m.OpenInterest.ValueUsd,
+				"changePct": m.OpenInterest.ChangePct, "updatedAt": m.OpenInterest.UpdatedAt,
+			},
+			"liquidations": map[string]any{
+				"window": m.Liquidations.Window, "longUsd": m.Liquidations.LongUsd,
+				"shortUsd": m.Liquidations.ShortUsd, "totalUsd": m.Liquidations.TotalUsd,
+				"updatedAt": m.Liquidations.UpdatedAt,
+			},
+			"longShort": map[string]any{
+				"symbol": m.LongShort.Symbol, "ratio": m.LongShort.Ratio,
+				"longAccountPct": m.LongShort.LongAccountPct, "shortAccountPct": m.LongShort.ShortAccountPct,
+				"updatedAt": m.LongShort.UpdatedAt,
+			},
+			"topLongShort": map[string]any{
+				"symbol": m.TopLongShort.Symbol, "ratio": m.TopLongShort.Ratio,
+				"longAccountPct": m.TopLongShort.LongAccountPct, "shortAccountPct": m.TopLongShort.ShortAccountPct,
+				"updatedAt": m.TopLongShort.UpdatedAt,
+			},
+			"takerBuySell": map[string]any{
+				"symbol": m.TakerBuySell.Symbol, "ratio": m.TakerBuySell.Ratio,
+				"buyVol": m.TakerBuySell.BuyVol, "sellVol": m.TakerBuySell.SellVol,
+				"updatedAt": m.TakerBuySell.UpdatedAt,
+			},
+		},
+	})
+}
+
+func (r *Registry) getIndexBoard(args map[string]any) (string, error) {
+	_ = args
+	snap := r.md.Snapshot()
+	items := make([]map[string]any, 0, len(snap.Indices))
+	for _, q := range snap.Indices {
+		items = append(items, map[string]any{
+			"id": q.ID, "name": q.Name, "price": q.Price, "changePct": q.ChangePct,
+			"source": q.Source, "stale": q.Stale, "updatedAt": q.UpdatedAt,
+		})
+	}
+	return marshal(map[string]any{
+		"ok": true, "count": len(items), "items": items, "ts": snap.Ts,
+	})
+}
+
+func (r *Registry) getAlphaBoard(args map[string]any) (string, error) {
+	cat := strings.ToLower(asString(args["category"]))
+	if cat == "" {
+		cat = "all"
+	}
+	snap := r.md.Snapshot()
+	pack := func(list []marketdata.AlphaQuote) []map[string]any {
+		out := make([]map[string]any, 0, len(list))
+		for _, q := range list {
+			out = append(out, map[string]any{
+				"id": q.ID, "name": q.Name, "symbol": q.Symbol, "price": q.Price,
+				"changeDayPct": q.ChangeDayPct, "change24hPct": q.Change24hPct,
+				"volume": q.Volume, "category": q.Category, "updatedAt": q.UpdatedAt,
+			})
+		}
+		return out
+	}
+	out := map[string]any{
+		"ok": true, "source": snap.Alpha.Source, "updatedAt": snap.Alpha.UpdatedAt, "ts": snap.Ts,
+	}
+	switch cat {
+	case "index":
+		out["indices"] = pack(snap.Alpha.Indices)
+		out["count"] = len(snap.Alpha.Indices)
+	case "stock":
+		out["stocks"] = pack(snap.Alpha.Stocks)
+		out["count"] = len(snap.Alpha.Stocks)
+	default:
+		out["indices"] = pack(snap.Alpha.Indices)
+		out["stocks"] = pack(snap.Alpha.Stocks)
+		out["count"] = len(snap.Alpha.Indices) + len(snap.Alpha.Stocks)
+	}
+	return marshal(out)
+}
+
+func normalizeBreadthMarket(raw string) string {
+	m := strings.ToLower(strings.TrimSpace(raw))
+	switch m {
+	case "", "cn", "china", "a", "a股", "ashare", "沪深":
+		return "ab"
+	case "usa", "nyse", "nasdaq", "美股", "美国":
+		return "us"
+	case "港股", "hongkong", "hkex":
+		return "hk"
+	default:
+		if m == "" {
+			return "ab"
+		}
+		return m
+	}
 }
 
 func marshal(v any) (string, error) {
