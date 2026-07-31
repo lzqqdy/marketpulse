@@ -11,7 +11,7 @@ export const FIELD_HELP: Record<string, string> = {
     '允许跨域访问的 Origin 列表。本地开发常写 http://localhost:5173；生产请写实际域名。',
 
   'mysql.enabled':
-    '是否启用 MySQL。用户中心 / 告警 / 资产 / AI 等模块依赖它；关闭时这些模块会 soft-skip。',
+    '是否启用 MySQL。用户中心 / 告警 / 资产 / AI / 市场异动 等模块依赖它；关闭时这些模块会 soft-skip。',
   'mysql.params': 'DSN 额外参数，例如 charset=utf8mb4&parseTime=true。',
   'mysql.max_open_conns': '最大打开连接数。过高可能压垮数据库，过低会排队变慢。',
   'mysql.max_idle_conns': '空闲连接池大小。建议小于等于 max_open_conns。',
@@ -62,6 +62,43 @@ export const FIELD_HELP: Record<string, string> = {
   'ai.max_history_messages': '带入模型上下文的历史消息条数上限。',
   'ai.daily_quota_per_user': '每用户每日可用对话次数配额。',
   'ai.system_prompt': '系统提示词，决定助手人设与回答风格。改动后对新会话生效更明显。',
+
+  'event.enabled':
+    '市场异动（Event Engine）开关。需要同时开启 mysql；关闭后右侧快捷栏异动入口不可用，行情主路径不受影响。\n修改后需重启 marketd。',
+  'event.auto_migrate':
+    '启动时自动创建/升级 market_event、market_event_signal 表。首次启用建议打开，稳定后可关。',
+  'event.evaluate_interval':
+    '检测轮询间隔。例如 20s 表示大约每 20 秒对监控标的跑一轮价格/量能/波动/爆仓检测。\n过短会增加 K 线请求；过长会漏掉短时尖峰。',
+  'event.aggregate_window':
+    '信号聚合时间窗。同一标的在窗口内出现的价格/放量/爆仓等信号会尽量合成一条事件（如闪崩），避免刷屏。',
+  'event.kline_timeout':
+    '单次拉取 K 线的超时时间。超时则跳过该标的本轮检测，不阻塞整轮。',
+  'event.symbols':
+    '异动监控的加密标的列表，例如 BTC、ETH。只检测列表内品种；与首页行情 symbols 可不同。',
+  'event.price.5m.threshold_pct':
+    '5 分钟价格异动阈值（绝对值，单位 %）。\n例如 2 表示 5 分钟涨或跌超过约 2% 触发「价格急涨/急跌」。数值越大越不容易报。',
+  'event.price.15m.threshold_pct':
+    '15 分钟价格异动阈值（绝对值，单位 %）。\n例如 3 表示 15 分钟涨跌超约 3% 触发。',
+  'event.price.1h.threshold_pct':
+    '1 小时价格异动阈值（绝对值，单位 %）。\n例如 5 表示 1 小时涨跌超约 5% 触发。',
+  'event.volume.lookback_bars':
+    '成交量基线回看的 K 线根数。用最近 N 根均量作为「正常量」，与当前这根比较。',
+  'event.volume.ratio_medium':
+    '放量触发倍数：当前量 ÷ 近 N 根均量 ≥ 该值才记「成交量放大」。\n例如 2 表示至少 2 倍量。',
+  'event.volume.ratio_high':
+    '放量「较高」档倍数，主要用于事件强度打分，不是额外开关。通常 ≥ medium。',
+  'event.volume.ratio_extreme':
+    '放量「极高」档倍数，主要用于事件强度打分。通常 ≥ high。',
+  'event.volatility.lookback_bars':
+    '波动率基线回看根数。用近 N 根 ATR（真实波幅）均值作对照。',
+  'event.volatility.ratio':
+    '波动放大倍数：当前 ATR ÷ 近 N 根均值 ≥ 该值触发「波动放大」。\n例如 2 表示波动至少达到基线两倍。',
+  'event.liquidation.sample_interval':
+    '全市场爆仓额采样间隔，用于维护历史基线。例如 1m 表示大约每分钟记一个点。',
+  'event.liquidation.baseline_samples':
+    '爆仓基线最多保留的样本点数。例如 60 且采样 1m，约等于近 1 小时均值。',
+  'event.liquidation.ratio':
+    '爆仓放大倍数：当前全市场 1h 滚动爆仓额 ÷ 基线均值 ≥ 该值触发。\n注意：现为交易所级聚合，不是单币精确爆仓。',
 
   'smtp.host': '发信 SMTP 主机。告警邮件通道依赖此项。',
   'smtp.port': 'SMTP 端口，常见 465（SSL）或 587（STARTTLS）。',
