@@ -39,3 +39,23 @@ func TestApplyLifecyclePeakAndEnd(t *testing.T) {
 		t.Fatalf("expected resolved with endTime, got status=%s end=%v", ev.Status, ev.EndTime)
 	}
 }
+
+func TestShouldForceResolve(t *testing.T) {
+	now := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+	ev := &MarketEvent{
+		Status:    StatusDeescalating,
+		StartTime: now.Add(-2 * time.Hour),
+		UpdatedAt: now.Add(-30 * time.Minute),
+	}
+	if !ShouldForceResolve(ev, now, 90*time.Minute, 20*time.Minute) {
+		t.Fatal("expected force resolve by max open age")
+	}
+	ev2 := &MarketEvent{
+		Status:    StatusDeescalating,
+		StartTime: now.Add(-10 * time.Minute),
+		UpdatedAt: now.Add(-25 * time.Minute),
+	}
+	if !ShouldForceResolve(ev2, now, 90*time.Minute, 20*time.Minute) {
+		t.Fatal("expected force resolve by deescalate idle")
+	}
+}

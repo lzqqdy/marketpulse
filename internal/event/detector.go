@@ -10,13 +10,14 @@ import (
 
 // DetectPrice emits PRICE_DROP / PRICE_SPIKE from candles for configured windows.
 func DetectPrice(symbol string, candles []binance.Candle, cfg config.EventPriceConfig, now time.Time) []EventSignal {
+	candles = closedCandles(candles)
 	out := make([]EventSignal, 0)
 	for window, thr := range cfg {
 		need := barsForWindow(window)
 		if need <= 0 || len(candles) < need+1 {
 			continue
 		}
-		// Use last closed-ish bars: compare close now vs close need bars ago.
+		// Last closed bar vs close need bars ago.
 		cur := candles[len(candles)-1]
 		prev := candles[len(candles)-1-need]
 		if prev.Close <= 0 {
@@ -53,8 +54,9 @@ func DetectPrice(symbol string, candles []binance.Candle, cfg config.EventPriceC
 	return out
 }
 
-// DetectVolume emits VOLUME_SPIKE when latest bar volume / lookback mean exceeds ratio.
+// DetectVolume emits VOLUME_SPIKE when latest closed bar volume / lookback mean exceeds ratio.
 func DetectVolume(symbol, window string, candles []binance.Candle, cfg config.EventVolumeConfig, now time.Time) []EventSignal {
+	candles = closedCandles(candles)
 	lookback := cfg.LookbackBars
 	if lookback <= 0 {
 		lookback = 20
@@ -96,6 +98,7 @@ func DetectVolume(symbol, window string, candles []binance.Candle, cfg config.Ev
 
 // DetectVolatility emits VOLATILITY_SPIKE when current ATR exceeds lookback mean ATR * ratio.
 func DetectVolatility(symbol, window string, candles []binance.Candle, cfg config.EventVolatilityConfig, now time.Time) []EventSignal {
+	candles = closedCandles(candles)
 	lookback := cfg.LookbackBars
 	if lookback <= 0 {
 		lookback = 20

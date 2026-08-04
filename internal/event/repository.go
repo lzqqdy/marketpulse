@@ -45,7 +45,7 @@ INSERT INTO market_event (
   start_time, end_time, symbols_json, markets_json, context_json, created_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		ev.ID, ev.Type, ev.SubType, ev.Title, ev.Description, ev.Severity, ev.Score, ev.PeakScore, ev.Status,
-		ev.StartTime.UTC(), nullTime(ev.EndTime), symbols, markets, ctxJSON, ev.CreatedAt.UTC(), ev.UpdatedAt.UTC(),
+		mysqlUTC(ev.StartTime), nullTime(ev.EndTime), symbols, markets, ctxJSON, mysqlUTC(ev.CreatedAt), mysqlUTC(ev.UpdatedAt),
 	)
 	return err
 }
@@ -72,7 +72,7 @@ UPDATE market_event SET
   start_time=?, end_time=?, symbols_json=?, markets_json=?, context_json=?, updated_at=?
 WHERE id=?`,
 		ev.Type, ev.SubType, ev.Title, ev.Description, ev.Severity, ev.Score, ev.PeakScore, ev.Status,
-		ev.StartTime.UTC(), nullTime(ev.EndTime), symbols, markets, ctxJSON, ev.UpdatedAt.UTC(), ev.ID,
+		mysqlUTC(ev.StartTime), nullTime(ev.EndTime), symbols, markets, ctxJSON, mysqlUTC(ev.UpdatedAt), ev.ID,
 	)
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ INSERT INTO market_event_signal (
   window_label, direction, ts, metadata_json
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			sig.ID, sig.EventID, sig.SignalType, sig.Symbol, sig.Market, sig.Value, sig.Baseline, sig.Ratio, sig.ChangePct,
-			sig.Window, sig.Direction, sig.Timestamp.UTC(), meta,
+			sig.Window, sig.Direction, mysqlUTC(sig.Timestamp), meta,
 		)
 		if err != nil {
 			return err
@@ -148,7 +148,7 @@ FROM market_event_signal WHERE event_id=? ORDER BY ts ASC`, eventID)
 		); err != nil {
 			return nil, err
 		}
-		s.Timestamp = ts.UTC()
+		s.Timestamp = asUTCWall(ts)
 		_ = json.Unmarshal(meta, &s.Metadata)
 		if s.Metadata == nil {
 			s.Metadata = map[string]any{}
@@ -255,6 +255,26 @@ FROM market_event WHERE status IN (?, ?, ?) ORDER BY start_time DESC LIMIT 200`,
 	return out, rows.Err()
 }
 
+// ResolveEventIDs marks the given event ids as RESOLVED.
+func (r *repository) ResolveEventIDs(ctx context.Context, ids []string, now time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	now = now.UTC()
+	placeholders := make([]string, len(ids))
+	args := make([]any, 0, len(ids)+3)
+	args = append(args, StatusResolved, mysqlUTC(now), mysqlUTC(now))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	q := fmt.Sprintf(`
+UPDATE market_event SET status=?, end_time=?, updated_at=?, score=LEAST(score, 25)
+WHERE id IN (%s) AND status IN ('DETECTED','ACTIVE','DEESCALATING')`, strings.Join(placeholders, ","))
+	_, err := r.db.ExecContext(ctx, q, args...)
+	return err
+}
+
 type rowScanner interface {
 	Scan(dest ...any) error
 }
@@ -274,12 +294,12 @@ func (r *repository) scanEvent(row rowScanner) (*MarketEvent, error) {
 		return nil, err
 	}
 	if end.Valid {
-		t := end.Time.UTC()
+		t := asUTCWall(end.Time)
 		ev.EndTime = &t
 	}
-	ev.StartTime = ev.StartTime.UTC()
-	ev.CreatedAt = ev.CreatedAt.UTC()
-	ev.UpdatedAt = ev.UpdatedAt.UTC()
+	ev.StartTime = asUTCWall(ev.StartTime)
+	ev.CreatedAt = asUTCWall(ev.CreatedAt)
+	ev.UpdatedAt = asUTCWall(ev.UpdatedAt)
 	_ = json.Unmarshal(symbols, &ev.Symbols)
 	_ = json.Unmarshal(markets, &ev.Markets)
 	_ = json.Unmarshal(ctxJSON, &ev.Context)
@@ -297,5 +317,17 @@ func nullTime(t *time.Time) any {
 	if t == nil {
 		return nil
 	}
-	return t.UTC()
+	return mysqlUTC(*t)
+}
+
+// mysqlUTC stores UTC wall-clock digits. With DSN loc=Local, passing time.Time.UTC()
+// would be shifted to local wall (+8h) and break merge/age checks.
+func mysqlUTC(t time.Time) time.Time {
+	u := t.UTC()
+	return time.Date(u.Year(), u.Month(), u.Day(), u.Hour(), u.Minute(), u.Second(), u.Nanosecond(), time.Local)
+}
+
+// asUTCWall treats DATETIME digits as UTC regardless of driver location.
+func asUTCWall(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
 }

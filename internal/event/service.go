@@ -226,17 +226,13 @@ func (s *service) broadcast(msgType string, ev MarketEvent) {
 }
 
 type engine struct {
-	svc    *service
-	wake   chan struct{}
-	mu     sync.Mutex
+	svc     *service
+	mu      sync.Mutex
 	running bool
 }
 
 func newEngine(svc *service) *engine {
-	return &engine{
-		svc:  svc,
-		wake: make(chan struct{}, 1),
-	}
+	return &engine{svc: svc}
 }
 
 func (e *engine) Start(ctx context.Context) {
@@ -248,13 +244,6 @@ func (e *engine) Start(ctx context.Context) {
 	e.running = true
 	e.mu.Unlock()
 
-	e.svc.md.AddListener(func(version uint64) {
-		select {
-		case e.wake <- struct{}{}:
-		default:
-		}
-	})
-
 	go e.loop(ctx)
 	slog.Info("event engine started", "interval", e.svc.cfg.EvaluateInterval, "symbols", e.svc.cfg.Symbols)
 }
@@ -262,7 +251,7 @@ func (e *engine) Start(ctx context.Context) {
 func (e *engine) loop(ctx context.Context) {
 	ticker := time.NewTicker(e.svc.cfg.EvaluateInterval)
 	defer ticker.Stop()
-	// Initial delay so klines/macro have a chance to warm.
+	// Initial delay so klines/macro have a chance to warm; also scrub legacy duplicates.
 	timer := time.NewTimer(3 * time.Second)
 	defer timer.Stop()
 	for {
@@ -273,14 +262,6 @@ func (e *engine) loop(ctx context.Context) {
 			e.evaluate(ctx)
 		case <-ticker.C:
 			e.evaluate(ctx)
-		case <-e.wake:
-			// coalesce: wait briefly then evaluate on next ticker or immediate soft run
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(500 * time.Millisecond):
-				e.evaluate(ctx)
-			}
 		}
 	}
 }
@@ -291,6 +272,16 @@ func (e *engine) evaluate(ctx context.Context) {
 		return
 	}
 	now := time.Now().UTC()
+
+	open, err := svc.repo.ListOpen(ctx)
+	if err != nil {
+		slog.Warn("event list open", "err", err)
+		return
+	}
+
+	// Collapse duplicate OPEN rows per symbol (keep newest) + age/idle force-resolve.
+	open = e.scrubOpen(ctx, open, now)
+
 	signals := make([]EventSignal, 0, 16)
 
 	intervals := make([]string, 0, len(svc.cfg.Price))
@@ -325,11 +316,6 @@ func (e *engine) evaluate(ctx context.Context) {
 	snap := svc.md.Snapshot()
 	signals = append(signals, svc.liq.Observe(snap.Macro.Liquidations.TotalUsd, now)...)
 
-	open, err := svc.repo.ListOpen(ctx)
-	if err != nil {
-		slog.Warn("event list open", "err", err)
-		return
-	}
 	// Ensure template IDs for open events.
 	for i := range open {
 		if open[i].TemplateID == "" {
@@ -344,12 +330,47 @@ func (e *engine) evaluate(ctx context.Context) {
 		AggregateWindow: svc.cfg.AggregateWindow,
 	})
 
+	openBySym := map[string]string{}
+	for _, ev := range open {
+		sym := primarySymbol(&ev)
+		openBySym[sym] = ev.ID
+	}
+
 	for _, ev := range agg.Created {
 		evCopy := ev
+		sym := primarySymbol(&evCopy)
+		// DB-level guard: never create a second OPEN for the same symbol.
+		if id, ok := openBySym[sym]; ok {
+			evCopy.ID = id
+			if existing := findOpen(open, id); existing != nil {
+				evCopy.StartTime = existing.StartTime
+				evCopy.CreatedAt = existing.CreatedAt
+				evCopy.PeakScore = existing.PeakScore
+				if evCopy.Score > evCopy.PeakScore {
+					evCopy.PeakScore = evCopy.Score
+				}
+				evCopy.Signals = append(append([]EventSignal{}, existing.Signals...), evCopy.Signals...)
+			}
+			if err := svc.repo.UpdateEvent(ctx, &evCopy); err != nil {
+				slog.Warn("event create→merge update", "err", err, "id", evCopy.ID)
+				continue
+			}
+			if sigs := agg.NewSignals[ev.ID]; len(sigs) > 0 {
+				for i := range sigs {
+					sigs[i].EventID = evCopy.ID
+				}
+				if err := svc.repo.InsertSignals(ctx, sigs); err != nil {
+					slog.Warn("event insert signals", "err", err, "id", evCopy.ID)
+				}
+			}
+			svc.broadcast("event.updated", evCopy)
+			continue
+		}
 		if err := svc.repo.CreateEvent(ctx, &evCopy); err != nil {
 			slog.Warn("event create", "err", err, "id", evCopy.ID)
 			continue
 		}
+		openBySym[sym] = evCopy.ID
 		if sigs := agg.NewSignals[evCopy.ID]; len(sigs) > 0 {
 			if err := svc.repo.InsertSignals(ctx, sigs); err != nil {
 				slog.Warn("event insert signals", "err", err, "id", evCopy.ID)
@@ -387,12 +408,14 @@ func (e *engine) evaluate(ctx context.Context) {
 		if ev.Status == StatusResolved {
 			continue
 		}
-		// If no fresh matching signals for this symbol, gently decay score toward resolve.
+		// Without fresh confirmation, decay harder so DEESCALATING can finish.
 		score, _ := ScoreFromSignals(ev.Signals)
-		// Without fresh confirmation, treat as cooling: use 50% of previous score floor check.
-		cooled := score * 0.6
+		cooled := score * 0.45
 		before := ev.Status
 		ApplyLifecycle(&ev, cooled, now)
+		if ShouldForceResolve(&ev, now, svc.cfg.MaxOpenAge, svc.cfg.MaxDeescalateAge) {
+			ForceResolve(&ev, now)
+		}
 		if ev.Status == before && ev.Score == cooled {
 			continue
 		}
@@ -405,4 +428,76 @@ func (e *engine) evaluate(ctx context.Context) {
 		}
 		svc.broadcast(msg, ev)
 	}
+}
+
+func (e *engine) scrubOpen(ctx context.Context, open []MarketEvent, now time.Time) []MarketEvent {
+	svc := e.svc
+	keep := map[string]*MarketEvent{} // symbol → newest open
+	dupIDs := make([]string, 0)
+	staleIDs := make([]string, 0)
+
+	for i := range open {
+		ev := &open[i]
+		if ShouldForceResolve(ev, now, svc.cfg.MaxOpenAge, svc.cfg.MaxDeescalateAge) {
+			staleIDs = append(staleIDs, ev.ID)
+			continue
+		}
+		sym := primarySymbol(ev)
+		prev, ok := keep[sym]
+		if !ok {
+			keep[sym] = ev
+			continue
+		}
+		// Both open: keep the newer start_time, resolve the other.
+		if ev.StartTime.After(prev.StartTime) {
+			dupIDs = append(dupIDs, prev.ID)
+			keep[sym] = ev
+		} else {
+			dupIDs = append(dupIDs, ev.ID)
+		}
+	}
+
+	resolveIDs := append(dupIDs, staleIDs...)
+	if len(resolveIDs) > 0 {
+		if err := svc.repo.ResolveEventIDs(ctx, resolveIDs, now); err != nil {
+			slog.Warn("event scrub resolve", "err", err, "n", len(resolveIDs))
+		} else {
+			slog.Info("event scrubbed open rows", "duplicates", len(dupIDs), "stale", len(staleIDs))
+			for _, id := range resolveIDs {
+				if ev := findOpen(open, id); ev != nil {
+					ForceResolve(ev, now)
+					svc.broadcast("event.resolved", *ev)
+				}
+			}
+		}
+	}
+
+	out := make([]MarketEvent, 0, len(keep))
+	for _, ev := range keep {
+		if ev.Status == StatusResolved {
+			continue
+		}
+		// skip ids we just resolved
+		skip := false
+		for _, id := range resolveIDs {
+			if ev.ID == id {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+		out = append(out, *ev)
+	}
+	return out
+}
+
+func findOpen(open []MarketEvent, id string) *MarketEvent {
+	for i := range open {
+		if open[i].ID == id {
+			return &open[i]
+		}
+	}
+	return nil
 }

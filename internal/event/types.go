@@ -6,10 +6,10 @@ import (
 
 // Signal types (phase 1).
 const (
-	SignalPriceDrop       = "PRICE_DROP"
-	SignalPriceSpike      = "PRICE_SPIKE"
-	SignalVolumeSpike     = "VOLUME_SPIKE"
-	SignalVolatilitySpike = "VOLATILITY_SPIKE"
+	SignalPriceDrop        = "PRICE_DROP"
+	SignalPriceSpike       = "PRICE_SPIKE"
+	SignalVolumeSpike      = "VOLUME_SPIKE"
+	SignalVolatilitySpike  = "VOLATILITY_SPIKE"
 	SignalLiquidationSpike = "LIQUIDATION_SPIKE"
 )
 
@@ -122,8 +122,8 @@ type ListResult struct {
 
 // ComponentScores holds per-signal-family scores before weighting.
 type ComponentScores struct {
-	Price        *float64
-	Volume       *float64
-	Volatility   *float64
-	Liquidation  *float64
+	Price       *float64
+	Volume      *float64
+	Volatility  *float64
+	Liquidation *float64
 }

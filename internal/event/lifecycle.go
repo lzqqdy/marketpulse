@@ -65,3 +65,47 @@ func ApplyLifecycle(ev *MarketEvent, score float64, now time.Time) {
 	ev.Status = next
 	ev.UpdatedAt = now.UTC()
 }
+
+// ForceResolve marks an open event resolved (timeout / dedupe cleanup).
+func ForceResolve(ev *MarketEvent, now time.Time) {
+	if ev.Status == StatusResolved {
+		return
+	}
+	t := now.UTC()
+	ev.Status = StatusResolved
+	ev.EndTime = &t
+	ev.UpdatedAt = t
+	if ev.Score >= 30 {
+		ev.Score = 25
+		ev.Severity = SeverityFromScore(ev.Score)
+	}
+}
+
+// ShouldForceResolve reports age/idle based hard close.
+func ShouldForceResolve(ev *MarketEvent, now time.Time, maxOpen, maxDeesc time.Duration) bool {
+	if ev.Status == StatusResolved {
+		return false
+	}
+	now = now.UTC()
+	start := ev.StartTime.UTC()
+	updated := ev.UpdatedAt.UTC()
+	if maxOpen > 0 && !start.IsZero() {
+		age := now.Sub(start)
+		if age < 0 {
+			age = -age
+		}
+		if age >= maxOpen {
+			return true
+		}
+	}
+	if ev.Status == StatusDeescalating && maxDeesc > 0 && !updated.IsZero() {
+		idle := now.Sub(updated)
+		if idle < 0 {
+			idle = -idle
+		}
+		if idle >= maxDeesc {
+			return true
+		}
+	}
+	return false
+}

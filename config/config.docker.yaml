@@ -81,6 +81,8 @@ event:
   auto_migrate: true
   evaluate_interval: 20s
   aggregate_window: 10m
+  max_open_age: 90m
+  max_deescalate_age: 20m
   kline_timeout: 8s
   symbols: [BTC, ETH]
   price:

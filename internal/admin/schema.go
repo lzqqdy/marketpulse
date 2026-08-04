@@ -104,6 +104,8 @@ var knownSchemas = []FieldSchema{
 	{Path: "event.auto_migrate", Widget: "switch", Label: "自动建表"},
 	{Path: "event.evaluate_interval", Widget: "duration", Label: "检测间隔"},
 	{Path: "event.aggregate_window", Widget: "duration", Label: "聚合时间窗"},
+	{Path: "event.max_open_age", Widget: "duration", Label: "未结束最长存活"},
+	{Path: "event.max_deescalate_age", Widget: "duration", Label: "缓和态最长空闲"},
 	{Path: "event.kline_timeout", Widget: "duration", Label: "K线超时"},
 	{Path: "event.symbols", Widget: "string_list", Label: "监控标的"},
 	{Path: "event.price.5m.threshold_pct", Widget: "number", Label: "价格阈值 5m(%)"},

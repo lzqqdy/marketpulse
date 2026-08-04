@@ -8,25 +8,21 @@ import (
 
 // AggregateInput is one evaluation round of fresh signals plus open events.
 type AggregateInput struct {
-	Now            time.Time
-	Signals        []EventSignal
-	OpenEvents     []MarketEvent
+	Now             time.Time
+	Signals         []EventSignal
+	OpenEvents      []MarketEvent
 	AggregateWindow time.Duration
 }
 
 // AggregateResult holds creates and updates for persistence.
 type AggregateResult struct {
-	Created []MarketEvent
-	Updated []MarketEvent
+	Created    []MarketEvent
+	Updated    []MarketEvent
 	NewSignals map[string][]EventSignal // eventID -> newly attached signals
 }
 
 // Aggregate merges signals into templates (flash_selloff / volume_move / price_only).
 func Aggregate(in AggregateInput) AggregateResult {
-	win := in.AggregateWindow
-	if win <= 0 {
-		win = 10 * time.Minute
-	}
 	now := in.Now.UTC()
 	res := AggregateResult{NewSignals: map[string][]EventSignal{}}
 
@@ -64,7 +60,8 @@ func Aggregate(in AggregateInput) AggregateResult {
 		if tmpl == "" {
 			continue
 		}
-		if existing, ok := openBySymbol[sym]; ok && withinWindow(existing.StartTime, now, win) {
+		// Hard rule: at most one OPEN event per symbol — always merge while open.
+		if existing, ok := openBySymbol[sym]; ok {
 			attached := filterNewSignals(existing, sigs)
 			if len(liq) > 0 {
 				attached = append(attached, filterNewSignals(existing, liq)...)
@@ -154,6 +151,7 @@ func matchTemplate(sigs []EventSignal) (templateID, title, typ, sub string) {
 	hasPriceDrop := false
 	hasPriceSpike := false
 	hasVol := false
+	hasStrongVol := false
 	hasLiq := false
 	for _, s := range sigs {
 		switch s.SignalType {
@@ -163,6 +161,10 @@ func matchTemplate(sigs []EventSignal) (templateID, title, typ, sub string) {
 			hasPriceSpike = true
 		case SignalVolumeSpike:
 			hasVol = true
+			// volume_move needs meaningful size; lone ~2x+tiny price was spammy.
+			if s.Ratio >= 3 {
+				hasStrongVol = true
+			}
 		case SignalLiquidationSpike:
 			hasLiq = true
 		}
@@ -170,7 +172,7 @@ func matchTemplate(sigs []EventSignal) (templateID, title, typ, sub string) {
 	if hasPriceDrop && hasVol && hasLiq {
 		return "flash_selloff", "加密资产快速走弱", TypeCryptoMove, SubFlashSelloff
 	}
-	if (hasPriceDrop || hasPriceSpike) && hasVol {
+	if (hasPriceDrop || hasPriceSpike) && hasStrongVol {
 		return "volume_move", "加密成交量放大异动", TypeCryptoMove, SubVolumeMove
 	}
 	if hasPriceDrop {
@@ -200,10 +202,6 @@ func inferTemplateID(ev *MarketEvent) string {
 	default:
 		return "price_only"
 	}
-}
-
-func withinWindow(start, now time.Time, win time.Duration) bool {
-	return now.Sub(start) <= win*6 // keep merging while event is open within extended horizon
 }
 
 func filterNewSignals(ev *MarketEvent, candidates []EventSignal) []EventSignal {

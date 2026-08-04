@@ -92,7 +92,7 @@ func TestAggregate_MergeOpen(t *testing.T) {
 	}}
 	sigs := []EventSignal{
 		{ID: "n1", SignalType: SignalPriceDrop, Symbol: "BTC", Window: "15m", ChangePct: -4},
-		{ID: "n2", SignalType: SignalVolumeSpike, Symbol: "BTC", Window: "15m", Ratio: 3},
+		{ID: "n2", SignalType: SignalVolumeSpike, Symbol: "BTC", Window: "15m", Ratio: 3.5},
 	}
 	res := Aggregate(AggregateInput{Now: now, Signals: sigs, OpenEvents: open})
 	if len(res.Created) != 0 {
@@ -102,9 +102,42 @@ func TestAggregate_MergeOpen(t *testing.T) {
 		t.Fatalf("expected 1 update, got %d", len(res.Updated))
 	}
 	if res.Updated[0].SubType != SubVolumeMove && res.Updated[0].SubType != SubFlashSelloff {
-		// price+volume => volume_move
+		// price+strong volume => volume_move
 		if res.Updated[0].SubType != SubVolumeMove {
 			t.Fatalf("expected volume_move upgrade, got %s", res.Updated[0].SubType)
 		}
+	}
+}
+
+func TestAggregate_WeakVolumeStaysPriceOnly(t *testing.T) {
+	now := time.Now().UTC()
+	sigs := []EventSignal{
+		{ID: "1", SignalType: SignalPriceSpike, Symbol: "ETH", Window: "15m", ChangePct: 3.2, Direction: DirectionUp, Timestamp: now},
+		{ID: "2", SignalType: SignalVolumeSpike, Symbol: "ETH", Window: "15m", Ratio: 2.2, Timestamp: now},
+	}
+	res := Aggregate(AggregateInput{Now: now, Signals: sigs})
+	if len(res.Created) != 1 || res.Created[0].SubType != SubSpike {
+		t.Fatalf("expected price_only SPIKE (weak volume), got %+v", res.Created)
+	}
+}
+
+func TestAggregate_AlwaysMergeOpenIgnoringAge(t *testing.T) {
+	now := time.Now().UTC()
+	open := []MarketEvent{{
+		ID:         "evt_old",
+		Type:       TypePriceAnomaly,
+		SubType:    SubDrop,
+		Status:     StatusDeescalating,
+		StartTime:  now.Add(-3 * time.Hour),
+		Symbols:    []string{"ETH"},
+		TemplateID: "price_only",
+		Signals:    []EventSignal{{ID: "old", SignalType: SignalPriceDrop, Symbol: "ETH", Window: "15m", ChangePct: -3}},
+	}}
+	sigs := []EventSignal{
+		{ID: "n1", SignalType: SignalPriceDrop, Symbol: "ETH", Window: "15m", ChangePct: -4},
+	}
+	res := Aggregate(AggregateInput{Now: now, Signals: sigs, OpenEvents: open, AggregateWindow: time.Minute})
+	if len(res.Created) != 0 || len(res.Updated) != 1 {
+		t.Fatalf("expected merge aged open event, created=%d updated=%d", len(res.Created), len(res.Updated))
 	}
 }

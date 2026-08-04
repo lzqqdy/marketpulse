@@ -12,10 +12,10 @@ import (
 
 // Config is the root configuration for marketd.
 type Config struct {
-	App     AppConfig    `yaml:"app"`
-	CORS    CORSConfig   `yaml:"cors"`
-	MySQL   MySQLConfig  `yaml:"mysql"`
-	Redis   RedisConfig  `yaml:"redis"`
+	App       AppConfig       `yaml:"app"`
+	CORS      CORSConfig      `yaml:"cors"`
+	MySQL     MySQLConfig     `yaml:"mysql"`
+	Redis     RedisConfig     `yaml:"redis"`
 	Users     UsersConfig     `yaml:"users"`
 	Alerts    AlertsConfig    `yaml:"alerts"`
 	Portfolio PortfolioConfig `yaml:"portfolio"`
@@ -41,17 +41,17 @@ type Config struct {
 
 // AiConfig configures the optional AI chat assistant (requires mysql + users + api_key).
 type AiConfig struct {
-	Enabled             bool          `yaml:"enabled"`
-	AutoMigrate         *bool         `yaml:"auto_migrate"`
-	Provider            string        `yaml:"provider"`
-	BaseURL             string        `yaml:"base_url"`
-	APIKey              string        `yaml:"api_key"`
-	Model               string        `yaml:"model"`
-	Timeout             time.Duration `yaml:"timeout"`
-	MaxToolRounds       int           `yaml:"max_tool_rounds"`
-	MaxHistoryMessages  int           `yaml:"max_history_messages"`
-	DailyQuotaPerUser   int           `yaml:"daily_quota_per_user"`
-	SystemPrompt        string        `yaml:"system_prompt"`
+	Enabled            bool          `yaml:"enabled"`
+	AutoMigrate        *bool         `yaml:"auto_migrate"`
+	Provider           string        `yaml:"provider"`
+	BaseURL            string        `yaml:"base_url"`
+	APIKey             string        `yaml:"api_key"`
+	Model              string        `yaml:"model"`
+	Timeout            time.Duration `yaml:"timeout"`
+	MaxToolRounds      int           `yaml:"max_tool_rounds"`
+	MaxHistoryMessages int           `yaml:"max_history_messages"`
+	DailyQuotaPerUser  int           `yaml:"daily_quota_per_user"`
+	SystemPrompt       string        `yaml:"system_prompt"`
 }
 
 // IsAutoMigrate reports whether AI schema migrations should run on startup.
@@ -64,16 +64,20 @@ func (c AiConfig) IsAutoMigrate() bool {
 
 // EventConfig configures the optional crypto event engine (requires mysql).
 type EventConfig struct {
-	Enabled          bool                         `yaml:"enabled"`
-	AutoMigrate      *bool                        `yaml:"auto_migrate"`
-	EvaluateInterval time.Duration                `yaml:"evaluate_interval"`
-	Symbols          []string                     `yaml:"symbols"`
-	AggregateWindow  time.Duration                `yaml:"aggregate_window"`
-	KlineTimeout     time.Duration                `yaml:"kline_timeout"`
-	Price            EventPriceConfig             `yaml:"price"`
-	Volume           EventVolumeConfig            `yaml:"volume"`
-	Volatility       EventVolatilityConfig        `yaml:"volatility"`
-	Liquidation      EventLiquidationConfig       `yaml:"liquidation"`
+	Enabled          bool          `yaml:"enabled"`
+	AutoMigrate      *bool         `yaml:"auto_migrate"`
+	EvaluateInterval time.Duration `yaml:"evaluate_interval"`
+	Symbols          []string      `yaml:"symbols"`
+	AggregateWindow  time.Duration `yaml:"aggregate_window"`
+	KlineTimeout     time.Duration `yaml:"kline_timeout"`
+	// MaxOpenAge force-resolves any still-open event older than this (wall clock from start_time).
+	MaxOpenAge time.Duration `yaml:"max_open_age"`
+	// MaxDeescalateAge force-resolves DEESCALATING events with no refresh beyond this idle time.
+	MaxDeescalateAge time.Duration          `yaml:"max_deescalate_age"`
+	Price            EventPriceConfig       `yaml:"price"`
+	Volume           EventVolumeConfig      `yaml:"volume"`
+	Volatility       EventVolatilityConfig  `yaml:"volatility"`
+	Liquidation      EventLiquidationConfig `yaml:"liquidation"`
 }
 
 // EventPriceConfig maps candle interval → absolute change threshold percent.
@@ -292,7 +296,7 @@ type IngestConfig struct {
 	Binance BinanceConfig `yaml:"binance"`
 	Baidu   BaiduConfig   `yaml:"baidu"`
 	OTC     OTCConfig     `yaml:"otc"`
-	Forex   ForexConfig     `yaml:"forex"`
+	Forex   ForexConfig   `yaml:"forex"`
 	Equity  EquityConfig  `yaml:"equity"`
 	Macro   MacroConfig   `yaml:"macro"`
 }
@@ -741,6 +745,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Event.AggregateWindow <= 0 {
 		c.Event.AggregateWindow = 10 * time.Minute
+	}
+	if c.Event.MaxOpenAge <= 0 {
+		c.Event.MaxOpenAge = 90 * time.Minute
+	}
+	if c.Event.MaxDeescalateAge <= 0 {
+		c.Event.MaxDeescalateAge = 20 * time.Minute
 	}
 	if c.Event.KlineTimeout <= 0 {
 		c.Event.KlineTimeout = 8 * time.Second
