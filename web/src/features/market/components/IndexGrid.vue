@@ -41,6 +41,33 @@ const INDEX_META: Record<string, IndexMeta> = {
   'sge-au9999': { region: '商品', flag: '🥇', x: 36, y: 68, size: 'sm', shortName: '国内金' },
 }
 
+/** Secondary US equities shown only in the US-market popup (not in main map/grid). */
+const US_EQUITY_META: Record<string, { flag: string; shortName: string }> = {
+  'us-qqq': { flag: '🇺🇸', shortName: '纳指ETF' },
+  'us-spy': { flag: '🇺🇸', shortName: '标普ETF' },
+  'us-aapl': { flag: '🇺🇸', shortName: '苹果' },
+  'us-msft': { flag: '🇺🇸', shortName: '微软' },
+  'us-nvda': { flag: '🇺🇸', shortName: '英伟达' },
+  'us-amzn': { flag: '🇺🇸', shortName: '亚马逊' },
+  'us-googl': { flag: '🇺🇸', shortName: '谷歌' },
+  'us-meta': { flag: '🇺🇸', shortName: 'META' },
+  'us-tsla': { flag: '🇺🇸', shortName: '特斯拉' },
+  'us-mu': { flag: '🇺🇸', shortName: '美光' },
+}
+
+const US_EQUITY_ORDER = [
+  'us-qqq',
+  'us-spy',
+  'us-aapl',
+  'us-msft',
+  'us-nvda',
+  'us-amzn',
+  'us-googl',
+  'us-meta',
+  'us-tsla',
+  'us-mu',
+] as const
+
 const REGION_ORDER: IndexRegion[] = ['中国', '香港', '美国', '日本', '韩国', '商品']
 
 const ASIA_MAP_ORDER = ['n225', 'ks11', 'sh000001', 'sz399001', 'sz399006', 'sh000300', 'sh000688', 'hsi'] as const
@@ -51,6 +78,7 @@ const store = useMarketStore()
 const chartStore = useChartStore()
 const { priceClass } = useTrendClass()
 const viewMode = ref<'map' | 'grid'>('map')
+const usEquitiesOpen = ref(false)
 const liveStartedAt = ref(Date.now())
 let tickTimer: ReturnType<typeof setInterval> | null = null
 const nowMs = ref(Date.now())
@@ -70,6 +98,23 @@ const indices = computed(() =>
   (store.indices ?? [])
     .map((item) => ({ ...item, meta: INDEX_META[item.id] }))
     .filter((item) => item.meta),
+)
+
+const usEquityById = computed(() => {
+  const map = new Map<string, IndexQuote>()
+  for (const item of store.indices ?? []) {
+    if (US_EQUITY_META[item.id]) map.set(item.id, item)
+  }
+  return map
+})
+
+const usEquities = computed(() =>
+  US_EQUITY_ORDER.map((id) => {
+    const quote = usEquityById.value.get(id)
+    const meta = US_EQUITY_META[id]
+    if (!quote || !meta) return null
+    return { ...quote, flag: meta.flag, shortName: meta.shortName }
+  }).filter((item): item is IndexQuote & { flag: string; shortName: string } => item !== null),
 )
 
 const equityState = computed(() => store.ingestHealth?.ingest?.equity ?? '')
@@ -199,6 +244,19 @@ function openChart(item: IndexQuote) {
   chartStore.openIndex(item)
 }
 
+function openUsEquities() {
+  usEquitiesOpen.value = true
+}
+
+function closeUsEquities() {
+  usEquitiesOpen.value = false
+}
+
+function openUsEquityChart(item: IndexQuote) {
+  closeUsEquities()
+  openChart(item)
+}
+
 function bubbleClass(item: IndexMapItem) {
   return [priceClass(item.changePct), { champion: item.marker === 'top', weakest: item.marker === 'worstDown' || item.marker === 'weakUp' }]
 }
@@ -258,7 +316,18 @@ function markerIcon(marker: IndexMapItem['marker']) {
         class="heatmap-section"
         :class="`heatmap-section-${group.key}`"
       >
-        <h3 class="heatmap-title">{{ group.title }}</h3>
+        <div class="heatmap-section-head">
+          <h3 class="heatmap-title">{{ group.title }}</h3>
+          <button
+            v-if="group.key === 'us'"
+            type="button"
+            class="us-more-btn"
+            aria-label="查看美国个股"
+            @click="openUsEquities"
+          >
+            更多
+          </button>
+        </div>
         <div class="heatmap-bubbles">
           <button
             v-for="item in group.items"
@@ -325,6 +394,52 @@ function markerIcon(marker: IndexMapItem['marker']) {
     </div>
     -->
   </section>
+
+  <Teleport to="body">
+    <div
+      v-if="usEquitiesOpen"
+      class="us-equities-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="美国市场个股"
+      @click.self="closeUsEquities"
+      @keydown.escape="closeUsEquities"
+    >
+      <section class="us-equities-panel" tabindex="-1">
+        <header class="us-equities-head">
+          <div>
+            <h3>美国市场 · 个股</h3>
+            <p v-if="usEquities.length">{{ usEquities.length }} 只标的</p>
+          </div>
+          <button type="button" class="us-equities-close" aria-label="关闭" @click="closeUsEquities">
+            关闭
+          </button>
+        </header>
+
+        <p v-if="usEquities.length === 0" class="us-equities-empty">美股加载中…</p>
+        <div v-else class="index-grid us-equities-grid">
+          <article
+            v-for="item in usEquities"
+            :key="item.id"
+            class="index-card clickable"
+            :class="{ stale: item.stale }"
+            @click="openUsEquityChart(item)"
+          >
+            <p class="index-title">
+              <span class="flag">{{ item.flag }}</span>
+              {{ item.shortName }}
+            </p>
+            <p class="index-price" :class="priceClass(item.changePct)">
+              {{ formatNumber(item.price, 2) }}
+            </p>
+            <p class="index-chg" :class="priceClass(item.changePct)">
+              {{ formatPct(item.changePct) }}
+            </p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -479,12 +594,116 @@ function markerIcon(marker: IndexMapItem['marker']) {
 .heatmap-title {
   position: relative;
   z-index: 1;
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
   color: var(--map-title);
   letter-spacing: 0.04em;
+}
+
+.heatmap-section-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  min-height: 18px;
+}
+
+.us-more-btn {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--map-title);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  opacity: 0.78;
+}
+
+.us-more-btn:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+.us-equities-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 980;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--modal-backdrop);
+  backdrop-filter: blur(4px);
+}
+
+.us-equities-panel {
+  width: 100%;
+  max-width: 420px;
+  max-height: min(78dvh, 640px);
+  overflow: auto;
+  padding: 14px 12px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 12px 40px var(--shadow);
+}
+
+.us-equities-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+
+.us-equities-head h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.us-equities-head p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.us-equities-close {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.us-equities-close:hover {
+  background: var(--hover-strong);
+}
+
+.us-equities-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.us-equities-grid {
+  gap: 6px;
 }
 
 .heatmap-bubbles {

@@ -367,12 +367,15 @@ func (c *BaiduConfig) IsWSEnabled() bool {
 	return *c.WSEnabled
 }
 
-// DefaultEquityIndexIDs is the production watchlist (中国5 + 香港1 + 日韩2 + 美国3 + 商品3).
+// DefaultEquityIndexIDs is the production watchlist
+// (中国5 + 香港1 + 日韩2 + 美国3指数 + 美国10个股/ETF + 商品3).
 var DefaultEquityIndexIDs = []string{
 	"sh000001", "sz399001", "sz399006", "sh000300", "sh000688",
 	"hsi",
 	"n225", "ks11",
 	"dji", "ixic", "gspc",
+	"us-qqq", "us-spy", "us-aapl", "us-msft", "us-nvda",
+	"us-amzn", "us-googl", "us-meta", "us-tsla", "us-mu",
 	"gold", "silver", "crude",
 }
 

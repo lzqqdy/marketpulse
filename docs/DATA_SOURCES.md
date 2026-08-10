@@ -106,8 +106,12 @@ Current default ids:
 sh000001, sz399001, sz399006, sh000300, sh000688,
 hsi, n225, ks11,
 dji, ixic, gspc,
+us-qqq, us-spy, us-aapl, us-msft, us-nvda,
+us-amzn, us-googl, us-meta, us-tsla, us-mu,
 gold, silver, crude
 ```
+
+US equity / ETF ids (`us-*`) feed the IndexGrid「美国市场 · 个股」secondary popup only; they share the same equity ingest / `indices` channel but are filtered out of the main heatmap bubbles by frontend meta.
 
 `sge-au9999` is appended separately by the domestic gold poller (Eastmoney → Sina).
 

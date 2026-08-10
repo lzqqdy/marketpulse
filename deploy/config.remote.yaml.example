@@ -169,6 +169,16 @@ ingest:
       - dji
       - ixic
       - gspc
+      - us-qqq
+      - us-spy
+      - us-aapl
+      - us-msft
+      - us-nvda
+      - us-amzn
+      - us-googl
+      - us-meta
+      - us-tsla
+      - us-mu
       - gold
       - silver
       - crude
