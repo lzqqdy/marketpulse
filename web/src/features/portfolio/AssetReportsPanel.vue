@@ -40,16 +40,47 @@ const dailyPoints = computed(() =>
   (series.value?.points ?? []).map((p) => ({ date: p.date, value: p.dailyProfit })),
 )
 
-usePortfolioLineChart(trendEl, trendPoints, { kind: 'area', colorToken: '--accent' })
-usePortfolioLineChart(profitEl, profitPoints, {
+const { hover: trendHover } = usePortfolioLineChart(trendEl, trendPoints, {
+  kind: 'area',
+  colorToken: '--accent',
+  valueKind: 'money',
+})
+const { hover: profitHover } = usePortfolioLineChart(profitEl, profitPoints, {
   kind: 'line',
   colorToken: '--chart-2',
+  valueKind: 'money',
 })
-usePortfolioLineChart(rateEl, ratePoints, {
+const { hover: rateHover } = usePortfolioLineChart(rateEl, ratePoints, {
   kind: 'line',
   colorToken: '--chart-3',
+  valueKind: 'percent',
 })
-usePortfolioLineChart(dailyEl, dailyPoints, { kind: 'histogram', signedBars: true })
+const { hover: dailyHover } = usePortfolioLineChart(dailyEl, dailyPoints, {
+  kind: 'histogram',
+  signedBars: true,
+  valueKind: 'money',
+})
+
+function fmtHoverMoney(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function fmtHoverPct(n: number): string {
+  const body = Math.abs(n).toFixed(2)
+  if (n > 0) return `+${body}%`
+  if (n < 0) return `-${body}%`
+  return `${body}%`
+}
+
+function fmtHoverSigned(n: number): string {
+  const body = Math.abs(n).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  if (n > 0) return `+${body}`
+  if (n < 0) return `-${body}`
+  return body
+}
 
 const summaryClass = computed(() => {
   const v = series.value?.summary.pnlCny
@@ -159,19 +190,49 @@ defineExpose({ reload: load })
 
       <div class="chart-grid">
         <section class="chart-card">
-          <h3>资产净值走势</h3>
+          <div class="chart-card-head">
+            <h3>资产净值走势</h3>
+            <p v-if="trendHover" class="chart-hover">
+              <span>{{ trendHover.date }}</span>
+              <strong>¥{{ fmtHoverMoney(trendHover.value) }}</strong>
+            </p>
+          </div>
           <div ref="trendEl" class="chart-el" />
         </section>
         <section class="chart-card">
-          <h3>累计收益 (CNY)</h3>
+          <div class="chart-card-head">
+            <h3>累计收益 (CNY)</h3>
+            <p v-if="profitHover" class="chart-hover">
+              <span>{{ profitHover.date }}</span>
+              <strong :class="profitHover.value >= 0 ? 'up' : 'down'">
+                {{ fmtHoverSigned(profitHover.value) }}
+              </strong>
+            </p>
+          </div>
           <div ref="profitEl" class="chart-el" />
         </section>
         <section class="chart-card">
-          <h3>累计收益率 (%)</h3>
+          <div class="chart-card-head">
+            <h3>累计收益率 (%)</h3>
+            <p v-if="rateHover" class="chart-hover">
+              <span>{{ rateHover.date }}</span>
+              <strong :class="rateHover.value >= 0 ? 'up' : 'down'">
+                {{ fmtHoverPct(rateHover.value) }}
+              </strong>
+            </p>
+          </div>
           <div ref="rateEl" class="chart-el" />
         </section>
         <section class="chart-card">
-          <h3>每日盈亏 (CNY)</h3>
+          <div class="chart-card-head">
+            <h3>每日盈亏 (CNY)</h3>
+            <p v-if="dailyHover" class="chart-hover">
+              <span>{{ dailyHover.date }}</span>
+              <strong :class="dailyHover.value >= 0 ? 'up' : 'down'">
+                {{ fmtHoverSigned(dailyHover.value) }}
+              </strong>
+            </p>
+          </div>
           <div ref="dailyEl" class="chart-el" />
         </section>
       </div>
@@ -301,15 +362,53 @@ defineExpose({ reload: load })
 
 .chart-card h3,
 .alloc-card h3 {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
 }
 
+.alloc-card h3 {
+  margin-bottom: 10px;
+}
+
+.chart-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 20px;
+  margin-bottom: 10px;
+}
+
+.chart-hover {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chart-hover strong {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.chart-hover strong.up {
+  color: var(--up);
+}
+
+.chart-hover strong.down {
+  color: var(--down);
+}
+
 .chart-el {
   width: 100%;
-  height: 240px;
+  height: 280px;
 }
 
 .hint {
@@ -377,7 +476,7 @@ defineExpose({ reload: load })
   }
 
   .chart-el {
-    height: 180px;
+    height: 220px;
   }
 
   .chart-card,
