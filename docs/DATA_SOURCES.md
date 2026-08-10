@@ -113,6 +113,8 @@ gold, silver, crude
 
 US equity / ETF ids (`us-*`) feed the IndexGrid「美国市场 · 个股」secondary popup only; they share the same equity ingest / `indices` channel but are filtered out of the main heatmap bubbles by frontend meta.
 
+`us-qqq` / `us-spy` intentionally omit Baidu mapping: Baidu's US ETF snapshot rounds `cur.price` / `ratio` to integers (e.g. `722` / `+1%`), which would keep the equity cache "fresh" and block Tencent's precise quotes. Those two rely on Tencent (`s_usQQQ` / `s_usSPY`) with Eastmoney as fallback.
+
 `sge-au9999` is appended separately by the domestic gold poller (Eastmoney → Sina).
 
 ### Baidu Finance Index Quotes

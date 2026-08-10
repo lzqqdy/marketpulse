@@ -4,13 +4,14 @@ import "testing"
 
 func TestUSEquityDefs(t *testing.T) {
 	cases := []struct {
-		id           string
-		financeType  string
-		tencent      string
-		wantBaidu    bool
+		id          string
+		financeType string
+		tencent     string
+		wantBaidu   bool
 	}{
-		{"us-qqq", "etf", "s_usQQQ", true},
-		{"us-spy", "etf", "s_usSPY", true},
+		// QQQ/SPY skip Baidu: ETF snapshots round price/ratio and starve Tencent.
+		{"us-qqq", "index", "s_usQQQ", false},
+		{"us-spy", "index", "s_usSPY", false},
 		{"us-aapl", "stock", "s_usAAPL", true},
 		{"us-nvda", "stock", "s_usNVDA", true},
 		{"us-mu", "stock", "s_usMU", true},
@@ -40,7 +41,10 @@ func TestResolveDefsIncludesUSEquities(t *testing.T) {
 	if len(defs) != 3 {
 		t.Fatalf("len=%d want 3", len(defs))
 	}
-	if defs[1].ID != "us-qqq" || defs[1].resolvedBaiduFinanceType() != "etf" {
-		t.Fatalf("unexpected %#v", defs[1])
+	if defs[1].ID != "us-qqq" || defs[1].HasBaidu() {
+		t.Fatalf("us-qqq should skip Baidu, got %#v", defs[1])
+	}
+	if defs[2].ID != "us-aapl" || defs[2].resolvedBaiduFinanceType() != "stock" {
+		t.Fatalf("unexpected %#v", defs[2])
 	}
 }

@@ -39,9 +39,10 @@ var DefaultIndices = []IndexDef{
 	{ID: "dji", Name: "道琼斯", EastmoneySecID: "100.DJIA", TencentSymbol: "s_usDJI", BaiduCode: "DJI", BaiduMarket: "us", MinPrice: 10000, MaxPrice: 100000},
 	{ID: "ixic", Name: "纳斯达克", EastmoneySecID: "100.NDX", TencentSymbol: "s_usIXIC", BaiduCode: "IXIC", BaiduMarket: "us", MinPrice: 5000, MaxPrice: 50000},
 	{ID: "gspc", Name: "标普500", EastmoneySecID: "100.SPX", TencentSymbol: "s_usINX", BaiduCode: "SPX", BaiduMarket: "us", MinPrice: 1000, MaxPrice: 15000},
-	// US equities / ETFs for IndexGrid secondary popup (ids prefixed us- to avoid alpha collisions).
-	{ID: "us-qqq", Name: "纳指ETF", EastmoneySecID: "105.QQQ", TencentSymbol: "s_usQQQ", BaiduCode: "QQQ", BaiduMarket: "us", BaiduFinanceType: "etf", MinPrice: 50, MaxPrice: 2000},
-	{ID: "us-spy", Name: "标普ETF", EastmoneySecID: "107.SPY", TencentSymbol: "s_usSPY", BaiduCode: "SPY", BaiduMarket: "us", BaiduFinanceType: "etf", MinPrice: 50, MaxPrice: 2000},
+	// US ETFs: skip Baidu — its ETF snapshot rounds price/ratio to integers
+	// (e.g. 722 / +1%), which then blocks Tencent's precise quotes in cache.
+	{ID: "us-qqq", Name: "纳指ETF", EastmoneySecID: "105.QQQ", TencentSymbol: "s_usQQQ", MinPrice: 50, MaxPrice: 2000},
+	{ID: "us-spy", Name: "标普ETF", EastmoneySecID: "107.SPY", TencentSymbol: "s_usSPY", MinPrice: 50, MaxPrice: 2000},
 	{ID: "us-aapl", Name: "苹果", EastmoneySecID: "105.AAPL", TencentSymbol: "s_usAAPL", BaiduCode: "AAPL", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 10, MaxPrice: 1000},
 	{ID: "us-msft", Name: "微软", EastmoneySecID: "105.MSFT", TencentSymbol: "s_usMSFT", BaiduCode: "MSFT", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 10, MaxPrice: 1500},
 	{ID: "us-nvda", Name: "英伟达", EastmoneySecID: "105.NVDA", TencentSymbol: "s_usNVDA", BaiduCode: "NVDA", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 5, MaxPrice: 1000},
