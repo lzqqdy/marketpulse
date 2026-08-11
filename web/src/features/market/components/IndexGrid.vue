@@ -53,6 +53,9 @@ const US_EQUITY_META: Record<string, { flag: string; shortName: string }> = {
   'us-meta': { flag: '🇺🇸', shortName: 'META' },
   'us-tsla': { flag: '🇺🇸', shortName: '特斯拉' },
   'us-mu': { flag: '🇺🇸', shortName: '美光' },
+  'us-avgo': { flag: '🇺🇸', shortName: '博通' },
+  'us-tsm': { flag: '🇺🇸', shortName: '台积电' },
+  'us-skhy': { flag: '🇺🇸', shortName: 'SK海力士' },
 }
 
 const US_EQUITY_ORDER = [
@@ -66,6 +69,9 @@ const US_EQUITY_ORDER = [
   'us-meta',
   'us-tsla',
   'us-mu',
+  'us-avgo',
+  'us-tsm',
+  'us-skhy',
 ] as const
 
 const REGION_ORDER: IndexRegion[] = ['中国', '香港', '美国', '日本', '韩国', '商品']

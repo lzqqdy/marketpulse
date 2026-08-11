@@ -15,6 +15,9 @@ func TestUSEquityDefs(t *testing.T) {
 		{"us-aapl", "stock", "s_usAAPL", true},
 		{"us-nvda", "stock", "s_usNVDA", true},
 		{"us-mu", "stock", "s_usMU", true},
+		{"us-avgo", "stock", "s_usAVGO", true},
+		{"us-tsm", "stock", "s_usTSM", true},
+		{"us-skhy", "stock", "s_usSKHY", true},
 	}
 	for _, tc := range cases {
 		def, ok := DefaultIndexByID(tc.id)

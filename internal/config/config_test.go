@@ -32,7 +32,7 @@ func TestLoad_example(t *testing.T) {
 	if !cfg.Ingest.Baidu.IsEnabled() || !cfg.Ingest.Baidu.IsWSEnabled() {
 		t.Fatalf("baidu defaults: enabled=%v ws=%v", cfg.Ingest.Baidu.IsEnabled(), cfg.Ingest.Baidu.IsWSEnabled())
 	}
-  if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 8 {
+  if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 11 {
 		t.Fatalf("alpha config: enabled=%v indices=%d stocks=%d", cfg.Alpha.Enabled, len(cfg.Alpha.Indices), len(cfg.Alpha.Stocks))
 	}
 	if cfg.Alpha.Provider != "bitget" || cfg.Alpha.ProductType != "USDT-FUTURES" {
@@ -41,10 +41,10 @@ func TestLoad_example(t *testing.T) {
 	if cfg.Alpha.PollInterval != 30*time.Second || cfg.Alpha.ResolveInterval != 10*time.Minute {
 		t.Fatalf("alpha intervals: poll=%s resolve=%s", cfg.Alpha.PollInterval, cfg.Alpha.ResolveInterval)
 	}
-	if strings.Join(cfg.AlphaBaseSymbols(), ",") != "QQQ,SPY,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,MU" {
+	if strings.Join(cfg.AlphaBaseSymbols(), ",") != "QQQ,SPY,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,MU,AVGO,TSM,SKHY" {
 		t.Fatalf("alpha base symbols: %v", cfg.AlphaBaseSymbols())
 	}
-	if !containsString(cfg.Ingest.Equity.IndexIDs, "us-qqq") || !containsString(cfg.Ingest.Equity.IndexIDs, "us-aapl") {
+	if !containsString(cfg.Ingest.Equity.IndexIDs, "us-tsm") || !containsString(cfg.Ingest.Equity.IndexIDs, "us-skhy") {
 		t.Fatalf("equity index_ids missing us equities: %v", cfg.Ingest.Equity.IndexIDs)
 	}
 	if strings.Join(cfg.DayOpenSymbols(), ",") != strings.Join(cfg.Symbols, ",") {

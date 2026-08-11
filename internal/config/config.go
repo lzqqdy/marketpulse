@@ -375,7 +375,7 @@ var DefaultEquityIndexIDs = []string{
 	"n225", "ks11",
 	"dji", "ixic", "gspc",
 	"us-qqq", "us-spy", "us-aapl", "us-msft", "us-nvda",
-	"us-amzn", "us-googl", "us-meta", "us-tsla", "us-mu",
+	"us-amzn", "us-googl", "us-meta", "us-tsla", "us-mu", "us-avgo", "us-tsm", "us-skhy",
 	"gold", "silver", "crude",
 }
 
@@ -393,6 +393,9 @@ var DefaultAlphaStocks = []AlphaItem{
 	{ID: "meta", Name: "Meta", Symbol: "METAUSDT"},
 	{ID: "tsla", Name: "特斯拉", Symbol: "TSLAUSDT"},
 	{ID: "mu", Name: "美光", Symbol: "MUUSDT"},
+	{ID: "avgo", Name: "博通", Symbol: "AVGOUSDT"},
+	{ID: "tsm", Name: "台积电", Symbol: "TSMUSDT"},
+	{ID: "skhy", Name: "SK海力士", Symbol: "SKHYUSDT"},
 }
 
 // MacroConfig configures macro indicator polling.
