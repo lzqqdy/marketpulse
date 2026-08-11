@@ -27,7 +27,7 @@ const emit = defineEmits<{
 
 const store = useMarketStore()
 
-const enabled = computed(() => store.ingestHealth?.event === 'enabled')
+const enabled = computed(() => store.ingestHealth?.event !== 'disabled')
 const loading = ref(false)
 const error = ref('')
 const items = ref<MarketEventSummary[]>([])

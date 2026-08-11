@@ -16,7 +16,7 @@ const router = useRouter()
 const open = ref(false)
 const eventsOpen = ref(false)
 
-const eventsEnabled = computed(() => marketStore.ingestHealth?.event === 'enabled')
+const eventsEnabled = computed(() => marketStore.ingestHealth?.event !== 'disabled')
 
 const statusText: Record<ProviderState, string> = {
   healthy: '正常',
