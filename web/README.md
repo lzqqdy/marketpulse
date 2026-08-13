@@ -31,7 +31,8 @@ web/src/
 │   │   ├── MacroGrid.vue            # 宏观指标
 │   │   ├── IndexGrid.vue            # 全球速览
 │   │   ├── MarketCenterPanel.vue    # 行情中心
-│   │   ├── AlphaStockPanel.vue      # 美股参考
+│   │   ├── UsEquityPanel.vue        # 美股现货 + 参考
+│   │   ├── AlphaStockPanel.vue      # 美股参考（旧单源面板）
 │   │   ├── KlineDrawer.vue          # K 线抽屉
 │   │   ├── StatusBar.vue            # 连接状态
 │   │   └── ProviderStatusWidget.vue # 数据源健康

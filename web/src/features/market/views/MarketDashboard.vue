@@ -7,7 +7,7 @@ import MacroGrid from '@/features/market/components/MacroGrid.vue'
 import IndexGrid from '@/features/market/components/IndexGrid.vue'
 import MarketCenterPanel from '@/features/market/components/MarketCenterPanel.vue'
 import ExpressNewsPanel from '@/features/market/components/ExpressNewsPanel.vue'
-import AlphaStockPanel from '@/features/market/components/AlphaStockPanel.vue'
+import UsEquityPanel from '@/features/market/components/UsEquityPanel.vue'
 import KlineDrawer from '@/features/market/components/KlineDrawer.vue'
 import { useMarketStore } from '@/features/market/stores/market'
 import { useProviderStore } from '@/features/market/stores/providers'
@@ -42,7 +42,7 @@ onUnmounted(() => {
       <div class="dash-col dash-col-main">
         <QuoteTable />
         <IndexGrid />
-        <AlphaStockPanel />
+        <UsEquityPanel />
       </div>
       <div class="dash-col dash-col-side">
         <MacroGrid />
