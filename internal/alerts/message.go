@@ -36,7 +36,6 @@ var indexDisplayNames = map[string]string{
 	"us-meta":  "META",
 	"us-tsla":  "特斯拉",
 	"us-mu":    "美光",
-	"us-avgo":  "博通",
 	"us-tsm":   "台积电",
 	"us-skhy":  "SK海力士",
 	"n225":     "日经225",

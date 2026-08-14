@@ -24,7 +24,6 @@ const US_EQUITY_META: Record<string, UsEquityMeta> = {
   'us-meta': { flag: '🇺🇸', shortName: 'META', ticker: 'META', alphaId: 'meta' },
   'us-tsla': { flag: '🇺🇸', shortName: '特斯拉', ticker: 'TSLA', alphaId: 'tsla' },
   'us-mu': { flag: '🇺🇸', shortName: '美光', ticker: 'MU', alphaId: 'mu' },
-  'us-avgo': { flag: '🇺🇸', shortName: '博通', ticker: 'AVGO', alphaId: 'avgo' },
   'us-tsm': { flag: '🇺🇸', shortName: '台积电', ticker: 'TSM', alphaId: 'tsm' },
   'us-skhy': { flag: '🇺🇸', shortName: 'SK海力士', ticker: 'SKHY', alphaId: 'skhy' },
 }
@@ -40,7 +39,6 @@ const US_EQUITY_ORDER = [
   'us-meta',
   'us-tsla',
   'us-mu',
-  'us-avgo',
   'us-tsm',
   'us-skhy',
 ] as const

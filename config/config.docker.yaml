@@ -160,9 +160,6 @@ alpha:
     - id: mu
       name: 美光
       symbol: MUUSDT
-    - id: avgo
-      name: 博通
-      symbol: AVGOUSDT
     - id: tsm
       name: 台积电
       symbol: TSMUSDT
@@ -213,7 +210,6 @@ ingest:
       - us-meta
       - us-tsla
       - us-mu
-      - us-avgo
       - us-tsm
       - us-skhy
       - gold

@@ -51,7 +51,6 @@ var DefaultIndices = []IndexDef{
 	{ID: "us-meta", Name: "META", EastmoneySecID: "105.META", TencentSymbol: "s_usMETA", BaiduCode: "META", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 10, MaxPrice: 2000},
 	{ID: "us-tsla", Name: "特斯拉", EastmoneySecID: "105.TSLA", TencentSymbol: "s_usTSLA", BaiduCode: "TSLA", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 5, MaxPrice: 1000},
 	{ID: "us-mu", Name: "美光", EastmoneySecID: "105.MU", TencentSymbol: "s_usMU", BaiduCode: "MU", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 10, MaxPrice: 2000},
-	{ID: "us-avgo", Name: "博通", EastmoneySecID: "105.AVGO", TencentSymbol: "s_usAVGO", BaiduCode: "AVGO", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 10, MaxPrice: 2000},
 	{ID: "us-tsm", Name: "台积电", EastmoneySecID: "105.TSM", TencentSymbol: "s_usTSM", BaiduCode: "TSM", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 10, MaxPrice: 2000},
 	{ID: "us-skhy", Name: "SK海力士", EastmoneySecID: "105.SKHY", TencentSymbol: "s_usSKHY", BaiduCode: "SKHY", BaiduMarket: "us", BaiduFinanceType: "stock", MinPrice: 10, MaxPrice: 2000},
 	{ID: "n225", Name: "日经225", EastmoneySecID: "100.N225", TencentSymbol: "gzN225", BaiduCode: "N225", BaiduMarket: "global", MinPrice: 10000, MaxPrice: 100000},
