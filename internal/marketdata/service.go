@@ -144,22 +144,8 @@ func (s *Service) IndexQuote(id string) (IndexQuote, bool) {
 }
 
 func (s *Service) AlphaQuote(id string) (AlphaQuote, bool) {
-	id = strings.ToLower(strings.TrimSpace(id))
-	if id == "" {
-		return AlphaQuote{}, false
-	}
 	snap := s.Snapshot().Alpha
-	for _, row := range snap.Indices {
-		if strings.ToLower(row.ID) == id {
-			return row, true
-		}
-	}
-	for _, row := range snap.Stocks {
-		if strings.ToLower(row.ID) == id {
-			return row, true
-		}
-	}
-	return AlphaQuote{}, false
+	return FindAlphaQuote(snap.Indices, snap.Stocks, id)
 }
 
 func (s *Service) AddListener(fn store.ChangeListener) {

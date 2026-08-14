@@ -128,6 +128,10 @@ func (s *service) PutHoldings(ctx context.Context, userID int64, in PutHoldingsI
 			symbol = NormalizeCryptoSymbol(row.Symbol)
 		} else {
 			symbol = NormalizeAlphaSymbol(row.Symbol)
+			// 持仓可能仍是旧 Binance Alpha id（qqqon）；落库时对齐到当前行情 id（qqq）
+			if q, ok := s.md.AlphaQuote(symbol); ok && q.ID != "" {
+				symbol = NormalizeAlphaSymbol(q.ID)
+			}
 		}
 		if symbol == "" {
 			return HoldingsResult{}, fmt.Errorf("%w: empty symbol", ErrInvalidInput)

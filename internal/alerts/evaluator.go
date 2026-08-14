@@ -79,7 +79,21 @@ func (idx *ruleIndex) Remove(rule Rule) {
 func (idx *ruleIndex) Get(assetType, symbol string) []Rule {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
-	return append([]Rule(nil), idx.rules[indexKey(assetType, symbol)]...)
+	if assetType != AssetAlpha {
+		return append([]Rule(nil), idx.rules[indexKey(assetType, symbol)]...)
+	}
+	seen := map[int64]struct{}{}
+	out := make([]Rule, 0)
+	for _, alias := range marketdata.AlphaIDAliases(symbol) {
+		for _, r := range idx.rules[indexKey(assetType, alias)] {
+			if _, ok := seen[r.ID]; ok {
+				continue
+			}
+			seen[r.ID] = struct{}{}
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func NewEvaluator(

@@ -115,6 +115,9 @@ alpha:
 	if cfg.Alpha.Indices[0].Symbol != "QQQUSDT" || cfg.Alpha.Stocks[0].Symbol != "AAPLUSDT" {
 		t.Fatalf("alpha symbols: indices=%+v stocks=%+v", cfg.Alpha.Indices, cfg.Alpha.Stocks)
 	}
+	if cfg.Alpha.Indices[0].ID != "qqq" || cfg.Alpha.Stocks[0].ID != "aapl" {
+		t.Fatalf("alpha ids should strip on suffix: indices=%+v stocks=%+v", cfg.Alpha.Indices, cfg.Alpha.Stocks)
+	}
 }
 
 func TestLoad_emptySymbols(t *testing.T) {

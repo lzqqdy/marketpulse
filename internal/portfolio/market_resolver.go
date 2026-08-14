@@ -1,8 +1,6 @@
 package portfolio
 
 import (
-	"strings"
-
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 )
 
@@ -21,15 +19,6 @@ func (m marketResolver) CryptoPrice(symbol string) PricePoint {
 func (m marketResolver) AlphaPrice(id string) PricePoint {
 	q, ok := m.md.AlphaQuote(id)
 	if !ok || q.Price <= 0 {
-		// try matching by trading symbol as fallback
-		snap := m.md.Snapshot().Alpha
-		for _, row := range append(append([]marketdata.AlphaQuote{}, snap.Indices...), snap.Stocks...) {
-			if strings.EqualFold(row.Symbol, id) || strings.EqualFold(row.ID, id) {
-				if row.Price > 0 {
-					return PricePoint{PriceUsdt: row.Price, ChangeDayPct: row.ChangeDayPct, OK: true}
-				}
-			}
-		}
 		return PricePoint{}
 	}
 	return PricePoint{PriceUsdt: q.Price, ChangeDayPct: q.ChangeDayPct, OK: true}

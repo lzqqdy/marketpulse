@@ -29,7 +29,9 @@ function displaySymbol(h: HoldingView) {
   if (h.assetType === 'crypto') {
     return h.symbol === 'USDT' ? 'USDT' : h.symbol
   }
-  const hit = eligible.value.alpha.find((a) => a.symbol === h.symbol)
+  const key = h.symbol.toLowerCase()
+  const aliases = key.endsWith('on') && key.length > 2 ? [key, key.slice(0, -2)] : [key, `${key}on`]
+  const hit = eligible.value.alpha.find((a) => aliases.includes(a.symbol.toLowerCase()))
   return hit?.name || h.symbol.toUpperCase()
 }
 

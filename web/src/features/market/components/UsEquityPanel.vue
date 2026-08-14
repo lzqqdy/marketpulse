@@ -70,19 +70,29 @@ const spotById = computed(() => {
   return map
 })
 
-const alphaById = computed(() => {
-  const map = new Map<string, AlphaQuote>()
-  for (const item of [...(store.alpha.indices ?? []), ...(store.alpha.stocks ?? [])]) {
-    map.set(item.id, item)
-  }
-  return map
-})
+const alphaQuotes = computed(() => [
+  ...(store.alpha.indices ?? []),
+  ...(store.alpha.stocks ?? []),
+])
+
+/** 兼容线上旧 id（qqqon/spyon）以及按 symbol/ticker 对齐 */
+function resolveAlpha(meta: UsEquityMeta): AlphaQuote | null {
+  const rows = alphaQuotes.value
+  const ticker = meta.ticker.toUpperCase()
+  const byId =
+    rows.find((item) => item.id === meta.alphaId) ??
+    rows.find((item) => item.id === `${meta.alphaId}on`)
+  if (byId && Number.isFinite(byId.price) && byId.price > 0) return byId
+  const bySymbol = rows.find((item) => String(item.symbol || '').toUpperCase() === ticker)
+  if (bySymbol && Number.isFinite(bySymbol.price) && bySymbol.price > 0) return bySymbol
+  return byId ?? bySymbol ?? null
+}
 
 const allRows = computed<UsEquityRow[]>(() =>
   US_EQUITY_ORDER.map((id) => {
     const meta = US_EQUITY_META[id]
     const spot = spotById.value.get(id) ?? null
-    const alpha = alphaById.value.get(meta.alphaId) ?? null
+    const alpha = resolveAlpha(meta)
     if (!spot && !alpha) return null
     return {
       id,

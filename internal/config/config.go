@@ -828,8 +828,18 @@ func normalizeAlphaItems(items []AlphaItem, quoteAsset string, provider string) 
 		item.ID = strings.ToLower(strings.TrimSpace(item.ID))
 		item.Name = strings.TrimSpace(item.Name)
 		item.Symbol = strings.ToUpper(strings.TrimSpace(item.Symbol))
-		if provider == "bitget" && strings.HasSuffix(strings.TrimSuffix(item.Symbol, quoteAsset), "ON") {
-			item.Symbol = strings.TrimSuffix(strings.TrimSuffix(item.Symbol, quoteAsset), "ON") + quoteAsset
+		if provider == "bitget" {
+			base := strings.TrimSuffix(item.Symbol, quoteAsset)
+			if strings.HasSuffix(base, "ON") {
+				item.Symbol = strings.TrimSuffix(base, "ON") + quoteAsset
+			}
+			// 旧 Binance Alpha 配置 id 常为 qqqon/aaplon；切到 bitget 后与交易对对齐为 qqq/aapl
+			if idBase, ok := strings.CutSuffix(item.ID, "on"); ok && idBase != "" {
+				symBase := strings.ToLower(strings.TrimSuffix(item.Symbol, quoteAsset))
+				if idBase == symBase || item.Symbol == "" {
+					item.ID = idBase
+				}
+			}
 		}
 		if item.Symbol == "" && item.ID != "" {
 			item.Symbol = strings.ToUpper(item.ID) + quoteAsset
