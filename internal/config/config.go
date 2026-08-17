@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -862,6 +863,25 @@ func normalizeAlphaItems(items []AlphaItem, quoteAsset string, provider string) 
 }
 
 func (c *Config) applyEnv() {
+	// WeChat Cloud Run injects PORT and MYSQL_*; apply first, then MARKETPULSE_* overrides.
+	if v := strings.TrimSpace(os.Getenv("PORT")); v != "" {
+		if strings.HasPrefix(v, ":") {
+			c.App.Addr = v
+		} else {
+			c.App.Addr = ":" + v
+		}
+	}
+	applyMySQLAddress(&c.MySQL, os.Getenv("MYSQL_ADDRESS"))
+	if v := os.Getenv("MYSQL_USERNAME"); v != "" {
+		c.MySQL.User = v
+	}
+	if v := os.Getenv("MYSQL_PASSWORD"); v != "" {
+		c.MySQL.Password = v
+	}
+	if v := os.Getenv("MYSQL_DATABASE"); v != "" {
+		c.MySQL.Database = v
+	}
+
 	if v := os.Getenv("MARKETPULSE_APP_ADDR"); v != "" {
 		c.App.Addr = v
 	}
@@ -917,8 +937,14 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MARKETPULSE_USERS_SEED_NAME"); v != "" {
 		c.Users.Seed.DisplayName = v
 	}
+	if v := os.Getenv("MARKETPULSE_ALERTS_ENABLED"); v != "" {
+		c.Alerts.Enabled = parseEnvBool(v)
+	}
 	if v := os.Getenv("MARKETPULSE_PORTFOLIO_ENABLED"); v != "" {
 		c.Portfolio.Enabled = parseEnvBool(v)
+	}
+	if v := os.Getenv("MARKETPULSE_EVENT_ENABLED"); v != "" {
+		c.Event.Enabled = parseEnvBool(v)
 	}
 	if v := os.Getenv("MARKETPULSE_AI_ENABLED"); v != "" {
 		c.AI.Enabled = parseEnvBool(v)
@@ -933,6 +959,40 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MARKETPULSE_AI_MODEL"); v != "" {
 		c.AI.Model = v
+	}
+	if v := os.Getenv("MARKETPULSE_SMTP_HOST"); v != "" {
+		c.SMTP.Host = v
+	}
+	if v := os.Getenv("MARKETPULSE_SMTP_PORT"); v != "" {
+		if n, err := parseEnvInt(v); err == nil {
+			c.SMTP.Port = n
+		}
+	}
+	if v := os.Getenv("MARKETPULSE_SMTP_USERNAME"); v != "" {
+		c.SMTP.Username = v
+	}
+	if v := os.Getenv("MARKETPULSE_SMTP_PASSWORD"); v != "" {
+		c.SMTP.Password = v
+	}
+	if v := os.Getenv("MARKETPULSE_SMTP_FROM"); v != "" {
+		c.SMTP.From = v
+	}
+}
+
+// applyMySQLAddress parses WeChat Cloud Run MYSQL_ADDRESS (host:port).
+func applyMySQLAddress(cfg *MySQLConfig, addr string) {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		cfg.Host = addr
+		return
+	}
+	cfg.Host = host
+	if n, err := parseEnvInt(port); err == nil {
+		cfg.Port = n
 	}
 }
 

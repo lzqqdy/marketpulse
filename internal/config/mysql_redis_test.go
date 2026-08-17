@@ -31,6 +31,78 @@ func TestLoad_mysqlRedisDefaults(t *testing.T) {
 	}
 }
 
+func TestLoad_wechatCloudRunEnv(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.yaml")
+	content := `
+app:
+  addr: "0.0.0.0:80"
+  mode: release
+symbols:
+  - BTC
+mysql:
+  enabled: false
+  host: 127.0.0.1
+  port: 3306
+smtp:
+  host: ""
+  password: ""
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PORT", "80")
+	t.Setenv("MYSQL_ADDRESS", "10.35.108.30:3306")
+	t.Setenv("MYSQL_USERNAME", "root")
+	t.Setenv("MYSQL_PASSWORD", "cloud-secret")
+	t.Setenv("MYSQL_DATABASE", "testdb")
+	t.Setenv("MARKETPULSE_SMTP_HOST", "smtp.example.com")
+	t.Setenv("MARKETPULSE_SMTP_PASSWORD", "mail-secret")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.App.Addr != ":80" {
+		t.Fatalf("PORT addr: %s", cfg.App.Addr)
+	}
+	if cfg.MySQL.Host != "10.35.108.30" || cfg.MySQL.Port != 3306 {
+		t.Fatalf("MYSQL_ADDRESS: %+v", cfg.MySQL)
+	}
+	if cfg.MySQL.User != "root" || cfg.MySQL.Password != "cloud-secret" || cfg.MySQL.Database != "testdb" {
+		t.Fatalf("MYSQL_* : %+v", cfg.MySQL)
+	}
+	if cfg.MySQL.Enabled {
+		t.Fatal("mysql should stay disabled until MARKETPULSE_MYSQL_ENABLED")
+	}
+	if cfg.SMTP.Host != "smtp.example.com" || cfg.SMTP.Password != "mail-secret" {
+		t.Fatalf("smtp env: %+v", cfg.SMTP)
+	}
+}
+
+func TestLoad_marketpulseAddrOverridesPort(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.yaml")
+	content := `
+app:
+  mode: debug
+symbols:
+  - BTC
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PORT", "80")
+	t.Setenv("MARKETPULSE_APP_ADDR", "0.0.0.0:8080")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.App.Addr != "0.0.0.0:8080" {
+		t.Fatalf("explicit addr should win: %s", cfg.App.Addr)
+	}
+}
+
 func TestLoad_mysqlRedisEnvOverride(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cfg.yaml")

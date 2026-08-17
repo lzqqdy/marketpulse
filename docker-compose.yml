@@ -18,8 +18,9 @@ services:
     image: marketpulse:local
     restart: unless-stopped
     ports:
-      - "${MARKETPULSE_PORT:-8080}:8080"
+      - "${MARKETPULSE_PORT:-8080}:80"
     environment:
+      PORT: "80"
       MARKETPULSE_APP_MODE: release
       MARKETPULSE_MYSQL_ENABLED: "${MYSQL_ENABLED:-false}"
       MARKETPULSE_MYSQL_HOST: mysql
@@ -49,7 +50,7 @@ services:
         condition: service_healthy
         required: false
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/health"]
       interval: 30s
       timeout: 5s
       retries: 3

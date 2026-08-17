@@ -81,10 +81,14 @@ curl -s http://127.0.0.1:8080/api/v1/market/snapshot
 
 ## 部署
 
+### 微信云托管（本分支）
+
+`wxcloudrun` 分支可直接用仓库根目录 Dockerfile 部署：监听 80，前端打进同一镜像。密钥写控制台环境变量，不要进 Git。步骤见 [deploy/wxcloudrun.md](./deploy/wxcloudrun.md)。
+
 ### Docker（推荐快速体验 / 新环境）
 
 ```bash
-docker compose up -d --build          # 仅行情（单端口 :8080）
+docker compose up -d --build          # 仅行情（宿主机默认 :8080，容器内 :80）
 # 或: make docker-up
 
 docker compose --profile db up -d --build   # 行情 + MySQL + Redis

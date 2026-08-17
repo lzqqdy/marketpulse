@@ -36,6 +36,7 @@ make ship-commit       # 部署 + 服务器 git commit
 | `remote-git-commit.sh` | 上传为 `deploy/remote-git-commit.sh`，服务器提交 |
 | `nginx.conf.example` | nginx 分离部署 |
 | `marketpulse.service.example` | systemd 单元 |
+| `wxcloudrun.md` | 微信云托管部署（本分支） |
 
 ## deploy.local.yaml 常用项
 

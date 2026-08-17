@@ -1,0 +1,228 @@
+# MarketPulse 微信云托管默认配置（bake 进镜像；密钥走控制台环境变量，勿写入本文件）
+# 部署说明见 deploy/wxcloudrun.md
+#
+# 控制台可覆盖：
+#   PORT                         监听端口（云托管默认 80）
+#   MYSQL_ADDRESS/USERNAME/PASSWORD/DATABASE
+#   MARKETPULSE_MYSQL_ENABLED    开用户/告警/资产时再设 true
+#   MARKETPULSE_REDIS_*          Redis 走腾讯云上海 + 资源互联
+#   MARKETPULSE_USERS_SEED_*     初始账号
+#   MARKETPULSE_AI_API_KEY / SMTP_*
+
+app:
+  addr: "0.0.0.0:80"
+  mode: "release"
+  log_dir: "log"
+  static_dir: "web/dist"
+
+cors:
+  allowed_origins: []
+
+mysql:
+  enabled: false
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: ""
+  database: "marketpulse"
+  params: "parseTime=true&loc=Local&charset=utf8mb4&timeout=10s&readTimeout=15s&writeTimeout=15s"
+  max_open_conns: 20
+  max_idle_conns: 5
+  conn_max_lifetime: 1h
+  conn_max_idle_time: 10m
+
+redis:
+  enabled: false
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 0
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+
+users:
+  enabled: false
+  auto_migrate: true
+  session_ttl: 168h
+  seed:
+    phone: ""
+    password: ""
+    display_name: "管理员"
+  security:
+    max_attempts_per_ip: 30
+    max_attempts_per_phone: 15
+    window: 15m
+    lockout_failures: 5
+    lockout_ttl: 15m
+
+alerts:
+  enabled: false
+  auto_migrate: true
+  daily_timezone: Asia/Shanghai
+  loop_interval_min: 1
+  loop_interval_max: 1440
+  inbox_max_len: 100
+
+portfolio:
+  enabled: false
+  auto_migrate: true
+  daily_timezone: Asia/Shanghai
+  default_usdt_cny: 6.5
+
+ai:
+  enabled: false
+  auto_migrate: true
+  provider: deepseek
+  base_url: "https://api.deepseek.com"
+  api_key: ""
+  model: "deepseek-v4-flash"
+  timeout: 120s
+  max_tool_rounds: 6
+  max_history_messages: 40
+  daily_quota_per_user: 50
+  system_prompt: ""
+
+event:
+  enabled: false
+  auto_migrate: true
+  evaluate_interval: 20s
+  aggregate_window: 10m
+  max_open_age: 90m
+  max_deescalate_age: 20m
+  kline_timeout: 8s
+  symbols: [BTC, ETH]
+  price:
+    "5m": { threshold_pct: 2 }
+    "15m": { threshold_pct: 3 }
+    "1h": { threshold_pct: 5 }
+  volume:
+    lookback_bars: 20
+    ratio_medium: 2
+    ratio_high: 3
+    ratio_extreme: 5
+  volatility:
+    lookback_bars: 20
+    ratio: 2
+  liquidation:
+    sample_interval: 1m
+    baseline_samples: 60
+    ratio: 3
+
+smtp:
+  host: ""
+  port: 465
+  username: ""
+  password: ""
+  from: ""
+
+upload:
+  dir: "data/uploads"
+  public_path: "/uploads"
+  max_avatar_bytes: 10485760
+
+symbols:
+  - BTC
+  - ETH
+  - BNB
+  - LTC
+  - FIL
+
+alpha:
+  enabled: true
+  provider: bitget
+  product_type: USDT-FUTURES
+  quote_asset: USDT
+  poll_interval: 30s
+  resolve_interval: 10m
+  indices:
+    - id: qqq
+      name: 纳指ETF
+      symbol: QQQUSDT
+    - id: spy
+      name: 标普ETF
+      symbol: SPYUSDT
+  stocks:
+    - id: aapl
+      name: 苹果
+      symbol: AAPLUSDT
+    - id: msft
+      name: 微软
+      symbol: MSFTUSDT
+    - id: nvda
+      name: 英伟达
+      symbol: NVDAUSDT
+    - id: amzn
+      name: 亚马逊
+      symbol: AMZNUSDT
+    - id: googl
+      name: 谷歌
+      symbol: GOOGLUSDT
+    - id: meta
+      name: META
+      symbol: METAUSDT
+    - id: tsla
+      name: 特斯拉
+      symbol: TSLAUSDT
+    - id: mu
+      name: 美光
+      symbol: MUUSDT
+    - id: tsm
+      name: 台积电
+      symbol: TSMUSDT
+    - id: skhy
+      name: SK海力士
+      symbol: SKHYUSDT
+
+ingest:
+  binance:
+    # 上海机房访问 stream.binance.com:9443 常不通，改用 vision 节点
+    ws_base: "wss://data-stream.binance.vision/stream"
+  baidu:
+    enabled: true
+    base_url: "https://finance.pae.baidu.com"
+    ws_url: "wss://finance-ws.pae.baidu.com"
+    ws_enabled: true
+    ws_reconnect_max: 5
+    ws_reconnect_delay: 3s
+    ws_patch_interval: 60s
+  otc:
+    usdt_cny_interval: 30s
+  forex:
+    usd_cny_interval: 1h
+  equity:
+    interval: 60s
+    providers:
+      - baidu
+      - tencent
+      - eastmoney
+    index_ids:
+      - sh000001
+      - sz399001
+      - sz399006
+      - sh000300
+      - sh000688
+      - hsi
+      - n225
+      - ks11
+      - dji
+      - ixic
+      - gspc
+      - us-qqq
+      - us-spy
+      - us-aapl
+      - us-msft
+      - us-nvda
+      - us-amzn
+      - us-googl
+      - us-meta
+      - us-tsla
+      - us-mu
+      - us-tsm
+      - us-skhy
+      - gold
+      - silver
+      - crude
+  macro:
+    interval: 5m

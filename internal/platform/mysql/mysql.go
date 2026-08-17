@@ -23,11 +23,29 @@ func Open(cfg config.MySQLConfig) (*sql.DB, error) {
 	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
+	if err := pingWithRetry(db, 8, 2*time.Second); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("mysql ping: %w", err)
 	}
 	return db, nil
+}
+
+// pingWithRetry wakes WeChat Cloud Run MySQL after auto-pause.
+func pingWithRetry(db *sql.DB, attempts int, delay time.Duration) error {
+	if attempts < 1 {
+		attempts = 1
+	}
+	var err error
+	for i := 1; i <= attempts; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = db.PingContext(ctx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		if i < attempts {
+			time.Sleep(delay)
+		}
+	}
+	return err
 }

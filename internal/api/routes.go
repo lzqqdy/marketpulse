@@ -83,6 +83,7 @@ func RegisterAlertsRoutes(r *gin.Engine, h *Handler) {
 // RegisterHealthRoutes mounts process-level health endpoints.
 func RegisterHealthRoutes(r *gin.Engine, h *Handler) {
 	r.GET("/healthz", h.Healthz)
+	r.GET("/health", h.Healthz)
 }
 
 // RegisterMarketRoutes mounts the canonical market data API namespace.

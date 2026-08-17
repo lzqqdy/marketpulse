@@ -59,6 +59,7 @@ func mountStatic(r *gin.Engine, staticDir string) error {
 
 func isReservedPath(p string) bool {
 	return p == "/healthz" ||
+		p == "/health" ||
 		strings.HasPrefix(p, "/api") ||
 		strings.HasPrefix(p, "/ws") ||
 		strings.HasPrefix(p, "/uploads")

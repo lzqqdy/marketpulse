@@ -32,7 +32,7 @@ func TestLoad_example(t *testing.T) {
 	if !cfg.Ingest.Baidu.IsEnabled() || !cfg.Ingest.Baidu.IsWSEnabled() {
 		t.Fatalf("baidu defaults: enabled=%v ws=%v", cfg.Ingest.Baidu.IsEnabled(), cfg.Ingest.Baidu.IsWSEnabled())
 	}
-  if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 10 {
+	if !cfg.Alpha.Enabled || len(cfg.Alpha.Indices) != 2 || len(cfg.Alpha.Stocks) != 10 {
 		t.Fatalf("alpha config: enabled=%v indices=%d stocks=%d", cfg.Alpha.Enabled, len(cfg.Alpha.Indices), len(cfg.Alpha.Stocks))
 	}
 	if cfg.Alpha.Provider != "bitget" || cfg.Alpha.ProductType != "USDT-FUTURES" {
@@ -49,6 +49,30 @@ func TestLoad_example(t *testing.T) {
 	}
 	if strings.Join(cfg.DayOpenSymbols(), ",") != strings.Join(cfg.Symbols, ",") {
 		t.Fatalf("day open symbols should exclude alpha: %v", cfg.DayOpenSymbols())
+	}
+}
+
+func TestLoad_wxcloudrunYaml(t *testing.T) {
+	t.Setenv("PORT", "")
+	t.Setenv("MYSQL_ADDRESS", "")
+	t.Setenv("MYSQL_USERNAME", "")
+	t.Setenv("MYSQL_PASSWORD", "")
+	t.Setenv("MYSQL_DATABASE", "")
+	cfg, err := Load(filepath.Join("..", "..", "config", "config.wxcloudrun.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.App.Addr != "0.0.0.0:80" {
+		t.Fatalf("addr: %s", cfg.App.Addr)
+	}
+	if cfg.App.StaticDir != "web/dist" {
+		t.Fatalf("static_dir: %s", cfg.App.StaticDir)
+	}
+	if cfg.MySQL.Enabled || cfg.Users.Enabled {
+		t.Fatalf("business modules should be off: mysql=%v users=%v", cfg.MySQL.Enabled, cfg.Users.Enabled)
+	}
+	if !strings.Contains(cfg.Ingest.Binance.WSBase, "binance.vision") {
+		t.Fatalf("binance ws: %s", cfg.Ingest.Binance.WSBase)
 	}
 }
 

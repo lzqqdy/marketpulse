@@ -25,19 +25,20 @@ func TestHealthz_andSnapshot(t *testing.T) {
 		MarketData: marketData,
 	})
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/healthz", nil)
-	srv.Engine().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("healthz: %d %s", w.Code, w.Body.String())
-	}
-
-	var health map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &health); err != nil {
-		t.Fatal(err)
-	}
-	if health["symbolCount"].(float64) != 1 {
-		t.Fatalf("symbolCount: %v", health["symbolCount"])
+	for _, path := range []string{"/healthz", "/health"} {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, path, nil)
+		srv.Engine().ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", path, w.Code, w.Body.String())
+		}
+		var health map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &health); err != nil {
+			t.Fatal(err)
+		}
+		if health["symbolCount"].(float64) != 1 {
+			t.Fatalf("%s symbolCount: %v", path, health["symbolCount"])
+		}
 	}
 
 	for _, path := range []string{"/api/v1/market/snapshot", "/api/v1/snapshot"} {
