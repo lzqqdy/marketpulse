@@ -72,11 +72,70 @@ smtp:
 	if cfg.MySQL.User != "root" || cfg.MySQL.Password != "cloud-secret" || cfg.MySQL.Database != "testdb" {
 		t.Fatalf("MYSQL_* : %+v", cfg.MySQL)
 	}
-	if cfg.MySQL.Enabled {
-		t.Fatal("mysql should stay disabled until MARKETPULSE_MYSQL_ENABLED")
+	if !cfg.MySQL.Enabled {
+		t.Fatal("MYSQL_ADDRESS should enable mysql")
 	}
 	if cfg.SMTP.Host != "smtp.example.com" || cfg.SMTP.Password != "mail-secret" {
 		t.Fatalf("smtp env: %+v", cfg.SMTP)
+	}
+}
+
+func TestLoad_mysqlAddressCanBeExplicitlyDisabled(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.yaml")
+	content := `
+app:
+  mode: debug
+symbols:
+  - BTC
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MYSQL_ADDRESS", "10.0.0.9:3306")
+	t.Setenv("MARKETPULSE_MYSQL_ENABLED", "false")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MySQL.Enabled {
+		t.Fatal("explicit MARKETPULSE_MYSQL_ENABLED=false should win")
+	}
+}
+
+func TestLoad_cosAndEmbeddedRedis(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.yaml")
+	content := `
+app:
+  mode: debug
+symbols:
+  - BTC
+mysql:
+  enabled: true
+redis:
+  embedded: true
+users:
+  enabled: true
+alerts:
+  enabled: true
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("COS_BUCKET", "demo-bucket")
+	t.Setenv("COS_REGION", "ap-shanghai")
+	t.Setenv("COS_SECRET_ID", "id")
+	t.Setenv("COS_SECRET_KEY", "key")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Users.Enabled || !cfg.Alerts.Enabled {
+		t.Fatalf("embedded redis should satisfy users/alerts: skip=%s %s", cfg.UsersSkipReason, cfg.AlertsSkipReason)
+	}
+	if !cfg.Upload.HasCOS() || cfg.Upload.COSBucket != "demo-bucket" {
+		t.Fatalf("cos: %+v", cfg.Upload)
 	}
 }
 

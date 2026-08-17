@@ -10,17 +10,17 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/lzqqdy/marketpulse/internal/config"
-	"github.com/lzqqdy/marketpulse/internal/logging"
 	"github.com/lzqqdy/marketpulse/internal/admin"
-	"github.com/lzqqdy/marketpulse/internal/alerts"
 	"github.com/lzqqdy/marketpulse/internal/ai"
+	"github.com/lzqqdy/marketpulse/internal/alerts"
+	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/event"
-	"github.com/lzqqdy/marketpulse/internal/portfolio"
+	"github.com/lzqqdy/marketpulse/internal/logging"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformmysql "github.com/lzqqdy/marketpulse/internal/platform/mysql"
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
 	"github.com/lzqqdy/marketpulse/internal/platform/upload"
+	"github.com/lzqqdy/marketpulse/internal/portfolio"
 	"github.com/lzqqdy/marketpulse/internal/server"
 	"github.com/lzqqdy/marketpulse/internal/users"
 )
@@ -77,6 +77,15 @@ func main() {
 		}
 		defer rdb.Close()
 		slog.Info("redis connected", "addr", cfg.Redis.Addr, "db", cfg.Redis.DB)
+	} else if cfg.Redis.Embedded {
+		embedded, err := platformredis.OpenEmbedded()
+		if err != nil {
+			slog.Error("open embedded redis", "err", err)
+			os.Exit(1)
+		}
+		defer embedded.Close()
+		rdb = embedded.Client
+		slog.Info("redis embedded in-process (sessions reset on restart)")
 	}
 
 	uploadStore, err := upload.New(cfg.Upload)
@@ -84,7 +93,7 @@ func main() {
 		slog.Error("init upload store", "err", err)
 		os.Exit(1)
 	}
-	slog.Info("upload store ready", "dir", uploadStore.Dir(), "public", uploadStore.PublicPath())
+	slog.Info("upload store ready", "dir", uploadStore.Dir(), "public", uploadStore.PublicPath(), "cos", cfg.Upload.HasCOS())
 
 	var userSvc users.Service
 	if cfg.Users.Enabled {

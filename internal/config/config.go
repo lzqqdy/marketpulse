@@ -166,6 +166,17 @@ type UploadConfig struct {
 	Dir            string `yaml:"dir"`              // filesystem root, relative to process cwd
 	PublicPath     string `yaml:"public_path"`      // URL prefix, e.g. /uploads
 	MaxAvatarBytes int64  `yaml:"max_avatar_bytes"` // default 2 MiB
+	COSBucket      string `yaml:"cos_bucket"`
+	COSRegion      string `yaml:"cos_region"`
+	COSSecretID    string `yaml:"cos_secret_id"`
+	COSSecretKey   string `yaml:"cos_secret_key"`
+}
+
+func (c UploadConfig) HasCOS() bool {
+	return strings.TrimSpace(c.COSBucket) != "" &&
+		strings.TrimSpace(c.COSRegion) != "" &&
+		strings.TrimSpace(c.COSSecretID) != "" &&
+		strings.TrimSpace(c.COSSecretKey) != ""
 }
 
 // UsersConfig configures the optional users module (requires mysql + redis).
@@ -269,6 +280,7 @@ func (c MySQLConfig) DSN() string {
 // Disabled by default so existing market-only deployments stay unchanged.
 type RedisConfig struct {
 	Enabled      bool          `yaml:"enabled"`
+	Embedded     bool          `yaml:"embedded"` // in-process Redis for WeChat Cloud Run without a Redis instance
 	Addr         string        `yaml:"addr"`
 	Password     string        `yaml:"password"`
 	DB           int           `yaml:"db"`
@@ -441,6 +453,10 @@ func ParseYAML(data []byte) (*Config, error) {
 	return &cfg, nil
 }
 
+func (c *Config) redisAvailable() bool {
+	return c.Redis.Enabled || c.Redis.Embedded
+}
+
 // applyUsersGuard soft-disables users when mysql/redis are off so market-only boot succeeds.
 func (c *Config) applyUsersGuard() {
 	c.UsersSkipReason = ""
@@ -448,13 +464,13 @@ func (c *Config) applyUsersGuard() {
 		return
 	}
 	switch {
-	case !c.MySQL.Enabled && !c.Redis.Enabled:
+	case !c.MySQL.Enabled && !c.redisAvailable():
 		c.Users.Enabled = false
 		c.UsersSkipReason = "mysql and redis are disabled"
 	case !c.MySQL.Enabled:
 		c.Users.Enabled = false
 		c.UsersSkipReason = "mysql is disabled"
-	case !c.Redis.Enabled:
+	case !c.redisAvailable():
 		c.Users.Enabled = false
 		c.UsersSkipReason = "redis is disabled"
 	}
@@ -467,13 +483,13 @@ func (c *Config) applyAlertsGuard() {
 		return
 	}
 	switch {
-	case !c.MySQL.Enabled && !c.Redis.Enabled && !c.Users.Enabled:
+	case !c.MySQL.Enabled && !c.redisAvailable() && !c.Users.Enabled:
 		c.Alerts.Enabled = false
 		c.AlertsSkipReason = "mysql, redis and users are disabled"
 	case !c.MySQL.Enabled:
 		c.Alerts.Enabled = false
 		c.AlertsSkipReason = "mysql is disabled"
-	case !c.Redis.Enabled:
+	case !c.redisAvailable():
 		c.Alerts.Enabled = false
 		c.AlertsSkipReason = "redis is disabled"
 	case !c.Users.Enabled:
@@ -881,6 +897,21 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MYSQL_DATABASE"); v != "" {
 		c.MySQL.Database = v
 	}
+	if strings.TrimSpace(os.Getenv("MYSQL_ADDRESS")) != "" && os.Getenv("MARKETPULSE_MYSQL_ENABLED") == "" {
+		c.MySQL.Enabled = true
+	}
+	if v := os.Getenv("COS_BUCKET"); v != "" {
+		c.Upload.COSBucket = v
+	}
+	if v := os.Getenv("COS_REGION"); v != "" {
+		c.Upload.COSRegion = v
+	}
+	if v := firstEnv("COS_SECRET_ID", "TENCENTCLOUD_SECRETID", "TENCENTCLOUD_SECRET_ID"); v != "" {
+		c.Upload.COSSecretID = v
+	}
+	if v := firstEnv("COS_SECRET_KEY", "TENCENTCLOUD_SECRETKEY", "TENCENTCLOUD_SECRET_KEY"); v != "" {
+		c.Upload.COSSecretKey = v
+	}
 
 	if v := os.Getenv("MARKETPULSE_APP_ADDR"); v != "" {
 		c.App.Addr = v
@@ -913,6 +944,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MARKETPULSE_REDIS_ENABLED"); v != "" {
 		c.Redis.Enabled = parseEnvBool(v)
+	}
+	if v := os.Getenv("MARKETPULSE_REDIS_EMBEDDED"); v != "" {
+		c.Redis.Embedded = parseEnvBool(v)
 	}
 	if v := os.Getenv("MARKETPULSE_REDIS_ADDR"); v != "" {
 		c.Redis.Addr = v
@@ -1009,6 +1043,15 @@ func parseEnvInt(v string) (int, error) {
 	var n int
 	_, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &n)
 	return n, err
+}
+
+func firstEnv(keys ...string) string {
+	for _, k := range keys {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func (c *Config) validate() error {

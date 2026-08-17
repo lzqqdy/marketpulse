@@ -1,13 +1,8 @@
 # MarketPulse 微信云托管默认配置（bake 进镜像；密钥走控制台环境变量，勿写入本文件）
 # 部署说明见 deploy/wxcloudrun.md
 #
-# 控制台可覆盖：
-#   PORT                         监听端口（云托管默认 80）
-#   MYSQL_ADDRESS/USERNAME/PASSWORD/DATABASE
-#   MARKETPULSE_MYSQL_ENABLED    开用户/告警/资产时再设 true
-#   MARKETPULSE_REDIS_*          Redis 走腾讯云上海 + 资源互联
-#   MARKETPULSE_USERS_SEED_*     初始账号
-#   MARKETPULSE_AI_API_KEY / SMTP_*
+# 默认开启 users / alerts / portfolio / event；AI 需再配 MARKETPULSE_AI_API_KEY。
+# Redis 用进程内嵌（单副本）；MySQL 用控制台 MYSQL_*；头像可用 COS_*。
 
 app:
   addr: "0.0.0.0:80"
@@ -19,7 +14,7 @@ cors:
   allowed_origins: []
 
 mysql:
-  enabled: false
+  enabled: true
   host: "127.0.0.1"
   port: 3306
   user: "root"
@@ -33,6 +28,7 @@ mysql:
 
 redis:
   enabled: false
+  embedded: true
   addr: "127.0.0.1:6379"
   password: ""
   db: 0
@@ -43,7 +39,7 @@ redis:
   write_timeout: 3s
 
 users:
-  enabled: false
+  enabled: true
   auto_migrate: true
   session_ttl: 168h
   seed:
@@ -58,7 +54,7 @@ users:
     lockout_ttl: 15m
 
 alerts:
-  enabled: false
+  enabled: true
   auto_migrate: true
   daily_timezone: Asia/Shanghai
   loop_interval_min: 1
@@ -66,13 +62,13 @@ alerts:
   inbox_max_len: 100
 
 portfolio:
-  enabled: false
+  enabled: true
   auto_migrate: true
   daily_timezone: Asia/Shanghai
   default_usdt_cny: 6.5
 
 ai:
-  enabled: false
+  enabled: true
   auto_migrate: true
   provider: deepseek
   base_url: "https://api.deepseek.com"
@@ -85,7 +81,7 @@ ai:
   system_prompt: ""
 
 event:
-  enabled: false
+  enabled: true
   auto_migrate: true
   evaluate_interval: 20s
   aggregate_window: 10m
@@ -121,6 +117,10 @@ upload:
   dir: "data/uploads"
   public_path: "/uploads"
   max_avatar_bytes: 10485760
+  cos_bucket: ""
+  cos_region: ""
+  cos_secret_id: ""
+  cos_secret_key: ""
 
 symbols:
   - BTC

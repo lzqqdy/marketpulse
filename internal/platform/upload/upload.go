@@ -2,6 +2,7 @@
 package upload
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/lzqqdy/marketpulse/internal/config"
+	"github.com/tencentyun/cos-go-sdk-v5"
 )
 
 var allowedAvatar = map[string]string{
@@ -26,9 +28,10 @@ var allowedAvatar = map[string]string{
 type Store struct {
 	cfg config.UploadConfig
 	dir string
+	cos *cos.Client
 }
 
-// New ensures the upload directory exists.
+// New ensures the upload directory exists (and optional COS client).
 func New(cfg config.UploadConfig) (*Store, error) {
 	abs, err := filepath.Abs(cfg.Dir)
 	if err != nil {
@@ -37,12 +40,16 @@ func New(cfg config.UploadConfig) (*Store, error) {
 	if err := os.MkdirAll(filepath.Join(abs, "avatars"), 0o755); err != nil {
 		return nil, fmt.Errorf("upload mkdir: %w", err)
 	}
-	return &Store{cfg: cfg, dir: abs}, nil
+	client, err := newCOSClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &Store{cfg: cfg, dir: abs, cos: client}, nil
 }
 
 // Dir returns the absolute filesystem root for Static mounting.
 func (s *Store) Dir() string {
-	if s == nil {
+	if s == nil || s.cos != nil {
 		return ""
 	}
 	return s.dir
@@ -100,6 +107,16 @@ func (s *Store) SaveAvatar(userID int64, fh *multipart.FileHeader) (publicURL st
 		return "", err
 	}
 	name := fmt.Sprintf("%d_%s%s", userID, id, ext)
+	if s.cos != nil {
+		data, err := io.ReadAll(io.LimitReader(src, s.cfg.MaxAvatarBytes+1))
+		if err != nil {
+			return "", fmt.Errorf("upload read: %w", err)
+		}
+		if int64(len(data)) > s.cfg.MaxAvatarBytes {
+			return "", fmt.Errorf("upload: file too large (max %d bytes)", s.cfg.MaxAvatarBytes)
+		}
+		return s.saveAvatarCOS(name, contentType, bytes.NewReader(data))
+	}
 	rel := filepath.Join("avatars", name)
 	dstPath := filepath.Join(s.dir, rel)
 	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)

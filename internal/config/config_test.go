@@ -68,8 +68,12 @@ func TestLoad_wxcloudrunYaml(t *testing.T) {
 	if cfg.App.StaticDir != "web/dist" {
 		t.Fatalf("static_dir: %s", cfg.App.StaticDir)
 	}
-	if cfg.MySQL.Enabled || cfg.Users.Enabled {
-		t.Fatalf("business modules should be off: mysql=%v users=%v", cfg.MySQL.Enabled, cfg.Users.Enabled)
+	if !cfg.MySQL.Enabled || !cfg.Redis.Embedded || !cfg.Users.Enabled || !cfg.Alerts.Enabled || !cfg.Portfolio.Enabled || !cfg.Event.Enabled {
+		t.Fatalf("wxcloudrun modules: mysql=%v redis.embedded=%v users=%v alerts=%v portfolio=%v event=%v",
+			cfg.MySQL.Enabled, cfg.Redis.Embedded, cfg.Users.Enabled, cfg.Alerts.Enabled, cfg.Portfolio.Enabled, cfg.Event.Enabled)
+	}
+	if cfg.AI.Enabled {
+		t.Fatal("ai should stay off without api key")
 	}
 	if !strings.Contains(cfg.Ingest.Binance.WSBase, "binance.vision") {
 		t.Fatalf("binance ws: %s", cfg.Ingest.Binance.WSBase)
