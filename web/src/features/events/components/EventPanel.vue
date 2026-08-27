@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { fetchEvent, fetchEventTimeline, fetchEvents } from '../api'
 import { connectEventsStream } from '../useEventsStream'
 import type {
@@ -27,16 +27,22 @@ const emit = defineEmits<{
 
 const store = useMarketStore()
 
+const PAGE_SIZE = 20
+
 const enabled = computed(() => store.ingestHealth?.event !== 'disabled')
 const loading = ref(false)
+const loadingMore = ref(false)
 const error = ref('')
 const items = ref<MarketEventSummary[]>([])
+const nextCursor = ref('')
 const selected = ref<MarketEventDetail | null>(null)
 const timeline = ref<EventTimelineItem[]>([])
 const detailOpen = ref(false)
+const listBody = ref<HTMLElement | null>(null)
 const activeCount = computed(
   () => items.value.filter((e) => e.status === 'ACTIVE' || e.status === 'DETECTED').length,
 )
+const hasMore = computed(() => !!nextCursor.value)
 
 defineExpose({ enabled, activeCount })
 
@@ -45,23 +51,60 @@ let disconnect: (() => void) | null = null
 async function loadList() {
   if (!enabled.value) {
     items.value = []
+    nextCursor.value = ''
     return
   }
   loading.value = true
   error.value = ''
   try {
-    const res = await fetchEvents({ limit: 20 })
+    const res = await fetchEvents({ limit: PAGE_SIZE })
     items.value = res.items
+    nextCursor.value = res.nextCursor || ''
   } catch (e) {
     const err = e as Error & { code?: string }
     if (err.code === 'event_disabled') {
       error.value = ''
       items.value = []
+      nextCursor.value = ''
     } else {
       error.value = err.message || '加载失败'
     }
   } finally {
     loading.value = false
+  }
+  await maybeFillViewport()
+}
+
+async function loadMore() {
+  if (!enabled.value || loading.value || loadingMore.value || !nextCursor.value) return
+  loadingMore.value = true
+  error.value = ''
+  try {
+    const res = await fetchEvents({ limit: PAGE_SIZE, cursor: nextCursor.value })
+    const seen = new Set(items.value.map((i) => i.id))
+    items.value = [...items.value, ...res.items.filter((i) => !seen.has(i.id))]
+    nextCursor.value = res.nextCursor || ''
+  } catch (e) {
+    error.value = (e as Error).message || '加载失败'
+  } finally {
+    loadingMore.value = false
+  }
+  await maybeFillViewport()
+}
+
+async function maybeFillViewport() {
+  await nextTick()
+  const el = listBody.value
+  if (!el || !hasMore.value || loading.value || loadingMore.value) return
+  if (el.scrollHeight <= el.clientHeight + 8) {
+    void loadMore()
+  }
+}
+
+function onListScroll(e: Event) {
+  const el = e.target as HTMLElement
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 96) {
+    void loadMore()
   }
 }
 
@@ -83,7 +126,7 @@ function upsertFromWs(partial: Partial<MarketEventSummary> & { id: string }) {
   if (idx >= 0) {
     items.value[idx] = { ...items.value[idx], ...partial } as MarketEventSummary
   } else if (partial.title) {
-    items.value = [partial as MarketEventSummary, ...items.value].slice(0, 40)
+    items.value = [partial as MarketEventSummary, ...items.value]
   }
 }
 
@@ -98,7 +141,7 @@ function formatTime(ts: number) {
   if (!ts) return '—'
   const d = new Date(ts * 1000)
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 watch(
@@ -108,6 +151,7 @@ watch(
     disconnect = null
     if (!on) {
       items.value = []
+      nextCursor.value = ''
       return
     }
     void loadList()
@@ -167,7 +211,7 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <div class="event-drawer-body">
+    <div ref="listBody" class="event-drawer-body" @scroll.passive="onListScroll">
       <p v-if="error" class="err">{{ error }}</p>
       <p v-else-if="loading && !items.length" class="empty-state">加载中…</p>
       <p v-else-if="!items.length" class="empty-state">暂无异动事件</p>
@@ -193,6 +237,8 @@ onUnmounted(() => {
           </div>
         </li>
       </ul>
+      <p v-if="items.length && loadingMore" class="page-hint">加载更多…</p>
+      <p v-else-if="items.length && !hasMore && !loading" class="page-hint">没有更多了</p>
     </div>
 
     <div v-if="detailOpen" class="detail-mask" @click.self="detailOpen = false">
@@ -347,6 +393,18 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted, #848e9c);
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.page-hint {
+  margin: 8px 0 0;
+  text-align: center;
   font-size: 12px;
   color: var(--muted, #848e9c);
 }
