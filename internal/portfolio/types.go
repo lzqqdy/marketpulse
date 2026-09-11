@@ -16,26 +16,29 @@ const (
 
 // Holding is a persisted user position.
 type Holding struct {
-	ID          int64      `json:"id,omitempty"`
-	UserID      int64      `json:"-"`
-	AssetType   string     `json:"assetType"`
-	Symbol      string     `json:"symbol"`
-	Quantity    float64    `json:"quantity"`
-	TargetPrice *float64   `json:"targetPrice,omitempty"`
-	CreatedAt   time.Time  `json:"-"`
-	UpdatedAt   time.Time  `json:"-"`
+	ID          int64     `json:"id,omitempty"`
+	UserID      int64     `json:"-"`
+	AssetType   string    `json:"assetType"`
+	Symbol      string    `json:"symbol"`
+	Quantity    float64   `json:"quantity"`
+	TargetPrice *float64  `json:"targetPrice,omitempty"`
+	CreatedAt   time.Time `json:"-"`
+	UpdatedAt   time.Time `json:"-"`
 }
 
 // HoldingView is a holding with live valuation.
 type HoldingView struct {
-	AssetType  string  `json:"assetType"`
-	Symbol     string  `json:"symbol"`
-	Quantity   float64 `json:"quantity"`
-	PriceUsdt  float64 `json:"priceUsdt"`
-	ValueUsdt  float64 `json:"valueUsdt"`
-	ValueCny   float64 `json:"valueCny"`
-	ChangeCny  float64 `json:"changeCny"`
-	Missing    bool    `json:"missing,omitempty"`
+	Stale          bool      `json:"stale,omitempty"`
+	PriceUpdatedAt time.Time `json:"priceUpdatedAt,omitempty"`
+	PriceSource    string    `json:"priceSource,omitempty"`
+	AssetType      string    `json:"assetType"`
+	Symbol         string    `json:"symbol"`
+	Quantity       float64   `json:"quantity"`
+	PriceUsdt      float64   `json:"priceUsdt"`
+	ValueUsdt      float64   `json:"valueUsdt"`
+	ValueCny       float64   `json:"valueCny"`
+	ChangeCny      float64   `json:"changeCny"`
+	Missing        bool      `json:"missing,omitempty"`
 }
 
 // Settings is user-level portfolio config.
@@ -49,30 +52,30 @@ type Settings struct {
 
 // Snapshot is a daily (or principal) portfolio snapshot.
 type Snapshot struct {
-	ID               int64     `json:"id,omitempty"`
-	UserID           int64     `json:"-"`
-	Date             string    `json:"date"` // YYYY-MM-DD
-	Kind             string    `json:"kind,omitempty"`
-	TotalValue       float64   `json:"totalValue"`
-	TotalValueCny    float64   `json:"totalValueCny"`
-	DailyProfit      float64   `json:"dailyProfit"`
-	DailyProfitRate  float64   `json:"dailyProfitRate"`
-	TotalProfit      float64   `json:"totalProfit"`
-	TotalProfitRate  float64   `json:"totalProfitRate"`
-	AssetDetail      string    `json:"-"`
-	Source           string    `json:"source,omitempty"`
-	CreatedAt        time.Time `json:"-"`
+	ID              int64     `json:"id,omitempty"`
+	UserID          int64     `json:"-"`
+	Date            string    `json:"date"` // YYYY-MM-DD
+	Kind            string    `json:"kind,omitempty"`
+	TotalValue      float64   `json:"totalValue"`
+	TotalValueCny   float64   `json:"totalValueCny"`
+	DailyProfit     float64   `json:"dailyProfit"`
+	DailyProfitRate float64   `json:"dailyProfitRate"`
+	TotalProfit     float64   `json:"totalProfit"`
+	TotalProfitRate float64   `json:"totalProfitRate"`
+	AssetDetail     string    `json:"-"`
+	Source          string    `json:"source,omitempty"`
+	CreatedAt       time.Time `json:"-"`
 }
 
 // AssetDetailRow is one line inside snapshot asset_detail JSON.
 type AssetDetailRow struct {
-	AssetType  string  `json:"asset_type"`
-	Symbol     string  `json:"symbol"`
-	Quantity   float64 `json:"quantity"`
-	PriceUsdt  float64 `json:"price_usdt"`
-	ValueUsdt  float64 `json:"value_usdt"`
-	ValueCny   float64 `json:"value_cny"`
-	Raw        any     `json:"raw,omitempty"`
+	AssetType string  `json:"asset_type"`
+	Symbol    string  `json:"symbol"`
+	Quantity  float64 `json:"quantity"`
+	PriceUsdt float64 `json:"price_usdt"`
+	ValueUsdt float64 `json:"value_usdt"`
+	ValueCny  float64 `json:"value_cny"`
+	Raw       any     `json:"raw,omitempty"`
 }
 
 // PnLWindow is a period P&L in CNY with percentage display units (e.g. 3.11 = 3.11%).
@@ -83,26 +86,28 @@ type PnLWindow struct {
 
 // HoldingsResult is GET /holdings response.
 type HoldingsResult struct {
-	Holdings        []HoldingView `json:"holdings"`
-	PrincipalCny    float64       `json:"principalCny"`
-	UsdtCny         float64       `json:"usdtCny"`
-	UsdtPremiumPct  float64       `json:"usdtPremiumPct"`
-	RateFallback    bool          `json:"rateFallback,omitempty"`
-	MissingSymbols  []string      `json:"missingSymbols,omitempty"`
+	StaleSymbols   []string      `json:"staleSymbols,omitempty"`
+	Holdings       []HoldingView `json:"holdings"`
+	PrincipalCny   float64       `json:"principalCny"`
+	UsdtCny        float64       `json:"usdtCny"`
+	UsdtPremiumPct float64       `json:"usdtPremiumPct"`
+	RateFallback   bool          `json:"rateFallback,omitempty"`
+	MissingSymbols []string      `json:"missingSymbols,omitempty"`
 }
 
 // Overview is GET /overview response.
 type Overview struct {
-	TotalUsdt       float64    `json:"totalUsdt"`
-	TotalCny        float64    `json:"totalCny"`
-	UsdtCny         float64   `json:"usdtCny"`
-	UsdtPremiumPct  float64    `json:"usdtPremiumPct"`
-	RateFallback    bool       `json:"rateFallback,omitempty"`
-	Today           *PnLWindow `json:"today"`
-	D7              *PnLWindow `json:"d7"`
-	D30             *PnLWindow `json:"d30"`
-	AllTime         *PnLWindow `json:"allTime"`
-	MissingSymbols  []string   `json:"missingSymbols"`
+	StaleSymbols   []string   `json:"staleSymbols,omitempty"`
+	TotalUsdt      float64    `json:"totalUsdt"`
+	TotalCny       float64    `json:"totalCny"`
+	UsdtCny        float64    `json:"usdtCny"`
+	UsdtPremiumPct float64    `json:"usdtPremiumPct"`
+	RateFallback   bool       `json:"rateFallback,omitempty"`
+	Today          *PnLWindow `json:"today"`
+	D7             *PnLWindow `json:"d7"`
+	D30            *PnLWindow `json:"d30"`
+	AllTime        *PnLWindow `json:"allTime"`
+	MissingSymbols []string   `json:"missingSymbols"`
 }
 
 // PutHoldingsInput is PUT /holdings body.
@@ -155,13 +160,13 @@ type EligibleSymbol struct {
 
 // ReportSeriesPoint is one day on the report charts.
 type ReportSeriesPoint struct {
-	Date             string  `json:"date"`
-	TotalValue       float64 `json:"totalValue"`
-	TotalValueCny    float64 `json:"totalValueCny"`
-	DailyProfit      float64 `json:"dailyProfit"`
-	DailyProfitRate  float64 `json:"dailyProfitRate"`
-	TotalProfit      float64 `json:"totalProfit"`
-	TotalProfitRate  float64 `json:"totalProfitRate"`
+	Date            string  `json:"date"`
+	TotalValue      float64 `json:"totalValue"`
+	TotalValueCny   float64 `json:"totalValueCny"`
+	DailyProfit     float64 `json:"dailyProfit"`
+	DailyProfitRate float64 `json:"dailyProfitRate"`
+	TotalProfit     float64 `json:"totalProfit"`
+	TotalProfitRate float64 `json:"totalProfitRate"`
 }
 
 // ReportSeriesSummary is the period strip above charts.
@@ -174,11 +179,11 @@ type ReportSeriesSummary struct {
 
 // ReportSeriesResult is GET /reports/series.
 type ReportSeriesResult struct {
-	Range   string               `json:"range"`
-	From    string               `json:"from"`
-	To      string               `json:"to"`
-	Summary ReportSeriesSummary  `json:"summary"`
-	Points  []ReportSeriesPoint  `json:"points"`
+	Range   string              `json:"range"`
+	From    string              `json:"from"`
+	To      string              `json:"to"`
+	Summary ReportSeriesSummary `json:"summary"`
+	Points  []ReportSeriesPoint `json:"points"`
 }
 
 // AllocationItem is one slice of the allocation donut.
@@ -192,6 +197,7 @@ type AllocationItem struct {
 
 // AllocationResult is GET /reports/allocation.
 type AllocationResult struct {
+	StaleSymbols   []string         `json:"staleSymbols,omitempty"`
 	TotalCny       float64          `json:"totalCny"`
 	TotalUsdt      float64          `json:"totalUsdt"`
 	Items          []AllocationItem `json:"items"`

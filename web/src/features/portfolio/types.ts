@@ -1,6 +1,9 @@
 export type PortfolioAssetType = 'crypto' | 'alpha'
 
 export interface HoldingView {
+  stale?: boolean
+  priceUpdatedAt?: string
+  priceSource?: string
   assetType: PortfolioAssetType
   symbol: string
   quantity: number
@@ -12,6 +15,7 @@ export interface HoldingView {
 }
 
 export interface HoldingsResult {
+  staleSymbols?: string[]
   holdings: HoldingView[]
   principalCny: number
   usdtCny: number
@@ -36,6 +40,7 @@ export interface PnLWindow {
 }
 
 export interface PortfolioOverview {
+  staleSymbols?: string[]
   totalUsdt: number
   totalCny: number
   usdtCny: number
@@ -121,6 +126,7 @@ export interface AllocationItem {
 }
 
 export interface AllocationResult {
+  staleSymbols?: string[]
   totalCny: number
   totalUsdt: number
   items: AllocationItem[]

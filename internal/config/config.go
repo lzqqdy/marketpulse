@@ -293,12 +293,18 @@ type CORSConfig struct {
 
 // IngestConfig holds poller / websocket intervals (used from Phase B onward).
 type IngestConfig struct {
-	Binance BinanceConfig `yaml:"binance"`
-	Baidu   BaiduConfig   `yaml:"baidu"`
-	OTC     OTCConfig     `yaml:"otc"`
-	Forex   ForexConfig   `yaml:"forex"`
-	Equity  EquityConfig  `yaml:"equity"`
-	Macro   MacroConfig   `yaml:"macro"`
+	Derivatives DerivativesConfig `yaml:"derivatives"`
+	Binance     BinanceConfig     `yaml:"binance"`
+	Baidu       BaiduConfig       `yaml:"baidu"`
+	OTC         OTCConfig         `yaml:"otc"`
+	Forex       ForexConfig       `yaml:"forex"`
+	Equity      EquityConfig      `yaml:"equity"`
+	Macro       MacroConfig       `yaml:"macro"`
+}
+
+// DerivativesConfig controls futures REST polling independently of indices.
+type DerivativesConfig struct {
+	Interval time.Duration `yaml:"interval"`
 }
 
 // BinanceConfig configures the Binance websocket feed.
@@ -604,7 +610,10 @@ func (c *Config) applyDefaults() {
 	if c.Ingest.Forex.USDCNYInterval == 0 {
 		c.Ingest.Forex.USDCNYInterval = time.Hour
 	}
-	if c.Ingest.Equity.Interval == 0 {
+	if c.Ingest.Derivatives.Interval <= 0 {
+		c.Ingest.Derivatives.Interval = time.Minute
+	}
+	if c.Ingest.Equity.Interval <= 0 {
 		c.Ingest.Equity.Interval = time.Minute
 	}
 	if len(c.Ingest.Equity.IndexIDs) == 0 {

@@ -23,12 +23,16 @@ func (s *Service) startSlowIngest(ctx context.Context) {
 	go runDynamicPoller(ctx, "domestic_gold", s.nextGoldPollInterval, s.pollDomesticGold)
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "macro", s.pollMacro)
 	go runPoller(ctx, s.cfg.Ingest.Macro.Interval, "crypto_meta", s.pollCryptoMeta)
-	go runPoller(ctx, s.cfg.Ingest.Equity.Interval, "long_short", s.pollLongShort)
+	go runPoller(ctx, s.cfg.Ingest.Derivatives.Interval, "long_short", s.pollLongShort)
 	go runPoller(ctx, time.Minute, "liquidations", s.pollLiquidations)
 }
 
 func (s *Service) nextEquityPollInterval() time.Duration {
-	return equity.NextPollInterval(equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs), time.Now())
+	return equity.NextPollInterval(equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs), time.Now(), s.cfg.Ingest.Equity.Interval)
+}
+
+func (s *Service) equityQuoteTTL(def equity.IndexDef, now time.Time) time.Duration {
+	return equity.CacheTTLWithInterval(def, now, s.cfg.Ingest.Equity.Interval)
 }
 
 func (s *Service) nextGoldPollInterval() time.Duration {
@@ -52,6 +56,7 @@ func (s *Service) pollOTC(ctx context.Context) error {
 	rates := s.currentRates()
 	rates.USDTCNY = price
 	rates.UpdatedAt = time.Now().UTC()
+	rates.USDTCNYUpdatedAt = rates.UpdatedAt
 	s.store.UpdateRates(rates)
 	s.ingestStatus.set("otc", "ok")
 	s.providerHealth.ReportSuccess("okx_c2c", time.Since(start))
@@ -73,6 +78,7 @@ func (s *Service) pollForex(ctx context.Context) error {
 	rates := s.currentRates()
 	rates.USDCNY = price
 	rates.UpdatedAt = time.Now().UTC()
+	rates.USDCNYUpdatedAt = rates.UpdatedAt
 	s.store.UpdateRates(rates)
 	s.ingestStatus.set("forex", "ok")
 	s.providerHealth.ReportSuccess("frankfurter_fx", time.Since(start))
@@ -86,13 +92,13 @@ func (s *Service) pollEquity(ctx context.Context) error {
 	}
 	defs := equity.ResolveDefs(s.cfg.Ingest.Equity.IndexIDs)
 	now := time.Now()
-	if rows, ok := s.equityCache.fresh(defs, now, equity.CacheTTL); ok {
+	if rows, ok := s.equityCache.fresh(defs, now, s.equityQuoteTTL); ok {
 		s.store.SetIndices(s.indicesWithDomesticGold(rows))
 		s.ingestStatus.set("equity", "ok")
 		return nil
 	}
 
-	expired := s.equityCache.expiredDefs(defs, now, equity.CacheTTL)
+	expired := s.equityCache.expiredDefs(defs, now, s.equityQuoteTTL)
 	if len(expired) == 0 {
 		rows := s.equityCache.snapshot(defs, false)
 		s.store.SetIndices(s.indicesWithDomesticGold(rows))
@@ -102,7 +108,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 
 	var firstErr error
 	for _, provider := range s.cfg.Ingest.Equity.Providers {
-		missing := s.equityCache.expiredDefs(defs, time.Now(), equity.CacheTTL)
+		missing := s.equityCache.expiredDefs(defs, time.Now(), s.equityQuoteTTL)
 		if len(missing) == 0 {
 			break
 		}
@@ -163,7 +169,7 @@ func (s *Service) pollEquity(ctx context.Context) error {
 		}
 	}
 
-	finalMissing := s.equityCache.expiredDefs(defs, time.Now(), equity.CacheTTL)
+	finalMissing := s.equityCache.expiredDefs(defs, time.Now(), s.equityQuoteTTL)
 	rows := s.equityCache.snapshot(defs, len(finalMissing) > 0)
 	if len(rows) == 0 {
 		s.ingestStatus.set("equity", "error")

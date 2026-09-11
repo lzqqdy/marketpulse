@@ -21,7 +21,7 @@ func (h *Handler) Klines(c *gin.Context) {
 
 	interval := c.DefaultQuery("interval", "1h")
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(binance.DefaultKlineLimit)))
-	resp, err := h.MarketData.Klines(symbol, interval, limit)
+	resp, err := h.MarketData.KlinesContext(c.Request.Context(), symbol, interval, limit)
 	if err != nil {
 		if errors.Is(err, marketdata.ErrInvalidSymbol) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_SYMBOL", "message": "symbol not in watchlist"}})
@@ -54,7 +54,7 @@ func (h *Handler) IndexKlines(c *gin.Context) {
 	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(binance.DefaultKlineLimit)))
 
-	resp, err := h.MarketData.IndexKlines(id, interval, limit)
+	resp, err := h.MarketData.IndexKlinesContext(c.Request.Context(), id, interval, limit)
 	if err != nil {
 		if errors.Is(err, marketdata.ErrInvalidIndex) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_INDEX", "message": "index not supported"}})

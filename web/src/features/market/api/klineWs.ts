@@ -65,6 +65,10 @@ export function connectKlineWs(
   ws.onclose = () => callbacks.onClose?.()
 
   return () => {
+    ws.onopen = null
+    ws.onmessage = null
+    ws.onerror = null
+    ws.onclose = null
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
       ws.close()
     }

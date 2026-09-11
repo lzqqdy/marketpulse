@@ -53,7 +53,7 @@ func freshEnough(row store.IndexQuote, def equity.IndexDef, now time.Time, ttlFo
 	if ttl <= 0 {
 		ttl = time.Minute
 	}
-	return now.Sub(row.FetchedAt) <= ttl
+	return now.Sub(row.FetchedAt) < ttl
 }
 
 func (c *equityCache) merge(rows map[string]store.IndexQuote, now time.Time) {

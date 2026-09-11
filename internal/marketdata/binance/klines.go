@@ -1,8 +1,10 @@
 package binance
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/requestclient"
 	"io"
 	"net/http"
 	"net/url"
@@ -54,6 +56,10 @@ func FetchKlines(baseSymbol, interval string, limit int) ([]Candle, error) {
 	return fetchKlines(baseSymbol, interval, limit, 0)
 }
 
+func FetchKlinesContext(ctx context.Context, baseSymbol, interval string, limit int) ([]Candle, error) {
+	return fetchKlinesContext(ctx, baseSymbol, interval, limit, 0)
+}
+
 // FetchKlineOpenAt returns the open of the 1m candle whose open time is start (inclusive).
 // Used for the local daily open: start can be ShanghaiDayStartUTC(now).
 func FetchKlineOpenAt(baseSymbol string, start time.Time) (float64, error) {
@@ -80,6 +86,10 @@ func FetchExchangeDayOpen(baseSymbol string) (float64, error) {
 }
 
 func fetchKlines(baseSymbol, interval string, limit int, startTimeMs int64) ([]Candle, error) {
+	return fetchKlinesContext(context.Background(), baseSymbol, interval, limit, startTimeMs)
+}
+
+func fetchKlinesContext(ctx context.Context, baseSymbol, interval string, limit int, startTimeMs int64) ([]Candle, error) {
 	interval, err := NormalizeInterval(interval)
 	if err != nil {
 		return nil, err
@@ -101,7 +111,7 @@ func fetchKlines(baseSymbol, interval string, limit int, startTimeMs int64) ([]C
 	}
 
 	reqURL := restBase + "/api/v3/klines?" + q.Encode()
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := requestclient.WithContext(ctx, &http.Client{Timeout: 15 * time.Second})
 	resp, err := client.Get(reqURL)
 	if err != nil {
 		return nil, fmt.Errorf("binance klines request: %w", err)

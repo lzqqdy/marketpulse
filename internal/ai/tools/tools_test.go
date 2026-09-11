@@ -15,18 +15,18 @@ import (
 )
 
 type stubMD struct {
-	quote      marketdata.Quote
-	ok         bool
-	newsRN     int
-	klines     marketdata.KlineResponse
-	center     marketcenter.CenterResponse
-	indices    []marketdata.IndexQuote
-	alphaIdx   []marketdata.AlphaQuote
-	alphaStk   []marketdata.AlphaQuote
-	macro      store.MacroSnapshot
-	rates      store.Rates
-	indexByID  map[string]marketdata.IndexQuote
-	alphaByID  map[string]marketdata.AlphaQuote
+	quote     marketdata.Quote
+	ok        bool
+	newsRN    int
+	klines    marketdata.KlineResponse
+	center    marketcenter.CenterResponse
+	indices   []marketdata.IndexQuote
+	alphaIdx  []marketdata.AlphaQuote
+	alphaStk  []marketdata.AlphaQuote
+	macro     store.MacroSnapshot
+	rates     store.Rates
+	indexByID map[string]marketdata.IndexQuote
+	alphaByID map[string]marketdata.AlphaQuote
 }
 
 func (s *stubMD) Start(ctx context.Context) {}
@@ -76,17 +76,31 @@ func (s *stubMD) AlphaQuote(id string) (marketdata.AlphaQuote, bool) {
 	}
 	return marketdata.AlphaQuote{}, false
 }
-func (s *stubMD) AddListener(listener store.ChangeListener)          {}
-func (s *stubMD) Version() uint64                                    { return 1 }
-func (s *stubMD) SymbolCount() int                                   { return 1 }
-func (s *stubMD) ProviderStatus() marketdata.ProviderStatusResponse  { return marketdata.ProviderStatusResponse{} }
-func (s *stubMD) IngestStatus() map[string]string                    { return nil }
-func (s *stubMD) StreamClientCount() int                             { return 0 }
+func (s *stubMD) AddListener(listener store.ChangeListener) {}
+func (s *stubMD) Version() uint64                           { return 1 }
+func (s *stubMD) SymbolCount() int                          { return 1 }
+func (s *stubMD) ProviderStatus() marketdata.ProviderStatusResponse {
+	return marketdata.ProviderStatusResponse{}
+}
+func (s *stubMD) IngestStatus() map[string]string                     { return nil }
+func (s *stubMD) StreamClientCount() int                              { return 0 }
 func (s *stubMD) ServeStreamWS(conn *websocket.Conn, channels string) {}
 func (s *stubMD) ServeKlineWS(conn *websocket.Conn, symbol, interval string) {
 }
 func (s *stubMD) Klines(symbol, interval string, limit int) (marketdata.KlineResponse, error) {
 	return s.klines, nil
+}
+func (s *stubMD) KlinesContext(ctx context.Context, symbol, interval string, limit int) (marketdata.KlineResponse, error) {
+	if ctx.Err() != nil {
+		return marketdata.KlineResponse{}, ctx.Err()
+	}
+	return s.Klines(symbol, interval, limit)
+}
+func (s *stubMD) IndexKlinesContext(ctx context.Context, id, interval string, limit int) (marketdata.KlineResponse, error) {
+	if ctx.Err() != nil {
+		return marketdata.KlineResponse{}, ctx.Err()
+	}
+	return s.IndexKlines(id, interval, limit)
 }
 func (s *stubMD) IndexKlines(id, interval string, limit int) (marketdata.KlineResponse, error) {
 	return marketdata.KlineResponse{}, nil
@@ -349,7 +363,7 @@ func TestMacroMetrics(t *testing.T) {
 
 func TestIndexAndAlphaBoard(t *testing.T) {
 	reg := NewRegistry(&stubMD{
-		indices: []marketdata.IndexQuote{{ID: "dji", Name: "道指", Price: 40000, ChangePct: 0.5}},
+		indices:  []marketdata.IndexQuote{{ID: "dji", Name: "道指", Price: 40000, ChangePct: 0.5}},
 		alphaStk: []marketdata.AlphaQuote{{ID: "aapl", Name: "苹果", Symbol: "AAPL", Price: 200, ChangeDayPct: 1.2, Category: "stock"}},
 		alphaByID: map[string]marketdata.AlphaQuote{
 			"aapl": {ID: "aapl", Name: "苹果", Symbol: "AAPL", Price: 200, ChangeDayPct: 1.2, Category: "stock"},

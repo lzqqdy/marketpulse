@@ -145,7 +145,7 @@ US equity / ETF ids (`us-*`) feed the IndexGrid「美国市场 · 个股」secon
 ### Polling and Cache
 
 - Poller: dynamic equity poller.
-- Open-market interval: `equity.ActiveTTL`, currently `1m`.
+- Open-market quote interval and quote-cache TTL: `ingest.equity.interval`, default `1m` (e.g. `30s`). The dynamic poller waits this duration after each run; upstream latency adds to the elapsed cadence. Active WS updates may refresh the cache and avoid redundant REST requests.
 - Closed-market interval: `equity.InactiveTTL`, currently `1h`.
 - Market windows are in `internal/marketdata/ingest/equity/window.go`.
 - Provider order comes from `ingest.equity.providers`, default `baidu`, then `tencent`, then `eastmoney`.
@@ -220,7 +220,7 @@ All derivatives data currently uses Binance USD-M Futures.
 | Taker buy/sell ratio | `GET https://fapi.binance.com/futures/data/takerlongshortRatio` | `MacroSnapshot.TakerBuySell` |
 | Liquidations | `wss://fstream.binance.com/market/ws/!forceOrder@arr` | in-memory liquidation window |
 
-Derivatives polling currently follows `ingest.equity.interval` for several REST metrics. Liquidations maintain an in-memory one-hour rolling window and also have a minute poller to publish aggregate state.
+Derivatives REST metrics use `ingest.derivatives.interval` (default `1m`), independently of equity polling. Liquidations maintain an in-memory one-hour rolling window and also have a minute poller to publish aggregate state.
 
 ## US Stock Reference
 

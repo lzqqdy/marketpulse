@@ -134,6 +134,7 @@ func (s *service) ReportAllocation(ctx context.Context, userID int64) (Allocatio
 		})
 	}
 	return AllocationResult{
+		StaleSymbols:   v.Stale,
 		TotalCny:       RoundMoney(v.TotalCny),
 		TotalUsdt:      v.TotalUsdt,
 		Items:          items,

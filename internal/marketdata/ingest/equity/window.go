@@ -45,8 +45,15 @@ var ActiveWindows = map[string]MarketWindow{
 
 // CacheTTL keeps active markets fresh at 60s and lets closed markets cool down.
 func CacheTTL(def IndexDef, now time.Time) time.Duration {
+	return CacheTTLWithInterval(def, now, ActiveTTL)
+}
+
+func CacheTTLWithInterval(def IndexDef, now time.Time, active time.Duration) time.Duration {
+	if active <= 0 {
+		active = ActiveTTL
+	}
 	if IsMarketActive(def.ID, now) {
-		return ActiveTTL
+		return active
 	}
 	return InactiveTTL
 }
@@ -60,9 +67,13 @@ func AnyMarketActive(defs []IndexDef, now time.Time) bool {
 	return false
 }
 
-func NextPollInterval(defs []IndexDef, now time.Time) time.Duration {
+func NextPollInterval(defs []IndexDef, now time.Time, activeInterval ...time.Duration) time.Duration {
+	active := ActiveTTL
+	if len(activeInterval) > 0 && activeInterval[0] > 0 {
+		active = activeInterval[0]
+	}
 	if AnyMarketActive(defs, now) {
-		return ActiveTTL
+		return active
 	}
 	next := InactiveTTL
 	for _, def := range defs {
@@ -70,8 +81,8 @@ func NextPollInterval(defs []IndexDef, now time.Time) time.Duration {
 			next = d
 		}
 	}
-	if next < ActiveTTL {
-		return ActiveTTL
+	if next < active {
+		return active
 	}
 	return next
 }

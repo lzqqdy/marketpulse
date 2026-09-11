@@ -103,6 +103,7 @@ func (s *service) GetHoldings(ctx context.Context, userID int64) (HoldingsResult
 	}
 	v := ValueHoldings(s.resolver, holdings, s.cfg.DefaultUsdtCny)
 	return HoldingsResult{
+		StaleSymbols:   v.Stale,
 		Holdings:       v.Holdings,
 		PrincipalCny:   settings.PrincipalCny,
 		UsdtCny:        v.UsdtCny,
@@ -235,6 +236,7 @@ func (s *service) Overview(ctx context.Context, userID int64) (Overview, error) 
 	}
 
 	return Overview{
+		StaleSymbols:   v.Stale,
 		TotalUsdt:      v.TotalUsdt,
 		TotalCny:       RoundMoney(v.TotalCny),
 		UsdtCny:        v.UsdtCny,
@@ -342,12 +344,26 @@ func (s *service) RunDailySnapshot(ctx context.Context, forDate string) (int, er
 		return 0, err
 	}
 	written := 0
+	failed := 0
 	for _, uid := range ids {
+		existing, err := s.repo.GetDailyOnOrBefore(ctx, uid, date)
+		if err != nil {
+			failed++
+			continue
+		}
+		// Retrying deferred users must not revalue already completed snapshots.
+		if existing != nil && existing.Date == date {
+			continue
+		}
 		if err := s.snapshotUser(ctx, uid, date); err != nil {
+			failed++
 			slog.Warn("portfolio daily snapshot skipped user", "user_id", uid, "date", date, "err", err)
 			continue
 		}
 		written++
+	}
+	if failed > 0 {
+		return written, fmt.Errorf("%d portfolio snapshots deferred", failed)
 	}
 	return written, nil
 }
@@ -361,8 +377,8 @@ func (s *service) snapshotUser(ctx context.Context, userID int64, date string) e
 		return nil
 	}
 	v := ValueHoldings(s.resolver, holdings, s.cfg.DefaultUsdtCny)
-	if len(v.Missing) > 0 {
-		return fmt.Errorf("missing prices: %s", strings.Join(v.Missing, ","))
+	if !v.SnapshotReady() {
+		return fmt.Errorf("unverified valuation: missing=%v stale=%v rate_fallback=%v", v.Missing, v.Stale, v.RateFallback)
 	}
 	settings, err := s.repo.GetSettings(ctx, userID)
 	if err != nil {

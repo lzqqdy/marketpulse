@@ -145,7 +145,7 @@ func (e *Evaluator) processSnapshot() {
 	now := time.Now()
 
 	for _, q := range snap.Quotes {
-		if q.PriceUsdt <= 0 {
+		if q.PriceUsdt <= 0 || marketdata.IsStale(q.UpdatedAt, now, marketdata.SpotQuoteMaxAge) {
 			continue
 		}
 		sym := strings.ToUpper(strings.TrimSpace(q.Symbol))
@@ -176,7 +176,7 @@ func (e *Evaluator) processSnapshot() {
 
 	alphaRows := append(append([]marketdata.AlphaQuote(nil), snap.Alpha.Indices...), snap.Alpha.Stocks...)
 	for _, row := range alphaRows {
-		if row.Price <= 0 {
+		if row.Price <= 0 || marketdata.IsStale(row.UpdatedAt, now, marketdata.ReferenceQuoteMaxAge) {
 			continue
 		}
 		id := strings.ToLower(strings.TrimSpace(row.ID))

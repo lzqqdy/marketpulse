@@ -3,10 +3,14 @@ package portfolio
 import (
 	"math"
 	"strings"
+	"time"
 )
 
 // PricePoint is a resolved mark price in USDT terms.
 type PricePoint struct {
+	UpdatedAt    time.Time
+	Source       string
+	Stale        bool
 	PriceUsdt    float64
 	ChangeDayPct float64
 	OK           bool
@@ -63,6 +67,7 @@ func ResolvePrice(r PriceResolver, assetType, symbol string) PricePoint {
 
 // Valuation aggregates holdings into totals.
 type Valuation struct {
+	Stale          []string
 	Holdings       []HoldingView
 	TotalUsdt      float64
 	TotalCny       float64
@@ -77,8 +82,11 @@ type Valuation struct {
 func ValueHoldings(r PriceResolver, holdings []Holding, defaultUsdtCny float64) Valuation {
 	usdtCny, usdCny, rateOK := r.UsdtCny()
 	rateFallback := false
-	if !rateOK || usdtCny <= 0 {
+	if usdtCny <= 0 {
 		usdtCny = defaultUsdtCny
+		rateFallback = true
+	}
+	if !rateOK {
 		rateFallback = true
 	}
 	premium := 0.0
@@ -97,9 +105,12 @@ func ValueHoldings(r PriceResolver, holdings []Holding, defaultUsdtCny float64) 
 	for _, h := range holdings {
 		pp := ResolvePrice(r, h.AssetType, h.Symbol)
 		view := HoldingView{
-			AssetType: h.AssetType,
-			Symbol:    h.Symbol,
-			Quantity:  h.Quantity,
+			Stale:          pp.Stale,
+			PriceUpdatedAt: pp.UpdatedAt,
+			PriceSource:    pp.Source,
+			AssetType:      h.AssetType,
+			Symbol:         h.Symbol,
+			Quantity:       h.Quantity,
 		}
 		if !pp.OK || pp.PriceUsdt < 0 || (pp.PriceUsdt == 0 && NormalizeCryptoSymbol(h.Symbol) != "USDT") {
 			view.Missing = true
@@ -108,6 +119,9 @@ func ValueHoldings(r PriceResolver, holdings []Holding, defaultUsdtCny float64) 
 			continue
 		}
 		view.PriceUsdt = pp.PriceUsdt
+		if pp.Stale {
+			out.Stale = append(out.Stale, displaySymbol(h.AssetType, h.Symbol))
+		}
 		view.ValueUsdt = h.Quantity * pp.PriceUsdt
 		view.ValueCny = view.ValueUsdt * usdtCny
 		view.ChangeCny = view.ValueCny * pp.ChangeDayPct / 100
@@ -124,6 +138,11 @@ func ValueHoldings(r PriceResolver, holdings []Holding, defaultUsdtCny float64) 
 		})
 	}
 	return out
+}
+
+// SnapshotReady rejects degraded valuation without discarding displayable prices.
+func (v Valuation) SnapshotReady() bool {
+	return len(v.Missing) == 0 && len(v.Stale) == 0 && !v.RateFallback
 }
 
 func displaySymbol(assetType, symbol string) string {

@@ -18,9 +18,11 @@ type Quote struct {
 
 // Rates holds fiat conversion rates.
 type Rates struct {
-	USDTCNY   float64   `json:"usdtCny"`
-	USDCNY    float64   `json:"usdCny"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	USDTCNYUpdatedAt time.Time `json:"usdtCnyUpdatedAt,omitempty"`
+	USDCNYUpdatedAt  time.Time `json:"usdCnyUpdatedAt,omitempty"`
+	USDTCNY          float64   `json:"usdtCny"`
+	USDCNY           float64   `json:"usdCny"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // IndexQuote is a stock / gold index row.

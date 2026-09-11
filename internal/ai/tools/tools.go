@@ -40,7 +40,7 @@ func (r *Registry) Definitions() []Definition {
 		{
 			Type: "function",
 			Function: FunctionSchema{
-				Name: "get_symbol_brief",
+				Name:        "get_symbol_brief",
 				Description: "单标综合简报（优先用于「XX怎么样/怎么看」）：一次返回最新报价、近30日日K摘要、以及最多3条相关快讯。加密默认搜币圈快讯。",
 				Parameters: map[string]any{
 					"type": "object",
@@ -85,7 +85,7 @@ func (r *Registry) Definitions() []Definition {
 			Function: FunctionSchema{
 				Name:        "get_macro_metrics",
 				Description: "币圈宏观指标全集（与首页 MacroGrid 对齐）：总市值/成交额、恐贪、BTC/ETH 占比、稳定币市值、资金费率与溢价、持仓量、爆仓、多空比、大户多空、主动买卖比。问资金费率/爆仓/多空/稳定币时用。",
-				Parameters: map[string]any{"type": "object", "properties": map[string]any{}},
+				Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
 			},
 		},
 		{
@@ -93,7 +93,7 @@ func (r *Registry) Definitions() []Definition {
 			Function: FunctionSchema{
 				Name:        "get_index_board",
 				Description: "全球指数看板列表（与首页指数区对齐）：各指数现价与涨跌幅。问「指数怎么样/纳指道指沪深」时用。",
-				Parameters: map[string]any{"type": "object", "properties": map[string]any{}},
+				Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
 			},
 		},
 		{
@@ -198,7 +198,7 @@ func (r *Registry) Execute(ctx context.Context, name, argumentsJSON string) (str
 	case "get_snapshot_summary":
 		return r.getSnapshotSummary(args)
 	case "get_klines_summary":
-		return r.getKlinesSummary(args)
+		return r.getKlinesSummary(ctx, args)
 	case "compare_symbols":
 		return r.compareSymbols(ctx, args)
 	case "get_express_news":
@@ -385,7 +385,7 @@ func (r *Registry) getSnapshotSummary(args map[string]any) (string, error) {
 	})
 }
 
-func (r *Registry) getKlinesSummary(args map[string]any) (string, error) {
+func (r *Registry) getKlinesSummary(ctx context.Context, args map[string]any) (string, error) {
 	symbol := asString(args["symbol"])
 	if symbol == "" {
 		return marshal(map[string]any{"ok": false, "error": "symbol required"})
@@ -402,10 +402,13 @@ func (r *Registry) getKlinesSummary(args map[string]any) (string, error) {
 		limit = 100
 	}
 	base := normalizeCryptoSymbol(symbol)
-	resp, err := r.md.Klines(base, interval, limit)
+	resp, err := r.md.KlinesContext(ctx, base, interval, limit)
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
 	if err != nil {
 		// try index
-		idxResp, idxErr := r.md.IndexKlines(strings.ToLower(symbol), interval, limit)
+		idxResp, idxErr := r.md.IndexKlinesContext(ctx, strings.ToLower(symbol), interval, limit)
 		if idxErr != nil {
 			return marshal(map[string]any{"ok": false, "error": err.Error(), "symbol": symbol})
 		}
@@ -561,7 +564,7 @@ func (r *Registry) getSymbolBrief(ctx context.Context, args map[string]any) (str
 	if asset != "" {
 		klineArgs["assetClass"] = asset
 	}
-	klineRaw, err := r.getKlinesSummary(klineArgs)
+	klineRaw, err := r.getKlinesSummary(ctx, klineArgs)
 	if err != nil {
 		klineRaw = `{"ok":false,"error":"klines unavailable"}`
 	}
@@ -612,7 +615,7 @@ func (r *Registry) compareSymbols(ctx context.Context, args map[string]any) (str
 		var quoteObj map[string]any
 		_ = json.Unmarshal([]byte(quoteRaw), &quoteObj)
 
-		klineRaw, _ := r.getKlinesSummary(map[string]any{"symbol": sym, "interval": "1d", "limit": 30})
+		klineRaw, _ := r.getKlinesSummary(ctx, map[string]any{"symbol": sym, "interval": "1d", "limit": 30})
 		var klineObj map[string]any
 		_ = json.Unmarshal([]byte(klineRaw), &klineObj)
 
@@ -875,8 +878,8 @@ func (r *Registry) getMacroMetrics(args map[string]any) (string, error) {
 		"ok": true,
 		"ts": snap.Ts,
 		"rates": map[string]any{
-			"usdtCny": snap.Rates.USDTCNY,
-			"usdCny":  snap.Rates.USDCNY,
+			"usdtCny":   snap.Rates.USDTCNY,
+			"usdCny":    snap.Rates.USDCNY,
 			"updatedAt": snap.Rates.UpdatedAt,
 		},
 		"macro": map[string]any{

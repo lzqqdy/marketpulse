@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { connectKlineWs } from '@/features/market/api/klineWs'
 import { fetchIndexKlines } from '@/features/market/api/klines'
-import { generateMockKlines } from '@/features/market/mock/kline'
 import type { Candle, KlineInterval } from '@/features/market/types/chart'
 import { KLINE_FETCH_LIMIT } from '@/features/market/types/chart'
 import type { AlphaQuote, IndexQuote } from '@/features/market/types/market'
@@ -36,6 +35,10 @@ export const useChartStore = defineStore('chart', () => {
   const wsLive = ref(false)
 
   let disconnect: (() => void) | null = null
+  let requestVersion = 0
+  let controller: AbortController | null = null
+  let timeout: ReturnType<typeof setTimeout> | null = null
+  let retry: ReturnType<typeof setTimeout> | null = null
 
   const market = useMarketStore()
 
@@ -52,44 +55,30 @@ export const useChartStore = defineStore('chart', () => {
   )
 
   function teardownWs() {
+    requestVersion++
+    controller?.abort()
+    controller = null
+    if (timeout) clearTimeout(timeout)
+    if (retry) clearTimeout(retry)
+    timeout = retry = null
     disconnect?.()
     disconnect = null
     wsLive.value = false
   }
 
-  function useMockStream() {
-    teardownWs()
-    loading.value = true
-    source.value = 'mock'
-    wsLive.value = false
-    candles.value = generateMockKlines(symbol.value, interval.value, KLINE_FETCH_LIMIT)
-    loading.value = false
-
-    let price = candles.value[candles.value.length - 1]?.close ?? 1000
-    const timer = window.setInterval(() => {
-      if (!visible.value) {
-        window.clearInterval(timer)
-        return
-      }
-      const last = candles.value[candles.value.length - 1]
-      if (!last) return
-      const drift = (Math.random() - 0.5) * price * 0.006
-      price = Math.max(0.01, price + drift)
-      const c: Candle = {
-        time: last.time,
-        open: last.open,
-        high: Math.max(last.high, price),
-        low: Math.min(last.low, price),
-        close: price,
-        volume: last.volume + Math.random() * 100,
-      }
-      candles.value = mergeCandle(candles.value, c)
-    }, 2000)
-    disconnect = () => window.clearInterval(timer)
-  }
-
   function connectWs() {
     teardownWs()
+    const version = requestVersion
+    const requestedSymbol = symbol.value
+    const requestedInterval = normalizeInterval(interval.value)
+    const current = () => visible.value && version === requestVersion
+    function reconnect(message: string) {
+      if (!current() || retry) return
+      loading.value = false
+      wsLive.value = false
+      error.value = message
+      retry = setTimeout(() => { if (current()) connectWs() }, 3000)
+    }
     loading.value = true
     error.value = ''
     source.value = ''
@@ -97,40 +86,40 @@ export const useChartStore = defineStore('chart', () => {
 
     disconnect = connectKlineWs(symbol.value, interval.value, {
       onOpen: () => {
-        wsLive.value = true
+        if (!current()) return
       },
       onSnapshot: (msg) => {
+        if (!current() || msg.symbol !== requestedSymbol || msg.interval !== requestedInterval) return
+        if (timeout) clearTimeout(timeout)
+        if (retry) clearTimeout(retry)
+        timeout = retry = null
+        wsLive.value = true
         candles.value = msg.candles
         source.value = kind.value === 'alpha' ? msg.source : msg.source + '-ws'
         loading.value = false
         error.value = ''
       },
       onUpdate: (msg) => {
+        if (!current() || msg.symbol !== requestedSymbol || msg.interval !== requestedInterval) return
         candles.value = mergeCandle(candles.value, msg.candle)
         if (kind.value === 'crypto') {
           market.bumpQuote(msg.symbol, { priceUsdt: msg.candle.close })
         }
       },
       onError: (msg) => {
-        if (candles.value.length === 0) {
-          error.value = msg.message
-          loading.value = false
-          if (msg.code === 'WS_ERROR' || msg.code === 'PARSE_ERROR') {
-            useMockStream()
-          }
-        }
+        if (!current()) return
+        error.value = msg.message
+        loading.value = false
+        if (timeout) clearTimeout(timeout)
+        timeout = null
+        if (msg.code === 'WS_ERROR' || msg.code === 'PARSE_ERROR') reconnect(msg.message)
       },
       onClose: () => {
-        wsLive.value = false
+        reconnect('连接已断开，正在重连')
       },
     })
 
-    // 若后端未启动，WS 很快失败且无 snapshot → 降级 mock
-    setTimeout(() => {
-      if (visible.value && loading.value && candles.value.length === 0) {
-        useMockStream()
-      }
-    }, 4000)
+    timeout = setTimeout(() => reconnect('行情加载超时，正在重试'), 15000)
   }
 
   function open(sym: string) {
@@ -169,6 +158,9 @@ export const useChartStore = defineStore('chart', () => {
 
   async function loadIndexKlines() {
     teardownWs()
+    const version = requestVersion
+    controller = new AbortController()
+    const signal = controller.signal
     loading.value = true
     error.value = ''
     source.value = ''
@@ -176,16 +168,17 @@ export const useChartStore = defineStore('chart', () => {
     interval.value = normalizeInterval(interval.value)
 
     try {
-      const res = await fetchIndexKlines(symbol.value, interval.value, KLINE_FETCH_LIMIT)
+      const res = await fetchIndexKlines(symbol.value, interval.value, KLINE_FETCH_LIMIT, signal)
+      if (version !== requestVersion || !visible.value) return
       candles.value = res.candles
       source.value = res.source
       pairLabel.value = res.pair
       error.value = ''
     } catch {
-      candles.value = []
+      if (version !== requestVersion || !visible.value) return
       error.value = '暂无该指数 K 线数据'
     } finally {
-      loading.value = false
+      if (version === requestVersion) loading.value = false
     }
   }
 
@@ -207,6 +200,7 @@ export const useChartStore = defineStore('chart', () => {
   }
 
   function setKlineInterval(iv: KlineInterval) {
+    if (interval.value !== normalizeInterval(iv)) candles.value = []
     interval.value = normalizeInterval(iv)
     if (kind.value === 'index') {
       void loadIndexKlines()

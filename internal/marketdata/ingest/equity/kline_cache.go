@@ -47,9 +47,8 @@ func (c *klineCache) fetch(client *http.Client, def IndexDef, interval string, l
 	ttl := CacheTTL(def, now)
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	entry, ok := c.entries[key]
+	c.mu.Unlock()
 	if ok && now.Sub(entry.fetchedAt) <= ttl && len(entry.candles) >= limit {
 		return trimCandles(entry.candles, limit), "eastmoney_cache", nil
 	}
@@ -75,6 +74,11 @@ func (c *klineCache) fetch(client *http.Client, def IndexDef, interval string, l
 		merged = mergeCandles(entry.candles, fresh)
 	}
 	merged = trimCandles(merged, limit)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if newer, exists := c.entries[key]; exists && newer.fetchedAt.After(now) {
+		return append([]binance.Candle(nil), merged...), source, nil
+	}
 	c.entries[key] = klineCacheEntry{
 		candles:   append([]binance.Candle(nil), merged...),
 		fetchedAt: now,

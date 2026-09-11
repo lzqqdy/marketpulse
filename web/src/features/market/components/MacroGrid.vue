@@ -24,52 +24,15 @@ const longShortText = computed(() => {
   return `多${ratio.longAccountPct.toFixed(1)}% / 空${ratio.shortAccountPct.toFixed(1)}%`
 })
 
-const mockTopLongShort = {
-  symbol: 'BTCUSDT',
-  ratio: 1.21,
-  longAccountPct: 54.8,
-  shortAccountPct: 45.2,
-  updatedAt: new Date().toISOString(),
+function observed<T extends { updatedAt: string }>(metric: T | undefined): T | undefined {
+  return metric && Date.parse(metric.updatedAt) > 0 ? metric : undefined
 }
 
-const mockFunding = {
-  symbol: 'BTCUSDT',
-  rate: 0.000126,
-  markPrice: 78045.8,
-  indexPrice: 78083.5,
-  premiumPct: -0.048,
-  nextFundingTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-  updatedAt: new Date().toISOString(),
-}
-
-const mockOpenInterest = {
-  symbol: 'BTCUSDT',
-  valueUsd: 38.74e9,
-  changePct: 2.36,
-  updatedAt: new Date().toISOString(),
-}
-
-const mockTakerBuySell = {
-  symbol: 'BTCUSDT',
-  ratio: 1.18,
-  buyVol: 16.8e9,
-  sellVol: 14.2e9,
-  updatedAt: new Date().toISOString(),
-}
-
-const mockLiquidations = {
-  window: '1h',
-  longUsd: 28.6e6,
-  shortUsd: 17.9e6,
-  totalUsd: 46.5e6,
-  updatedAt: new Date().toISOString(),
-}
-
-const funding = computed(() => m.value.funding ?? mockFunding)
-const topLongShort = computed(() => m.value.topLongShort ?? mockTopLongShort)
-const openInterest = computed(() => m.value.openInterest ?? mockOpenInterest)
-const takerBuySell = computed(() => m.value.takerBuySell ?? mockTakerBuySell)
-const liquidations = computed(() => m.value.liquidations ?? mockLiquidations)
+const funding = computed(() => observed(m.value.funding))
+const topLongShort = computed(() => observed(m.value.topLongShort))
+const openInterest = computed(() => observed(m.value.openInterest))
+const takerBuySell = computed(() => observed(m.value.takerBuySell))
+const liquidations = computed(() => observed(m.value.liquidations))
 
 function fundingLabel(rate: number) {
   return (rate * 100).toFixed(4) + '%'
@@ -117,64 +80,64 @@ const cards = computed<MetricCard[]>(() => [
   // 按列填充 2 行网格，整体横滑；首屏 3×2 满格
   {
     title: '总市值',
-    main: '$' + formatNumber(m.value.totalMarketCapUsd, 2),
-    sub: formatPct(m.value.totalMarketCapChange24hPct),
+    main: m.value.totalMarketCapUsd > 0 ? '$' + formatNumber(m.value.totalMarketCapUsd, 2) : '--',
+    sub: m.value.totalMarketCapUsd > 0 ? formatPct(m.value.totalMarketCapChange24hPct) : '',
     subClass: priceClass(m.value.totalMarketCapChange24hPct),
   },
   {
     title: 'BTC溢价',
-    main: formatPremiumPct(funding.value.premiumPct),
+    main: formatPremiumPct(funding.value?.premiumPct),
     // 手机窄列放不下 "Mark … / Idx …"，只保留两个价避免换行撕开
     sub:
-      funding.value.markPrice && funding.value.indexPrice
+      funding.value?.markPrice && funding.value.indexPrice
         ? `${formatNumber(funding.value.markPrice, 0)}/${formatNumber(funding.value.indexPrice, 0)}`
         : '',
     subClass:
-      (funding.value.premiumPct ?? 0) > 0 ? 'up' : (funding.value.premiumPct ?? 0) < 0 ? 'down' : 'flat',
+      priceClass(funding.value?.premiumPct ?? 0),
   },
   {
     title: '情绪',
-    main: String(m.value.fearGreed.value),
+    main: m.value.fearGreed.label ? String(m.value.fearGreed.value) : '--',
     sub: fearLabelZh[m.value.fearGreed.label] ?? m.value.fearGreed.label,
     subClass: m.value.fearGreed.value >= 55 ? 'down' : m.value.fearGreed.value <= 45 ? 'up' : 'flat',
   },
   {
     title: '大户多空',
-    main: topLongShort.value.ratio ? topLongShort.value.ratio.toFixed(2) : '--',
-    sub: topLongShort.value.ratio
+    main: topLongShort.value?.ratio ? topLongShort.value.ratio.toFixed(2) : '--',
+    sub: topLongShort.value?.ratio
       ? `多${topLongShort.value.longAccountPct.toFixed(1)}% / 空${topLongShort.value.shortAccountPct.toFixed(1)}%`
       : '',
-    subClass: topLongShort.value.ratio >= 1 ? 'up' : 'down',
+    subClass: topLongShort.value ? (topLongShort.value.ratio >= 1 ? 'up' : 'down') : 'flat',
   },
   {
     title: '资金费率',
-    main: fundingLabel(funding.value.rate),
-    sub: formatNextFunding(funding.value.nextFundingTime),
+    main: funding.value ? fundingLabel(funding.value.rate) : '--',
+    sub: funding.value ? formatNextFunding(funding.value.nextFundingTime) : '',
     subClass: 'flat',
   },
   {
     title: '美元',
-    main: '$ ' + rates.value.usdCny.toFixed(2),
-    sub: 'U ' + rates.value.usdtCny.toFixed(2),
+    main: rates.value.usdCny > 0 ? '$ ' + rates.value.usdCny.toFixed(2) : '--',
+    sub: rates.value.usdtCny > 0 ? 'U ' + rates.value.usdtCny.toFixed(2) : '',
     subClass: 'usd',
   },
   {
     title: '持仓量',
-    main: '$' + formatCompactCnyUnit(openInterest.value.valueUsd, 1),
-    sub: formatPct(openInterest.value.changePct),
-    subClass: priceClass(openInterest.value.changePct),
+    main: openInterest.value ? '$' + formatCompactCnyUnit(openInterest.value.valueUsd, 1) : '--',
+    sub: openInterest.value ? formatPct(openInterest.value.changePct) : '',
+    subClass: priceClass(openInterest.value?.changePct ?? 0),
   },
   {
     title: '爆仓',
-    main: '$' + formatCompactCnyUnit(liquidations.value.totalUsd, 0),
-    sub: `近1h 多${formatCompactCnyUnit(liquidations.value.longUsd, 0)} / 空${formatCompactCnyUnit(liquidations.value.shortUsd, 0)}`,
-    subClass: liquidations.value.longUsd >= liquidations.value.shortUsd ? 'down' : 'up',
+    main: liquidations.value ? '$' + formatCompactCnyUnit(liquidations.value.totalUsd, 0) : '--',
+    sub: liquidations.value ? `近1h 多${formatCompactCnyUnit(liquidations.value.longUsd, 0)} / 空${formatCompactCnyUnit(liquidations.value.shortUsd, 0)}` : '',
+    subClass: liquidations.value ? (liquidations.value.longUsd >= liquidations.value.shortUsd ? 'down' : 'up') : 'flat',
   },
   {
     title: '主动买卖',
-    main: takerBuySell.value.ratio.toFixed(2),
-    sub: `买${formatCompactCnyUnit(takerBuySell.value.buyVol, 0)} / 卖${formatCompactCnyUnit(takerBuySell.value.sellVol, 0)}`,
-    subClass: takerBuySell.value.ratio >= 1 ? 'up' : 'down',
+    main: takerBuySell.value ? takerBuySell.value.ratio.toFixed(2) : '--',
+    sub: takerBuySell.value ? `买${formatCompactCnyUnit(takerBuySell.value.buyVol, 0)} / 卖${formatCompactCnyUnit(takerBuySell.value.sellVol, 0)}` : '',
+    subClass: takerBuySell.value ? (takerBuySell.value.ratio >= 1 ? 'up' : 'down') : 'flat',
   },
   {
     title: '稳定币',
@@ -197,13 +160,13 @@ const cards = computed<MetricCard[]>(() => [
   },
   {
     title: 'BTC占比',
-    main: m.value.btcDominancePct.toFixed(1) + '%',
-    sub: `ETH ${m.value.ethDominancePct.toFixed(1)}%`,
+    main: m.value.btcDominancePct > 0 ? m.value.btcDominancePct.toFixed(1) + '%' : '--',
+    sub: m.value.ethDominancePct > 0 ? `ETH ${m.value.ethDominancePct.toFixed(1)}%` : '',
     subClass: 'flat',
   },
   {
     title: '24h成交额',
-    main: '$' + formatNumber(m.value.totalVolume24hUsd, 2),
+    main: m.value.totalVolume24hUsd > 0 ? '$' + formatNumber(m.value.totalVolume24hUsd, 2) : '--',
     sub: '',
     subClass: 'flat',
   },

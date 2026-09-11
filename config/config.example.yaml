@@ -203,6 +203,8 @@ ingest:
     usdt_cny_interval: 30s
   forex:
     usd_cny_interval: 1h
+  derivatives:
+    interval: 1m
   equity:
     interval: 60s
     providers:

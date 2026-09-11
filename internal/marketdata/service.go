@@ -13,13 +13,14 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/binance"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/expressnews"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/alpha"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/baidu"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/bitget"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/equity"
-	"github.com/lzqqdy/marketpulse/internal/marketdata/expressnews"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/marketcenter"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/requestclient"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/store"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/stream"
 )
@@ -64,7 +65,9 @@ type MarketDataService interface {
 	ServeStreamWS(conn *websocket.Conn, channels string)
 	ServeKlineWS(conn *websocket.Conn, symbol string, interval string)
 	Klines(symbol string, interval string, limit int) (KlineResponse, error)
+	KlinesContext(ctx context.Context, symbol string, interval string, limit int) (KlineResponse, error)
 	IndexKlines(id string, interval string, limit int) (KlineResponse, error)
+	IndexKlinesContext(ctx context.Context, id string, interval string, limit int) (KlineResponse, error)
 	MarketCenter(market string) (marketcenter.CenterResponse, error)
 	MarketCenterHeatmap(market, sortKey string) (marketcenter.Heatmap, error)
 	ExpressNews(tag string, pn, rn, filterByUserStocks int) (expressnews.Response, error)
@@ -72,13 +75,13 @@ type MarketDataService interface {
 
 // Service wires the market data read model, ingestion, and streaming layers.
 type Service struct {
-	cfg           *config.Config
-	store         *store.MarketStore
-	streamHub     *stream.StreamHub
-	klineHub      *stream.KlineHub
-	ingest        *ingest.Service
-	marketCenter  *marketcenter.Client
-	expressNews   *expressnews.Client
+	cfg          *config.Config
+	store        *store.MarketStore
+	streamHub    *stream.StreamHub
+	klineHub     *stream.KlineHub
+	ingest       *ingest.Service
+	marketCenter *marketcenter.Client
+	expressNews  *expressnews.Client
 }
 
 // New creates a complete market data service.
@@ -198,6 +201,14 @@ func (s *Service) ServeKlineWS(conn *websocket.Conn, symbol string, interval str
 }
 
 func (s *Service) Klines(symbol string, interval string, limit int) (KlineResponse, error) {
+	return s.KlinesContext(context.Background(), symbol, interval, limit)
+}
+
+func (s *Service) KlinesContext(ctx context.Context, symbol string, interval string, limit int) (KlineResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return KlineResponse{}, err
+	}
+	client := requestclient.WithContext(ctx, nil)
 	symbol = strings.ToUpper(strings.TrimSpace(symbol))
 	if symbol == "" || !s.symbolAllowed(symbol) {
 		return KlineResponse{}, ErrInvalidSymbol
@@ -219,15 +230,15 @@ func (s *Service) Klines(symbol string, interval string, limit int) (KlineRespon
 			pair = alphaSymbol
 		}
 		if pair == binance.SymbolUSDT(symbol) && s.cfg.Alpha.Provider != "bitget" {
-			if alphaSymbol, ok := resolveAlphaPair(s.cfg, symbol); ok {
+			if alphaSymbol, ok := resolveAlphaPairClient(client, s.cfg, symbol); ok {
 				pair = alphaSymbol
 			}
 		}
 		if s.cfg.Alpha.Provider == "bitget" {
-			candles, err = bitget.FetchKlines(http.DefaultClient, pair, s.cfg.Alpha.ProductType, interval, limit)
-			if err != nil {
-				if fallbackPair, ok := resolveAlphaPair(s.cfg, symbol); ok {
-					if fallbackCandles, fallbackErr := alpha.FetchKlines(http.DefaultClient, fallbackPair, interval, limit); fallbackErr == nil {
+			candles, err = bitget.FetchKlines(client, pair, s.cfg.Alpha.ProductType, interval, limit)
+			if err != nil && ctx.Err() == nil {
+				if fallbackPair, ok := resolveAlphaPairClient(client, s.cfg, symbol); ok {
+					if fallbackCandles, fallbackErr := alpha.FetchKlines(client, fallbackPair, interval, limit); fallbackErr == nil {
 						pair = fallbackPair
 						source = "binance-alpha"
 						candles = fallbackCandles
@@ -236,10 +247,13 @@ func (s *Service) Klines(symbol string, interval string, limit int) (KlineRespon
 				}
 			}
 		} else {
-			candles, err = alpha.FetchKlines(http.DefaultClient, pair, interval, limit)
+			candles, err = alpha.FetchKlines(client, pair, interval, limit)
 		}
 	} else {
-		candles, err = binance.FetchKlines(symbol, interval, limit)
+		candles, err = binance.FetchKlinesContext(ctx, symbol, interval, limit)
+	}
+	if ctx.Err() != nil {
+		return KlineResponse{}, ctx.Err()
 	}
 	if err != nil {
 		return KlineResponse{}, err
@@ -261,6 +275,14 @@ func (s *Service) alphaSource() string {
 }
 
 func (s *Service) IndexKlines(id string, interval string, limit int) (KlineResponse, error) {
+	return s.IndexKlinesContext(context.Background(), id, interval, limit)
+}
+
+func (s *Service) IndexKlinesContext(ctx context.Context, id string, interval string, limit int) (KlineResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return KlineResponse{}, err
+	}
+	client := requestclient.WithContext(ctx, nil)
 	id = strings.ToLower(strings.TrimSpace(id))
 	if id == "" {
 		return KlineResponse{}, ErrInvalidIndex
@@ -280,16 +302,22 @@ func (s *Service) IndexKlines(id string, interval string, limit int) (KlineRespo
 	var source string
 	var err error
 	if def.HasBaidu() && s.cfg.Ingest.Baidu.IsEnabled() {
-		candles, err = baidu.FetchKlines(nil, ingest.BaiduConfigFrom(s.cfg), def.BaiduRef(), interval, limit)
+		candles, err = baidu.FetchKlines(client, ingest.BaiduConfigFrom(s.cfg), def.BaiduRef(), interval, limit)
 		if err == nil && len(candles) > 0 {
 			source = "baidu"
 		}
 	}
 	if len(candles) == 0 {
-		candles, source, err = equity.FetchCachedEastmoneyKlines(nil, def, interval, limit)
+		if ctx.Err() != nil {
+			return KlineResponse{}, ctx.Err()
+		}
+		candles, source, err = equity.FetchCachedEastmoneyKlines(client, def, interval, limit)
 		if err != nil {
 			return KlineResponse{}, err
 		}
+	}
+	if ctx.Err() != nil {
+		return KlineResponse{}, ctx.Err()
 	}
 	return KlineResponse{
 		Symbol:   def.ID,
@@ -310,7 +338,11 @@ func (s *Service) symbolAllowed(symbol string) bool {
 }
 
 func resolveAlphaPair(cfg *config.Config, symbol string) (string, bool) {
-	resolved := alpha.ResolveItems(http.DefaultClient, cfg.Alpha.Indices, cfg.Alpha.Stocks, cfg.Alpha.QuoteAsset)
+	return resolveAlphaPairClient(http.DefaultClient, cfg, symbol)
+}
+
+func resolveAlphaPairClient(client *http.Client, cfg *config.Config, symbol string) (string, bool) {
+	resolved := alpha.ResolveItems(client, cfg.Alpha.Indices, cfg.Alpha.Stocks, cfg.Alpha.QuoteAsset)
 	for _, item := range resolved {
 		if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
 			return item.AlphaSymbol, true

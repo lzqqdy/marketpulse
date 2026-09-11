@@ -171,7 +171,7 @@ func (s *service) ServeWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if strings.EqualFold(strings.TrimSpace(string(msg)), "ping") {
-			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"pong"}`))
+			s.hub.Send(conn, []byte(`{"type":"pong"}`))
 			_ = conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 		}
 	}
@@ -295,9 +295,11 @@ func (e *engine) evaluate(ctx context.Context) {
 	for _, sym := range svc.cfg.Symbols {
 		for _, iv := range intervals {
 			cctx, cancel := context.WithTimeout(ctx, svc.cfg.KlineTimeout)
-			_ = cctx
-			klines, err := svc.md.Klines(sym, iv, 60)
+			klines, err := svc.md.KlinesContext(cctx, sym, iv, 60)
 			cancel()
+			if ctx.Err() != nil {
+				return
+			}
 			if err != nil || len(klines.Candles) == 0 {
 				continue
 			}

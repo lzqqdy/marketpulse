@@ -52,7 +52,7 @@ export const useMarketStore = defineStore('market', () => {
   let healthTimer: ReturnType<typeof setInterval> | null = null
   let clockTimer: ReturnType<typeof setInterval> | null = null
   let resumeListenerInstalled = false
-  let initialFallbackTimer: ReturnType<typeof setTimeout> | null = null
+  let lifecycle = 0
 
   const STALE_QUOTE_MS = 45_000
 
@@ -85,6 +85,7 @@ export const useMarketStore = defineStore('market', () => {
 
   const feedStatus = computed<'live' | 'stale' | 'reconnecting' | 'offline'>(() => {
     if (!live.value) return 'offline'
+    if (wsStatus.value !== 'open') return 'reconnecting'
     const s = binanceWsState.value
     if (s === 'connected' && !quotesStale.value) return 'live'
     if (s === 'connecting' || s === 'reconnecting' || s === 'starting') return 'reconnecting'
@@ -128,8 +129,10 @@ export const useMarketStore = defineStore('market', () => {
   }
 
   async function pollHealth() {
+    const current = lifecycle
     try {
-      ingestHealth.value = await fetchHealthz()
+      const health = await fetchHealthz()
+      if (current === lifecycle) ingestHealth.value = health
     } catch {
       /* ignore */
     }
@@ -157,9 +160,11 @@ export const useMarketStore = defineStore('market', () => {
   }
 
   async function refreshSnapshot() {
+    const current = lifecycle
+    const version = snapshot.value.version
     try {
       const snap = await fetchSnapshot()
-      applySnapshot(snap)
+      if (current === lifecycle && snapshot.value.version === version) applySnapshot(snap)
     } catch {
       // 后台恢复时网络可能还没唤醒，交给 WS 自动重连继续补。
     }
@@ -218,10 +223,8 @@ export const useMarketStore = defineStore('market', () => {
         wsStatus.value = 'closed'
       },
       onError: () => {
-        if (wsStatus.value === 'open' || snapshot.value.quotes.length > 0) {
-          return
-        }
-        initMock()
+        // Keep real data and let the transport reconnect; never fabricate prices.
+        wsStatus.value = 'closed'
       },
     })
   }
@@ -258,15 +261,8 @@ export const useMarketStore = defineStore('market', () => {
     }
   }
 
-  function clearInitialFallback() {
-    if (initialFallbackTimer) {
-      clearTimeout(initialFallbackTimer)
-      initialFallbackTimer = null
-    }
-  }
-
   function teardown() {
-    clearInitialFallback()
+    lifecycle++
     disconnectStream()
     stopHealthPoll()
     stopClock()
@@ -283,16 +279,9 @@ export const useMarketStore = defineStore('market', () => {
 
     startClock()
     installResumeListeners()
-    await refreshSnapshot()
     startHealthPoll()
     connectStream()
-
-    initialFallbackTimer = setTimeout(() => {
-      initialFallbackTimer = null
-      if (live.value && wsStatus.value === 'connecting' && snapshot.value.quotes.length === 0) {
-        initMock()
-      }
-    }, 5000)
+    await refreshSnapshot()
   }
 
   function initMock() {

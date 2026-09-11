@@ -46,7 +46,7 @@ func (s stubResolver) UsdtCny() (float64, float64, bool)    { return s.usdt, s.u
 func TestValueHoldings(t *testing.T) {
 	r := stubResolver{
 		crypto: map[string]PricePoint{
-			"BTC": {PriceUsdt: 100, ChangeDayPct: -1, OK: true},
+			"BTC":  {PriceUsdt: 100, ChangeDayPct: -1, OK: true},
 			"USDT": {PriceUsdt: 1, OK: true},
 		},
 		alpha: map[string]PricePoint{
@@ -76,5 +76,26 @@ func TestDailyRatesFromPrev(t *testing.T) {
 	d, dr, tp, tr := DailyRatesFromPrev(110, 100, 50)
 	if d != 10 || dr != 0.1 || tp != 60 || tr != 1.2 {
 		t.Fatalf("%v %v %v %v", d, dr, tp, tr)
+	}
+}
+
+func TestStalePriceRetainedButCannotSnapshot(t *testing.T) {
+	r := stubResolver{crypto: map[string]PricePoint{"BTC": {PriceUsdt: 100, OK: true, Stale: true}}, usdt: 7, usd: 7, ok: true}
+	v := ValueHoldings(r, []Holding{{AssetType: AssetTypeCrypto, Symbol: "BTC", Quantity: 2}}, 6)
+	if v.TotalCny != 1400 || len(v.Missing) != 0 || len(v.Stale) != 1 || !v.Holdings[0].Stale {
+		t.Fatalf("%+v", v)
+	}
+	if v.SnapshotReady() {
+		t.Fatal("stale valuation accepted")
+	}
+	r.crypto["BTC"] = PricePoint{PriceUsdt: 100, OK: true}
+	r.ok = false
+	v = ValueHoldings(r, []Holding{{AssetType: AssetTypeCrypto, Symbol: "BTC", Quantity: 2}}, 6)
+	if v.TotalCny != 1400 || !v.RateFallback || v.SnapshotReady() {
+		t.Fatalf("stale rate: %+v", v)
+	}
+	r.ok = true
+	if !ValueHoldings(r, []Holding{{AssetType: AssetTypeCrypto, Symbol: "BTC", Quantity: 2}}, 6).SnapshotReady() {
+		t.Fatal("fresh rejected")
 	}
 }

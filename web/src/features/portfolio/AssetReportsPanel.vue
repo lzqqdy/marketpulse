@@ -240,6 +240,9 @@ defineExpose({ reload: load })
 
     <section v-if="allocation" class="alloc-card">
       <h3>当前资产分布</h3>
+      <p v-if="allocation.staleSymbols?.length || allocation.rateFallback" class="hint warn">
+        部分行情或汇率已过期，资产配置为参考估值
+      </p>
       <p v-if="allocation.missingSymbols?.length" class="hint warn">
         缺价未计入: {{ allocation.missingSymbols.join(', ') }}
       </p>

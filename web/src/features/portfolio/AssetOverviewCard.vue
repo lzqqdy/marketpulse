@@ -71,7 +71,10 @@ const premium = computed(() => props.overview?.usdtPremiumPct ?? 0)
           <span class="total-main">{{ fmtMoney(overview.totalUsdt) }}</span>
           <span class="total-sub">≈ {{ fmtMoney(overview.totalCny) }} CNY</span>
         </div>
-        <p v-if="overview.rateFallback" class="hint warn">汇率回退默认值</p>
+        <p v-if="overview.rateFallback" class="hint warn">汇率已过期或使用默认值，估值仅供参考</p>
+        <p v-if="overview.staleSymbols?.length" class="hint warn">
+          行情已过期，暂按最后报价估值: {{ overview.staleSymbols.join(', ') }}
+        </p>
         <p v-if="overview.missingSymbols?.length" class="hint warn">
           缺价: {{ overview.missingSymbols.join(', ') }}
         </p>
