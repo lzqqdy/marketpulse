@@ -15,21 +15,35 @@ import (
 	"github.com/lzqqdy/marketpulse/internal/marketdata/binance"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/alpha"
 	"github.com/lzqqdy/marketpulse/internal/marketdata/ingest/bitget"
+	"github.com/lzqqdy/marketpulse/internal/marketdata/requestclient"
 )
 
 // KlineHub streams kline snapshots + live updates to browser clients.
 type KlineHub struct {
-	cfg  *config.Config
-	mu   sync.Mutex
-	subs map[string]*klineSub
+	cfg          *config.Config
+	mu           sync.Mutex
+	subs         map[string]*klineSub
+	fetchSpot    func(context.Context, string, string, int) ([]binance.Candle, error)
+	streamSpot   func(context.Context, string, string, func(binance.Candle)) error
+	retryDelay   time.Duration
+	writeTimeout time.Duration
 }
 
 type klineSub struct {
-	symbol   string
-	interval string
-	candles  []binance.Candle
-	clients  map[*websocket.Conn]struct{}
-	cancel   context.CancelFunc
+	symbol    string
+	interval  string
+	candles   []binance.Candle
+	clients   map[*websocket.Conn]*klineClient
+	cancel    context.CancelFunc
+	ctx       context.Context
+	source    string
+	lastError []byte
+}
+
+type klineClient struct {
+	conn *websocket.Conn
+	send chan []byte
+	done chan struct{}
 }
 
 // KlineSnapshotMsg is the initial history payload.
@@ -52,8 +66,12 @@ type KlineUpdateMsg struct {
 // NewKlineHub creates a kline subscription manager.
 func NewKlineHub(cfg *config.Config) *KlineHub {
 	return &KlineHub{
-		cfg:  cfg,
-		subs: make(map[string]*klineSub),
+		cfg:          cfg,
+		subs:         make(map[string]*klineSub),
+		fetchSpot:    binance.FetchKlinesContext,
+		streamSpot:   binance.StreamKline,
+		retryDelay:   3 * time.Second,
+		writeTimeout: 5 * time.Second,
 	}
 }
 
@@ -74,7 +92,7 @@ func (h *KlineHub) isAlphaSymbol(symbol string) bool {
 	return h.cfg.Alpha.Enabled && h.cfg.IsAlphaBaseSymbol(symbol)
 }
 
-func (h *KlineHub) alphaPair(symbol string) (string, bool) {
+func (h *KlineHub) alphaPair(client *http.Client, symbol string) (string, bool) {
 	if h.cfg.Alpha.Provider == "bitget" {
 		item, _, ok := h.cfg.AlphaByBaseSymbol(symbol)
 		if !ok {
@@ -82,7 +100,7 @@ func (h *KlineHub) alphaPair(symbol string) (string, bool) {
 		}
 		return strings.ToUpper(strings.TrimSpace(item.Symbol)), true
 	}
-	resolved := alpha.ResolveItems(http.DefaultClient, h.cfg.Alpha.Indices, h.cfg.Alpha.Stocks, h.cfg.Alpha.QuoteAsset)
+	resolved := alpha.ResolveItems(client, h.cfg.Alpha.Indices, h.cfg.Alpha.Stocks, h.cfg.Alpha.QuoteAsset)
 	for _, item := range resolved {
 		if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
 			return item.AlphaSymbol, true
@@ -96,6 +114,7 @@ func (h *KlineHub) ServeWS(conn *websocket.Conn, symbol, interval string) {
 	symbol = strings.ToUpper(strings.TrimSpace(symbol))
 	interval, err := binance.NormalizeInterval(interval)
 	if err != nil {
+		_ = conn.SetWriteDeadline(time.Now().Add(h.writeTimeout))
 		_ = conn.WriteJSON(map[string]any{
 			"type":    "error",
 			"code":    "INVALID_PARAMS",
@@ -105,6 +124,7 @@ func (h *KlineHub) ServeWS(conn *websocket.Conn, symbol, interval string) {
 		return
 	}
 	if !h.symbolAllowed(symbol) {
+		_ = conn.SetWriteDeadline(time.Now().Add(h.writeTimeout))
 		_ = conn.WriteJSON(map[string]any{
 			"type":    "error",
 			"code":    "INVALID_SYMBOL",
@@ -118,31 +138,35 @@ func (h *KlineHub) ServeWS(conn *websocket.Conn, symbol, interval string) {
 	h.mu.Lock()
 	sub, ok := h.subs[key]
 	if !ok {
+		ctx, cancel := context.WithCancel(context.Background())
 		sub = &klineSub{
 			symbol:   symbol,
 			interval: interval,
-			clients:  make(map[*websocket.Conn]struct{}),
+			clients:  make(map[*websocket.Conn]*klineClient),
+			ctx:      ctx,
+			cancel:   cancel,
 		}
 		h.subs[key] = sub
 	}
-	sub.clients[conn] = struct{}{}
-	needStart := sub.cancel == nil
+	client := &klineClient{conn: conn, send: make(chan []byte, 64), done: make(chan struct{})}
+	sub.clients[conn] = client
+	if len(sub.candles) > 0 {
+		payload, _ := json.Marshal(KlineSnapshotMsg{
+			Type:     "kline_snapshot",
+			Symbol:   symbol,
+			Interval: interval,
+			Candles:  append([]binance.Candle(nil), sub.candles...),
+			Source:   sub.source,
+		})
+		client.send <- payload
+	}
+	if len(sub.lastError) > 0 {
+		client.send <- sub.lastError
+	}
 	h.mu.Unlock()
-
-	if needStart {
+	go h.writeClient(key, client)
+	if !ok {
 		go h.runSubscription(key, sub)
-	} else {
-		h.mu.Lock()
-		if len(sub.candles) > 0 {
-			_ = conn.WriteJSON(KlineSnapshotMsg{
-				Type:     "kline_snapshot",
-				Symbol:   symbol,
-				Interval: interval,
-				Candles:  append([]binance.Candle(nil), sub.candles...),
-				Source:   h.klineSource(symbol),
-			})
-		}
-		h.mu.Unlock()
 	}
 
 	defer h.removeClient(key, conn)
@@ -157,59 +181,48 @@ func (h *KlineHub) ServeWS(conn *websocket.Conn, symbol, interval string) {
 }
 
 func (h *KlineHub) runSubscription(key string, sub *klineSub) {
-	ctx, cancel := context.WithCancel(context.Background())
-	h.mu.Lock()
-	sub.cancel = cancel
-	h.mu.Unlock()
-
-	if h.isAlphaSymbol(sub.symbol) {
-		h.runAlphaSubscription(ctx, key, sub)
-		return
-	}
-
-	candles, err := binance.FetchKlines(sub.symbol, sub.interval, binance.DefaultKlineLimit)
-	if err != nil {
-		slog.Error("kline history", "symbol", sub.symbol, "interval", sub.interval, "err", err)
-		h.broadcastError(sub, "UPSTREAM_ERROR", err.Error())
-		h.teardown(key)
-		return
-	}
-
-	h.mu.Lock()
-	sub.candles = candles
-	clients := h.copyClients(sub)
-	h.mu.Unlock()
-
-	snap := KlineSnapshotMsg{
-		Type:     "kline_snapshot",
-		Symbol:   sub.symbol,
-		Interval: sub.interval,
-		Candles:  candles,
-		Source:   "binance",
-	}
-	for c := range clients {
-		if err := c.WriteJSON(snap); err != nil {
-			h.removeClient(key, c)
+	ctx := sub.ctx
+	defer sub.cancel()
+	for ctx.Err() == nil {
+		var err error
+		if h.isAlphaSymbol(sub.symbol) {
+			err = h.runAlphaSubscription(ctx, key, sub)
+		} else {
+			var candles []binance.Candle
+			candles, err = h.fetchSpot(ctx, sub.symbol, sub.interval, binance.DefaultKlineLimit)
+			if err == nil && len(candles) == 0 {
+				err = fmt.Errorf("kline history: no candles")
+			}
+			if err == nil {
+				h.publishSnapshot(key, sub, candles, "binance")
+				err = h.streamSpot(ctx, sub.symbol, sub.interval, func(c binance.Candle) { h.applyCandle(key, sub, c) })
+			}
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		if err == nil {
+			err = fmt.Errorf("upstream kline stream closed")
+		}
+		slog.Warn("kline subscription retry", "symbol", sub.symbol, "interval", sub.interval, "err", err)
+		h.broadcastError(key, sub, "UPSTREAM_ERROR", err.Error())
+		timer := time.NewTimer(h.retryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
 		}
 	}
-
-	err = binance.StreamKline(ctx, sub.symbol, sub.interval, func(c binance.Candle) {
-		h.applyCandle(key, sub, c)
-	})
-	if err != nil && ctx.Err() == nil {
-		slog.Warn("kline stream ended", "symbol", sub.symbol, "interval", sub.interval, "err", err)
-	}
-	h.teardown(key)
 }
 
-func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *klineSub) {
-	alphaPair, ok := h.alphaPair(sub.symbol)
+func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *klineSub) error {
+	client := requestclient.WithContext(ctx, nil)
+	alphaPair, ok := h.alphaPair(client, sub.symbol)
 	if !ok {
 		msg := fmt.Sprintf("alpha symbol %s not resolved", sub.symbol)
 		slog.Warn("alpha kline unresolved", "symbol", sub.symbol)
-		h.broadcastError(sub, "UPSTREAM_ERROR", msg)
-		h.teardown(key)
-		return
+		return fmt.Errorf("%s", msg)
 	}
 	var candles []binance.Candle
 	var err error
@@ -217,10 +230,10 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 	usingFallback := false
 	if h.cfg.Alpha.Provider == "bitget" {
 		source = "bitget"
-		candles, err = bitget.FetchKlines(http.DefaultClient, alphaPair, h.cfg.Alpha.ProductType, sub.interval, binance.DefaultKlineLimit)
-		if err != nil {
-			if fallbackPair, ok := h.binanceAlphaPair(sub.symbol); ok {
-				if fallbackCandles, fallbackErr := alpha.FetchKlines(http.DefaultClient, fallbackPair, sub.interval, binance.DefaultKlineLimit); fallbackErr == nil {
+		candles, err = bitget.FetchKlines(client, alphaPair, h.cfg.Alpha.ProductType, sub.interval, binance.DefaultKlineLimit)
+		if err != nil && ctx.Err() == nil {
+			if fallbackPair, ok := h.binanceAlphaPair(client, sub.symbol); ok {
+				if fallbackCandles, fallbackErr := alpha.FetchKlines(client, fallbackPair, sub.interval, binance.DefaultKlineLimit); fallbackErr == nil {
 					alphaPair = fallbackPair
 					candles = fallbackCandles
 					err = nil
@@ -230,38 +243,22 @@ func (h *KlineHub) runAlphaSubscription(ctx context.Context, key string, sub *kl
 			}
 		}
 	} else {
-		candles, err = alpha.FetchKlines(http.DefaultClient, alphaPair, sub.interval, binance.DefaultKlineLimit)
+		candles, err = alpha.FetchKlines(client, alphaPair, sub.interval, binance.DefaultKlineLimit)
+	}
+	if err == nil && len(candles) == 0 {
+		err = fmt.Errorf("reference kline history: no candles")
 	}
 	if err != nil {
 		slog.Error("alpha kline history", "symbol", sub.symbol, "alpha_symbol", alphaPair, "interval", sub.interval, "err", err)
-		h.broadcastError(sub, "UPSTREAM_ERROR", err.Error())
-		h.teardown(key)
-		return
+		return err
 	}
 
-	h.mu.Lock()
-	sub.candles = candles
-	clients := h.copyClients(sub)
-	h.mu.Unlock()
-
-	snap := KlineSnapshotMsg{
-		Type:     "kline_snapshot",
-		Symbol:   sub.symbol,
-		Interval: sub.interval,
-		Candles:  candles,
-		Source:   source,
-	}
-	for c := range clients {
-		if err := c.WriteJSON(snap); err != nil {
-			h.removeClient(key, c)
-		}
-	}
+	h.publishSnapshot(key, sub, candles, source)
 
 	if h.cfg.Alpha.Provider == "bitget" && !usingFallback {
-		h.runBitgetAlphaKlineLive(ctx, key, sub, alphaPair)
-		return
+		return h.runBitgetAlphaKlineLive(ctx, key, sub, alphaPair)
 	}
-	h.runAlphaKlinePoll(ctx, key, sub, alphaPair, true)
+	return h.runAlphaKlinePoll(ctx, key, sub, alphaPair, true)
 }
 
 func (h *KlineHub) alphaPollInterval() time.Duration {
@@ -271,7 +268,7 @@ func (h *KlineHub) alphaPollInterval() time.Duration {
 	return 30 * time.Second
 }
 
-func (h *KlineHub) runBitgetAlphaKlineLive(ctx context.Context, key string, sub *klineSub, alphaPair string) {
+func (h *KlineHub) runBitgetAlphaKlineLive(ctx context.Context, key string, sub *klineSub, alphaPair string) error {
 	wsCtx, wsCancel := context.WithCancel(ctx)
 	defer wsCancel()
 	wsDone := make(chan error, 1)
@@ -285,60 +282,75 @@ func (h *KlineHub) runBitgetAlphaKlineLive(ctx context.Context, key string, sub 
 	case <-ctx.Done():
 		wsCancel()
 		<-wsDone
-		h.teardown(key)
-		return
+		return ctx.Err()
 	case err := <-wsDone:
 		if ctx.Err() != nil {
-			h.teardown(key)
-			return
+			return ctx.Err()
 		}
 		if err != nil {
 			slog.Info("bitget alpha kline stream ended", "symbol", sub.symbol, "alpha_symbol", alphaPair, "interval", sub.interval, "err", err)
 		}
 	}
-	h.runAlphaKlinePoll(ctx, key, sub, alphaPair, false)
+	return h.runAlphaKlinePoll(ctx, key, sub, alphaPair, false)
 }
 
-func (h *KlineHub) runAlphaKlinePoll(ctx context.Context, key string, sub *klineSub, alphaPair string, binanceOnly bool) {
+func (h *KlineHub) runAlphaKlinePoll(ctx context.Context, key string, sub *klineSub, alphaPair string, binanceOnly bool) error {
+	client := requestclient.WithContext(ctx, nil)
 	ticker := time.NewTicker(h.alphaPollInterval())
 	defer ticker.Stop()
 	useBinance := binanceOnly || h.cfg.Alpha.Provider != "bitget"
 	pair := alphaPair
 
 	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if !useBinance {
-			fresh, err := bitget.FetchKlines(http.DefaultClient, pair, h.cfg.Alpha.ProductType, sub.interval, 2)
+			fresh, err := bitget.FetchKlines(client, pair, h.cfg.Alpha.ProductType, sub.interval, 2)
 			if err == nil && len(fresh) > 0 {
-				h.applyCandle(key, sub, fresh[len(fresh)-1])
+				for _, c := range fresh {
+					h.applyCandle(key, sub, c)
+				}
 			} else {
-				if fallbackPair, ok := h.binanceAlphaPair(sub.symbol); ok {
+				if fallbackPair, ok := h.binanceAlphaPair(client, sub.symbol); ok {
+					// Switching instruments replaces history instead of mixing providers.
+					candles, fallbackErr := alpha.FetchKlines(client, fallbackPair, sub.interval, binance.DefaultKlineLimit)
+					if fallbackErr != nil {
+						return fallbackErr
+					}
+					h.publishSnapshot(key, sub, candles, "binance-alpha")
 					pair = fallbackPair
 					useBinance = true
 				} else if err != nil {
-					slog.Warn("alpha kline poll", "symbol", sub.symbol, "alpha_symbol", pair, "interval", sub.interval, "err", err)
+					return err
+				} else {
+					return fmt.Errorf("bitget kline poll: no candles")
 				}
 			}
 		}
 		if useBinance {
-			fresh, err := alpha.FetchKlines(http.DefaultClient, pair, sub.interval, 2)
+			fresh, err := alpha.FetchKlines(client, pair, sub.interval, 2)
 			if err != nil {
-				slog.Warn("alpha kline poll", "symbol", sub.symbol, "alpha_symbol", pair, "interval", sub.interval, "err", err)
+				return err
 			} else if len(fresh) > 0 {
-				h.applyCandle(key, sub, fresh[len(fresh)-1])
+				for _, c := range fresh {
+					h.applyCandle(key, sub, c)
+				}
+			} else {
+				return fmt.Errorf("alpha kline poll: no candles")
 			}
 		}
 
 		select {
 		case <-ctx.Done():
-			h.teardown(key)
-			return
+			return ctx.Err()
 		case <-ticker.C:
 		}
 	}
 }
 
-func (h *KlineHub) binanceAlphaPair(symbol string) (string, bool) {
-	resolved := alpha.ResolveItems(http.DefaultClient, h.cfg.Alpha.Indices, h.cfg.Alpha.Stocks, h.cfg.Alpha.QuoteAsset)
+func (h *KlineHub) binanceAlphaPair(client *http.Client, symbol string) (string, bool) {
+	resolved := alpha.ResolveItems(client, h.cfg.Alpha.Indices, h.cfg.Alpha.Stocks, h.cfg.Alpha.QuoteAsset)
 	for _, item := range resolved {
 		if item.BaseSymbol == symbol && item.AlphaSymbol != "" {
 			return item.AlphaSymbol, true
@@ -347,32 +359,43 @@ func (h *KlineHub) binanceAlphaPair(symbol string) (string, bool) {
 	return "", false
 }
 
-func (h *KlineHub) klineSource(symbol string) string {
-	if h.isAlphaSymbol(symbol) {
-		if h.cfg.Alpha.Provider == "bitget" {
-			return "bitget"
-		}
-		return "binance-alpha"
-	}
-	return "binance"
-}
-
 func (h *KlineHub) applyCandle(key string, sub *klineSub, c binance.Candle) {
 	h.mu.Lock()
+	if h.subs[key] != sub || sub.ctx.Err() != nil {
+		h.mu.Unlock()
+		return
+	}
 	sub.candles = mergeCandle(sub.candles, c)
-	clients := h.copyClients(sub)
-	h.mu.Unlock()
-
-	msg := KlineUpdateMsg{
+	if len(sub.candles) > binance.DefaultKlineLimit {
+		sub.candles = sub.candles[len(sub.candles)-binance.DefaultKlineLimit:]
+	}
+	msg, _ := json.Marshal(KlineUpdateMsg{
 		Type:     "kline_update",
 		Symbol:   sub.symbol,
 		Interval: sub.interval,
 		Candle:   c,
+	})
+	failed := h.queueLocked(sub, msg)
+	h.mu.Unlock()
+	for _, conn := range failed {
+		h.removeClient(key, conn)
 	}
-	for conn := range clients {
-		if err := conn.WriteJSON(msg); err != nil {
-			h.removeClient(key, conn)
-		}
+}
+
+func (h *KlineHub) publishSnapshot(key string, sub *klineSub, candles []binance.Candle, source string) {
+	h.mu.Lock()
+	if h.subs[key] != sub || sub.ctx.Err() != nil {
+		h.mu.Unlock()
+		return
+	}
+	sub.candles = append([]binance.Candle(nil), candles...)
+	sub.source = source
+	sub.lastError = nil
+	msg, _ := json.Marshal(KlineSnapshotMsg{Type: "kline_snapshot", Symbol: sub.symbol, Interval: sub.interval, Candles: sub.candles, Source: source})
+	failed := h.queueLocked(sub, msg)
+	h.mu.Unlock()
+	for _, conn := range failed {
+		h.removeClient(key, conn)
 	}
 }
 
@@ -398,55 +421,74 @@ func mergeCandle(candles []binance.Candle, c binance.Candle) []binance.Candle {
 	return candles
 }
 
-func (h *KlineHub) copyClients(sub *klineSub) map[*websocket.Conn]struct{} {
-	out := make(map[*websocket.Conn]struct{}, len(sub.clients))
-	for c := range sub.clients {
-		out[c] = struct{}{}
+func (h *KlineHub) queueLocked(sub *klineSub, msg []byte) []*websocket.Conn {
+	var failed []*websocket.Conn
+	for conn, client := range sub.clients {
+		select {
+		case client.send <- msg:
+		default:
+			failed = append(failed, conn)
+		}
 	}
-	return out
+	return failed
 }
 
-func (h *KlineHub) broadcastError(sub *klineSub, code, msg string) {
+func (h *KlineHub) broadcastError(key string, sub *klineSub, code, msg string) {
 	payload, _ := json.Marshal(map[string]any{
 		"type":    "error",
 		"code":    code,
 		"message": msg,
 	})
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	for c := range sub.clients {
-		_ = c.WriteMessage(websocket.TextMessage, payload)
+	if h.subs[key] != sub {
+		h.mu.Unlock()
+		return
+	}
+	sub.lastError = payload
+	failed := h.queueLocked(sub, payload)
+	h.mu.Unlock()
+	for _, conn := range failed {
+		h.removeClient(key, conn)
+	}
+}
+
+func (h *KlineHub) writeClient(key string, client *klineClient) {
+	defer h.removeClient(key, client.conn)
+	for {
+		select {
+		case <-client.done:
+			return
+		case msg := <-client.send:
+			_ = client.conn.SetWriteDeadline(time.Now().Add(h.writeTimeout))
+			if err := client.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+		}
 	}
 }
 
 func (h *KlineHub) removeClient(key string, conn *websocket.Conn) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	sub, ok := h.subs[key]
 	if !ok {
+		h.mu.Unlock()
+		_ = conn.Close()
+		return
+	}
+	client, ok := sub.clients[conn]
+	if !ok {
+		h.mu.Unlock()
+		_ = conn.Close()
 		return
 	}
 	delete(sub.clients, conn)
-	_ = conn.Close()
+	close(client.done)
 	if len(sub.clients) == 0 {
 		if sub.cancel != nil {
 			sub.cancel()
 		}
 		delete(h.subs, key)
 	}
-}
-
-func (h *KlineHub) teardown(key string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	sub, ok := h.subs[key]
-	if !ok {
-		return
-	}
-	if len(sub.clients) == 0 {
-		delete(h.subs, key)
-		return
-	}
-	sub.cancel = nil
-	// keep candles for reconnecting clients; stream will restart on next client if needed
+	h.mu.Unlock()
+	_ = conn.Close()
 }

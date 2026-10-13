@@ -108,6 +108,7 @@ export const useChartStore = defineStore('chart', () => {
       },
       onError: (msg) => {
         if (!current()) return
+        wsLive.value = false
         error.value = msg.message
         loading.value = false
         if (timeout) clearTimeout(timeout)

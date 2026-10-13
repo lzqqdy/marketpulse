@@ -30,11 +30,12 @@ type Service interface {
 
 type service struct {
 	cfg      config.PortfolioConfig
-	repo     *repository
+	repo     portfolioRepository
 	md       marketdata.MarketDataService
 	resolver PriceResolver
 	tz       *time.Location
 	jobStop  context.CancelFunc
+	now      func() time.Time
 }
 
 // BootstrapArgs bundles deps for the portfolio module.
@@ -201,8 +202,9 @@ func (s *service) Overview(ctx context.Context, userID int64) (Overview, error) 
 	}
 	v := ValueHoldings(s.resolver, holdings, s.cfg.DefaultUsdtCny)
 
-	now := time.Now().In(s.tz)
+	now := s.currentTime().In(s.tz)
 	today := now.Format("2006-01-02")
+	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 	d7 := now.AddDate(0, 0, -7).Format("2006-01-02")
 	d30 := now.AddDate(0, 0, -30).Format("2006-01-02")
 
@@ -220,7 +222,7 @@ func (s *service) Overview(ctx context.Context, userID int64) (Overview, error) 
 	}
 
 	var todayWin *PnLWindow
-	if latest != nil && latest.Date < today {
+	if latest != nil && latest.Date == yesterday {
 		todayWin = WindowPnL(v.TotalCny, latest.TotalValueCny, true)
 	} else if latest != nil && latest.Date == today {
 		// same-day snapshot exists: today pnl uses previous day baseline if any
@@ -228,11 +230,9 @@ func (s *service) Overview(ctx context.Context, userID int64) (Overview, error) 
 		if err != nil {
 			return Overview{}, err
 		}
-		if prev != nil {
+		if prev != nil && prev.Date == yesterday {
 			todayWin = WindowPnL(v.TotalCny, prev.TotalValueCny, true)
 		}
-	} else if latest != nil {
-		todayWin = WindowPnL(v.TotalCny, latest.TotalValueCny, true)
 	}
 
 	return Overview{
@@ -329,16 +329,34 @@ func (s *service) EligibleSymbols(_ context.Context) (EligibleSymbolsResult, err
 	return EligibleSymbolsResult{Crypto: crypto, Alpha: alpha}, nil
 }
 
-// RunDailySnapshot writes snapshots for forDate (YYYY-MM-DD). Empty => yesterday Shanghai.
+func (s *service) currentTime() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+// RunDailySnapshot samples the current date in its last minute. Historical dates
+// cannot be reconstructed from today's holdings and quotes.
 func (s *service) RunDailySnapshot(ctx context.Context, forDate string) (int, error) {
 	if !s.Enabled() {
 		return 0, ErrDisabled
 	}
+	valuedAt := s.currentTime().In(s.tz)
 	date := strings.TrimSpace(forDate)
 	if date == "" {
-		now := time.Now().In(s.tz)
-		date = now.AddDate(0, 0, -1).Format("2006-01-02")
+		date = valuedAt.Format("2006-01-02")
 	}
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return 0, fmt.Errorf("%w: invalid snapshot date", ErrInvalidInput)
+	}
+	if !inSnapshotWindow(date, valuedAt) {
+		return 0, ErrSnapshotWindow
+	}
+	end := time.Date(valuedAt.Year(), valuedAt.Month(), valuedAt.Day()+1, 0, 0, 0, 0, s.tz)
+	ctx, cancel := context.WithTimeout(ctx, end.Sub(valuedAt))
+	defer cancel()
+	resolver := marketResolver{md: frozenMarket{snap: s.md.Snapshot()}, at: valuedAt}
 	ids, err := s.repo.ListUserIDsWithHoldings(ctx)
 	if err != nil {
 		return 0, err
@@ -355,12 +373,15 @@ func (s *service) RunDailySnapshot(ctx context.Context, forDate string) (int, er
 		if existing != nil && existing.Date == date {
 			continue
 		}
-		if err := s.snapshotUser(ctx, uid, date); err != nil {
+		inserted, err := s.snapshotUser(ctx, uid, date, resolver, valuedAt)
+		if err != nil {
 			failed++
 			slog.Warn("portfolio daily snapshot skipped user", "user_id", uid, "date", date, "err", err)
 			continue
 		}
-		written++
+		if inserted {
+			written++
+		}
 	}
 	if failed > 0 {
 		return written, fmt.Errorf("%d portfolio snapshots deferred", failed)
@@ -368,47 +389,72 @@ func (s *service) RunDailySnapshot(ctx context.Context, forDate string) (int, er
 	return written, nil
 }
 
-func (s *service) snapshotUser(ctx context.Context, userID int64, date string) error {
+func inSnapshotWindow(date string, at time.Time) bool {
+	return date == at.Format("2006-01-02") && at.Hour() == 23 && at.Minute() == 59
+}
+
+func (s *service) snapshotUser(ctx context.Context, userID int64, date string, resolver PriceResolver, valuedAt time.Time) (bool, error) {
 	holdings, err := s.repo.ListHoldings(ctx, userID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if len(holdings) == 0 {
-		return nil
+		return false, nil
 	}
-	v := ValueHoldings(s.resolver, holdings, s.cfg.DefaultUsdtCny)
+	for _, h := range holdings {
+		if h.UpdatedAt.After(valuedAt) {
+			return false, fmt.Errorf("holdings changed after valuation capture")
+		}
+	}
+	v := ValueHoldings(resolver, holdings, s.cfg.DefaultUsdtCny)
 	if !v.SnapshotReady() {
-		return fmt.Errorf("unverified valuation: missing=%v stale=%v rate_fallback=%v", v.Missing, v.Stale, v.RateFallback)
+		return false, fmt.Errorf("unverified valuation: missing=%v stale=%v rate_fallback=%v", v.Missing, v.Stale, v.RateFallback)
 	}
 	settings, err := s.repo.GetSettings(ctx, userID)
 	if err != nil {
-		return err
+		return false, err
+	}
+	if settings.UpdatedAt.After(valuedAt) {
+		return false, fmt.Errorf("principal changed after valuation capture")
 	}
 	prev, err := s.repo.GetDailyOnOrBefore(ctx, userID, prevDate(date))
 	if err != nil {
-		return err
+		return false, err
 	}
 	prevCny := 0.0
 	if prev != nil {
 		prevCny = prev.TotalValueCny
 	}
 	dailyProfit, dailyRate, totalProfit, totalRate := DailyRatesFromPrev(v.TotalCny, prevCny, settings.PrincipalCny)
+	hasBaseline := prev != nil && prev.Date == prevDate(date)
+	if !hasBaseline {
+		dailyProfit, dailyRate = 0, 0
+	}
 	detail, err := marshalAssetDetail(v.Details)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return s.repo.UpsertDailySnapshot(ctx, Snapshot{
-		UserID:          userID,
-		Date:            date,
-		Kind:            SnapshotKindDaily,
-		TotalValue:      v.TotalUsdt,
-		TotalValueCny:   RoundMoney(v.TotalCny),
-		DailyProfit:     RoundMoney(dailyProfit),
-		DailyProfitRate: dailyRate,
-		TotalProfit:     RoundMoney(totalProfit),
-		TotalProfitRate: totalRate,
-		AssetDetail:     detail,
-		Source:          SourceSystem,
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+	if !inSnapshotWindow(date, s.currentTime().In(s.tz)) {
+		return false, ErrSnapshotWindow
+	}
+	return s.repo.InsertSnapshotSkip(ctx, Snapshot{
+		ValuedAt:         &valuedAt,
+		HasDailyBaseline: &hasBaseline,
+		CreatedAt:        s.currentTime(),
+		UserID:           userID,
+		Date:             date,
+		Kind:             SnapshotKindDaily,
+		TotalValue:       v.TotalUsdt,
+		TotalValueCny:    RoundMoney(v.TotalCny),
+		DailyProfit:      RoundMoney(dailyProfit),
+		DailyProfitRate:  dailyRate,
+		TotalProfit:      RoundMoney(totalProfit),
+		TotalProfitRate:  totalRate,
+		AssetDetail:      detail,
+		Source:           SourceSystem,
 	})
 }
 
@@ -421,30 +467,30 @@ func prevDate(date string) string {
 }
 
 func (s *service) loopDailyJob(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	var lastDate string
+	run := func() {
+		now := s.currentTime().In(s.tz)
+		date := now.Format("2006-01-02")
+		if !inSnapshotWindow(date, now) || date == lastDate {
+			return
+		}
+		n, err := s.RunDailySnapshot(ctx, date)
+		if err != nil {
+			slog.Error("portfolio daily job failed", "date", date, "err", err)
+			return
+		}
+		lastDate = date
+		slog.Info("portfolio daily job done", "date", date, "users", n)
+	}
+	run()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			now := time.Now().In(s.tz)
-			// after 00:05, ensure yesterday snapshot exists
-			if now.Hour() == 0 && now.Minute() < 5 {
-				continue
-			}
-			y := now.AddDate(0, 0, -1).Format("2006-01-02")
-			if y == lastDate {
-				continue
-			}
-			n, err := s.RunDailySnapshot(ctx, y)
-			if err != nil {
-				slog.Error("portfolio daily job failed", "date", y, "err", err)
-				continue
-			}
-			lastDate = y
-			slog.Info("portfolio daily job done", "date", y, "users", n)
+			run()
 		}
 	}
 }

@@ -54,6 +54,8 @@ export interface PortfolioOverview {
 }
 
 export interface PortfolioSnapshot {
+  valuedAt?: string
+  hasDailyBaseline?: boolean
   date: string
   totalValue: number
   totalValueCny: number
@@ -93,6 +95,8 @@ export interface ListSnapshotsQuery {
 export type ReportRange = '7d' | '30d' | '90d' | '180d' | '1y' | 'all'
 
 export interface ReportSeriesPoint {
+  valuedAt?: string
+  hasDailyBaseline?: boolean
   date: string
   totalValue: number
   totalValueCny: number

@@ -134,13 +134,16 @@ defineExpose({ reload: () => load(page.value) })
         <button type="button" class="ghost-btn" :disabled="loading" @click="load(page)">刷新</button>
       </template>
       <tr v-for="(row, idx) in items" :key="row.date" :class="{ zebra: idx % 2 === 1 }">
-        <td>{{ row.date }}</td>
+        <td>
+          {{ row.date }}
+          <div v-if="row.valuedAt" class="sub">{{ new Date(row.valuedAt).toLocaleTimeString('zh-CN', { hour12: false }) }}</div>
+        </td>
         <td class="num">{{ fmtMoney(row.totalValueCny) }}</td>
         <td class="num" :class="trendClass(row.dailyProfit)">
-          <div>{{ fmtSigned(row.dailyProfit) }}</div>
-          <div v-if="compact" class="sub">{{ fmtRate(row.dailyProfitRate) }}</div>
+          <div>{{ row.hasDailyBaseline === false ? '无日基准' : fmtSigned(row.dailyProfit) }}</div>
+          <div v-if="compact && row.hasDailyBaseline !== false" class="sub">{{ fmtRate(row.dailyProfitRate) }}</div>
         </td>
-        <td v-if="!compact" class="num" :class="trendClass(row.dailyProfit)">{{ fmtRate(row.dailyProfitRate) }}</td>
+        <td v-if="!compact" class="num" :class="trendClass(row.dailyProfit)">{{ row.hasDailyBaseline === false ? '—' : fmtRate(row.dailyProfitRate) }}</td>
         <td class="num" :class="trendClass(row.totalProfit)">
           <div>{{ fmtSigned(row.totalProfit) }}</div>
           <div v-if="compact" class="sub">{{ fmtRate(row.totalProfitRate) }}</div>

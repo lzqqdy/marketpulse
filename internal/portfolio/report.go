@@ -76,13 +76,15 @@ func (s *service) ReportSeries(ctx context.Context, userID int64, rangeKey strin
 	points := make([]ReportSeriesPoint, 0, len(rows))
 	for _, row := range rows {
 		points = append(points, ReportSeriesPoint{
-			Date:            row.Date,
-			TotalValue:      row.TotalValue,
-			TotalValueCny:   row.TotalValueCny,
-			DailyProfit:     row.DailyProfit,
-			DailyProfitRate: row.DailyProfitRate,
-			TotalProfit:     row.TotalProfit,
-			TotalProfitRate: row.TotalProfitRate,
+			ValuedAt:         row.ValuedAt,
+			HasDailyBaseline: row.HasDailyBaseline,
+			Date:             row.Date,
+			TotalValue:       row.TotalValue,
+			TotalValueCny:    row.TotalValueCny,
+			DailyProfit:      row.DailyProfit,
+			DailyProfitRate:  row.DailyProfitRate,
+			TotalProfit:      row.TotalProfit,
+			TotalProfitRate:  row.TotalProfitRate,
 		})
 	}
 	sum := ReportSeriesSummary{}

@@ -14,6 +14,20 @@ type repository struct {
 	db *sql.DB
 }
 
+type portfolioRepository interface {
+	GetSettings(context.Context, int64) (Settings, error)
+	UpsertSettings(context.Context, int64, float64, *float64) (Settings, error)
+	ListHoldings(context.Context, int64) ([]Holding, error)
+	ReplaceHoldings(context.Context, int64, []Holding) error
+	ListUserIDsWithHoldings(context.Context) ([]int64, error)
+	ListSnapshots(context.Context, int64, ListSnapshotsQuery) ([]Snapshot, int, error)
+	ListDailySnapshotsRange(context.Context, int64, string, string) ([]Snapshot, error)
+	EarliestDailyDate(context.Context, int64) (string, error)
+	GetLatestDaily(context.Context, int64) (*Snapshot, error)
+	GetDailyOnOrBefore(context.Context, int64, string) (*Snapshot, error)
+	InsertSnapshotSkip(context.Context, Snapshot) (bool, error)
+}
+
 func newRepository(db *sql.DB) *repository {
 	return &repository{db: db}
 }
@@ -27,8 +41,7 @@ FROM portfolio_settings WHERE user_id = ?`, userID).Scan(
 		&s.UserID, &s.PrincipalCny, &principalUsdt, &s.CreatedAt, &s.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
-		now := time.Now()
-		return Settings{UserID: userID, PrincipalCny: 0, CreatedAt: now, UpdatedAt: now}, nil
+		return Settings{UserID: userID, PrincipalCny: 0}, nil
 	}
 	if err != nil {
 		return Settings{}, fmt.Errorf("portfolio_settings get: %w", err)
@@ -164,7 +177,7 @@ func (r *repository) ListSnapshots(ctx context.Context, userID int64, q ListSnap
 
 	rows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
 SELECT id, user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,
-  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at
+  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at, valued_at_ms, has_daily_baseline
 FROM portfolio_snapshots %s ORDER BY %s %s LIMIT ? OFFSET ?`, where, sortBy, order),
 		append(args, pageSize, offset)...)
 	if err != nil {
@@ -196,7 +209,7 @@ func (r *repository) ListDailySnapshotsRange(ctx context.Context, userID int64, 
 	}
 	rows, err := r.db.QueryContext(ctx, `
 SELECT id, user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,
-  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at
+  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at, valued_at_ms, has_daily_baseline
 FROM portfolio_snapshots `+where+` ORDER BY date ASC LIMIT 2500`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("portfolio_snapshots range: %w", err)
@@ -230,14 +243,14 @@ SELECT date FROM portfolio_snapshots WHERE user_id = ? AND kind = ? ORDER BY dat
 func (r *repository) GetLatestDaily(ctx context.Context, userID int64) (*Snapshot, error) {
 	return r.getOneSnapshot(ctx, `
 SELECT id, user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,
-  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at
+  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at, valued_at_ms, has_daily_baseline
 FROM portfolio_snapshots WHERE user_id = ? AND kind = ? ORDER BY date DESC LIMIT 1`, userID, SnapshotKindDaily)
 }
 
 func (r *repository) GetDailyOnOrBefore(ctx context.Context, userID int64, date string) (*Snapshot, error) {
 	return r.getOneSnapshot(ctx, `
 SELECT id, user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,
-  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at
+  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at, valued_at_ms, has_daily_baseline
 FROM portfolio_snapshots WHERE user_id = ? AND kind = ? AND date <= ? ORDER BY date DESC LIMIT 1`,
 		userID, SnapshotKindDaily, date)
 }
@@ -245,12 +258,13 @@ FROM portfolio_snapshots WHERE user_id = ? AND kind = ? AND date <= ? ORDER BY d
 func (r *repository) GetDailyExact(ctx context.Context, userID int64, date string) (*Snapshot, error) {
 	return r.getOneSnapshot(ctx, `
 SELECT id, user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,
-  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at
+  total_profit, total_profit_rate, COALESCE(asset_detail, ''), source, created_at, valued_at_ms, has_daily_baseline
 FROM portfolio_snapshots WHERE user_id = ? AND kind = ? AND date = ? LIMIT 1`,
 		userID, SnapshotKindDaily, date)
 }
 
 func (r *repository) UpsertDailySnapshot(ctx context.Context, s Snapshot) error {
+	valuedAt, baseline := snapshotMetadata(s)
 	detail := s.AssetDetail
 	if detail == "" {
 		detail = "[]"
@@ -258,8 +272,8 @@ func (r *repository) UpsertDailySnapshot(ctx context.Context, s Snapshot) error 
 	_, err := r.db.ExecContext(ctx, `
 INSERT INTO portfolio_snapshots (
   user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,
-  total_profit, total_profit_rate, asset_detail, source, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  total_profit, total_profit_rate, asset_detail, source, created_at, valued_at_ms, has_daily_baseline
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON DUPLICATE KEY UPDATE
   total_value=VALUES(total_value),
   total_value_cny=VALUES(total_value_cny),
@@ -268,10 +282,12 @@ ON DUPLICATE KEY UPDATE
   total_profit=VALUES(total_profit),
   total_profit_rate=VALUES(total_profit_rate),
   asset_detail=VALUES(asset_detail),
-  source=VALUES(source)`,
+  source=VALUES(source),
+  valued_at_ms=VALUES(valued_at_ms),
+  has_daily_baseline=VALUES(has_daily_baseline)`,
 		s.UserID, s.Date, SnapshotKindDaily, s.TotalValue, s.TotalValueCny,
 		s.DailyProfit, s.DailyProfitRate, s.TotalProfit, s.TotalProfitRate,
-		detail, s.Source, time.Now(),
+		detail, s.Source, time.Now(), valuedAt, baseline,
 	)
 	if err != nil {
 		return fmt.Errorf("portfolio_snapshots upsert: %w", err)
@@ -280,6 +296,7 @@ ON DUPLICATE KEY UPDATE
 }
 
 func (r *repository) InsertSnapshotSkip(ctx context.Context, s Snapshot) (inserted bool, err error) {
+	valuedAt, baseline := snapshotMetadata(s)
 	detail := s.AssetDetail
 	if detail == "" {
 		detail = "[]"
@@ -287,17 +304,27 @@ func (r *repository) InsertSnapshotSkip(ctx context.Context, s Snapshot) (insert
 	res, err := r.db.ExecContext(ctx, `
 INSERT IGNORE INTO portfolio_snapshots (
   user_id, date, kind, total_value, total_value_cny, daily_profit, daily_profit_rate,
-  total_profit, total_profit_rate, asset_detail, source, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  total_profit, total_profit_rate, asset_detail, source, created_at, valued_at_ms, has_daily_baseline
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.UserID, s.Date, s.Kind, s.TotalValue, s.TotalValueCny,
 		s.DailyProfit, s.DailyProfitRate, s.TotalProfit, s.TotalProfitRate,
-		detail, s.Source, s.CreatedAt,
+		detail, s.Source, s.CreatedAt, valuedAt, baseline,
 	)
 	if err != nil {
 		return false, err
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+func snapshotMetadata(s Snapshot) (valuedAt any, baseline any) {
+	if s.ValuedAt != nil {
+		valuedAt = s.ValuedAt.UnixMilli()
+	}
+	if s.HasDailyBaseline != nil {
+		baseline = *s.HasDailyBaseline
+	}
+	return
 }
 
 func (r *repository) getOneSnapshot(ctx context.Context, query string, args ...any) (*Snapshot, error) {
@@ -332,14 +359,23 @@ func scanHolding(rs rowScanner) (Holding, error) {
 func scanSnapshot(rs rowScanner) (Snapshot, error) {
 	var s Snapshot
 	var date time.Time
+	var valuedAt sql.NullInt64
+	var baseline sql.NullBool
 	if err := rs.Scan(
 		&s.ID, &s.UserID, &date, &s.Kind, &s.TotalValue, &s.TotalValueCny,
 		&s.DailyProfit, &s.DailyProfitRate, &s.TotalProfit, &s.TotalProfitRate,
-		&s.AssetDetail, &s.Source, &s.CreatedAt,
+		&s.AssetDetail, &s.Source, &s.CreatedAt, &valuedAt, &baseline,
 	); err != nil {
 		return Snapshot{}, err
 	}
 	s.Date = date.Format("2006-01-02")
+	if valuedAt.Valid {
+		at := time.UnixMilli(valuedAt.Int64).UTC()
+		s.ValuedAt = &at
+	}
+	if baseline.Valid {
+		s.HasDailyBaseline = &baseline.Bool
+	}
 	return s, nil
 }
 

@@ -245,9 +245,48 @@ func (s *MarketStore) UpdateRates(r Rates) uint64 {
 	defer s.mu.Unlock()
 
 	s.rates = r
+	return s.ratesChangedLocked()
+}
+
+// UpdateUSDTCNY and UpdateUSDCNY merge only their own feed under the store lock.
+func (s *MarketStore) UpdateUSDTCNY(price float64, at time.Time) uint64 {
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if at.Before(s.rates.USDTCNYUpdatedAt) {
+		return s.version
+	}
+	s.rates.USDTCNY = price
+	s.rates.USDTCNYUpdatedAt = at
+	if at.After(s.rates.UpdatedAt) {
+		s.rates.UpdatedAt = at
+	}
+	return s.ratesChangedLocked()
+}
+
+func (s *MarketStore) UpdateUSDCNY(price float64, at time.Time) uint64 {
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if at.Before(s.rates.USDCNYUpdatedAt) {
+		return s.version
+	}
+	s.rates.USDCNY = price
+	s.rates.USDCNYUpdatedAt = at
+	if at.After(s.rates.UpdatedAt) {
+		s.rates.UpdatedAt = at
+	}
+	return s.ratesChangedLocked()
+}
+
+func (s *MarketStore) ratesChangedLocked() uint64 {
 	for sym, q := range s.quotes {
-		if r.USDTCNY > 0 {
-			q.PriceCny = q.PriceUsdt * r.USDTCNY
+		if s.rates.USDTCNY > 0 {
+			q.PriceCny = q.PriceUsdt * s.rates.USDTCNY
 		}
 		s.quotes[sym] = q
 	}

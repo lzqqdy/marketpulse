@@ -37,6 +37,10 @@ func StreamKline(ctx context.Context, baseSymbol, interval string, onCandle func
 	}
 	pair := strings.ToLower(SymbolUSDT(baseSymbol))
 	url := fmt.Sprintf("wss://stream.binance.com:9443/ws/%s@kline_%s", pair, interval)
+	return streamKlineURL(ctx, url, onCandle)
+}
+
+func streamKlineURL(ctx context.Context, url string, onCandle func(Candle)) error {
 
 	dialer := websocket.Dialer{HandshakeTimeout: 15 * time.Second}
 	conn, _, err := dialer.DialContext(ctx, url, http.Header{})
@@ -44,13 +48,27 @@ func StreamKline(ctx context.Context, baseSymbol, interval string, onCandle func
 		return fmt.Errorf("binance kline ws dial: %w", err)
 	}
 	defer conn.Close()
+	const readWait = 90 * time.Second
+	_ = conn.SetReadDeadline(time.Now().Add(readWait))
+	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(time.Now().Add(readWait)) })
 
 	done := make(chan struct{})
 	go func() {
-		select {
-		case <-ctx.Done():
-			_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-		case <-done:
+		ticker := time.NewTicker(25 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				_ = conn.Close()
+				return
+			case <-done:
+				return
+			case <-ticker.C:
+				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+					_ = conn.Close()
+					return
+				}
+			}
 		}
 	}()
 	defer close(done)
@@ -63,6 +81,7 @@ func StreamKline(ctx context.Context, baseSymbol, interval string, onCandle func
 			}
 			return fmt.Errorf("binance kline ws read: %w", err)
 		}
+		_ = conn.SetReadDeadline(time.Now().Add(readWait))
 		var msg klineWSMessage
 		if err := json.Unmarshal(data, &msg); err != nil || msg.Event != "kline" {
 			continue

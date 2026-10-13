@@ -116,4 +116,18 @@ describe('real data lifecycle', () => {
     expect(s.loading).toBe(true)
     expect(s.error).toBe('')
   })
+
+  it('marks upstream disconnect as not live and recovers after a fresh snapshot', () => {
+    const s = useChartStore()
+    s.open('BTC')
+    callbacks[0].onSnapshot({ type: 'kline_snapshot', ...response('BTC', 100) })
+    expect(s.wsLive).toBe(true)
+    callbacks[0].onError({ type: 'error', code: 'UPSTREAM_ERROR', message: 'upstream disconnected' })
+    expect(s.wsLive).toBe(false)
+    expect(s.candles[0].close).toBe(100)
+    callbacks[0].onSnapshot({ type: 'kline_snapshot', ...response('BTC', 200) })
+    expect(s.wsLive).toBe(true)
+    expect(s.error).toBe('')
+    expect(s.candles[0].close).toBe(200)
+  })
 })

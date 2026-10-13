@@ -37,7 +37,8 @@ const ratePoints = computed(() =>
   (series.value?.points ?? []).map((p) => ({ date: p.date, value: p.totalProfitRate * 100 })),
 )
 const dailyPoints = computed(() =>
-  (series.value?.points ?? []).map((p) => ({ date: p.date, value: p.dailyProfit })),
+  (series.value?.points ?? []).filter((p) => p.hasDailyBaseline !== false)
+    .map((p) => ({ date: p.date, value: p.dailyProfit })),
 )
 
 const { hover: trendHover } = usePortfolioLineChart(trendEl, trendPoints, {

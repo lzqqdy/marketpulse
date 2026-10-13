@@ -6,7 +6,34 @@ import (
 )
 
 type marketResolver struct {
-	md marketdata.MarketDataService
+	md interface {
+		Quote(string) (marketdata.Quote, bool)
+		AlphaQuote(string) (marketdata.AlphaQuote, bool)
+		Snapshot() marketdata.Snapshot
+	}
+	at time.Time
+}
+
+func (m marketResolver) now() time.Time {
+	if !m.at.IsZero() {
+		return m.at
+	}
+	return time.Now()
+}
+
+type frozenMarket struct{ snap marketdata.Snapshot }
+
+func (m frozenMarket) Snapshot() marketdata.Snapshot { return m.snap }
+func (m frozenMarket) Quote(symbol string) (marketdata.Quote, bool) {
+	for _, q := range m.snap.Quotes {
+		if q.Symbol == symbol {
+			return q, true
+		}
+	}
+	return marketdata.Quote{}, false
+}
+func (m frozenMarket) AlphaQuote(id string) (marketdata.AlphaQuote, bool) {
+	return marketdata.FindAlphaQuote(m.snap.Alpha.Indices, m.snap.Alpha.Stocks, id)
 }
 
 func (m marketResolver) CryptoPrice(symbol string) PricePoint {
@@ -15,7 +42,7 @@ func (m marketResolver) CryptoPrice(symbol string) PricePoint {
 		return PricePoint{}
 	}
 	return PricePoint{PriceUsdt: q.PriceUsdt, ChangeDayPct: q.ChangeDayPct, OK: true,
-		UpdatedAt: q.UpdatedAt, Stale: marketdata.IsStale(q.UpdatedAt, time.Now(), marketdata.SpotQuoteMaxAge)}
+		UpdatedAt: q.UpdatedAt, Stale: marketdata.IsStale(q.UpdatedAt, m.now(), marketdata.SpotQuoteMaxAge)}
 }
 
 func (m marketResolver) AlphaPrice(id string) PricePoint {
@@ -24,13 +51,13 @@ func (m marketResolver) AlphaPrice(id string) PricePoint {
 		return PricePoint{}
 	}
 	return PricePoint{PriceUsdt: q.Price, ChangeDayPct: q.ChangeDayPct, OK: true,
-		UpdatedAt: q.UpdatedAt, Source: q.Source, Stale: marketdata.IsStale(q.UpdatedAt, time.Now(), marketdata.ReferenceQuoteMaxAge)}
+		UpdatedAt: q.UpdatedAt, Source: q.Source, Stale: marketdata.IsStale(q.UpdatedAt, m.now(), marketdata.ReferenceQuoteMaxAge)}
 }
 
 func (m marketResolver) UsdtCny() (float64, float64, bool) {
 	rates := m.md.Snapshot().Rates
 	if rates.USDTCNY > 0 {
-		return rates.USDTCNY, rates.USDCNY, !marketdata.IsStale(rates.USDTCNYUpdatedAt, time.Now(), marketdata.ConversionRateMaxAge)
+		return rates.USDTCNY, rates.USDCNY, !marketdata.IsStale(rates.USDTCNYUpdatedAt, m.now(), marketdata.ConversionRateMaxAge)
 	}
 	return 0, rates.USDCNY, false
 }

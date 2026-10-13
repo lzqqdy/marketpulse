@@ -453,6 +453,7 @@ Header：`Authorization: Bearer <token>` → `{ "ok": true }`
 | GET | `/api/v1/portfolio/reports/allocation` | 当前持仓资产分布（实时估值） |
 
 快照收益率字段为**小数**（`0.0164` = 1.64%）；总览 / 报告 summary `pnlPct` 为**百分数**（`3.11` = 3.11%）。  
+日快照和报告时序点新增可选 `valuedAt`（实际采样时间，RFC3339）及 `hasDailyBaseline`。旧记录未知时省略；`false` 表示缺少准确昨日基准，日收益/日收益率数值保留为 0，但不应展示为已核算收益。日快照按 `portfolio.daily_timezone` 的 23:59 窗口记录采样当日，错过窗口不补写历史日期。
 报告契约细节见 `specs/006-portfolio-asset-reports/contracts/api.md`。
 
 ---

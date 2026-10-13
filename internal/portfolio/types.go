@@ -52,19 +52,21 @@ type Settings struct {
 
 // Snapshot is a daily (or principal) portfolio snapshot.
 type Snapshot struct {
-	ID              int64     `json:"id,omitempty"`
-	UserID          int64     `json:"-"`
-	Date            string    `json:"date"` // YYYY-MM-DD
-	Kind            string    `json:"kind,omitempty"`
-	TotalValue      float64   `json:"totalValue"`
-	TotalValueCny   float64   `json:"totalValueCny"`
-	DailyProfit     float64   `json:"dailyProfit"`
-	DailyProfitRate float64   `json:"dailyProfitRate"`
-	TotalProfit     float64   `json:"totalProfit"`
-	TotalProfitRate float64   `json:"totalProfitRate"`
-	AssetDetail     string    `json:"-"`
-	Source          string    `json:"source,omitempty"`
-	CreatedAt       time.Time `json:"-"`
+	ValuedAt         *time.Time `json:"valuedAt,omitempty"`
+	HasDailyBaseline *bool      `json:"hasDailyBaseline,omitempty"`
+	ID               int64      `json:"id,omitempty"`
+	UserID           int64      `json:"-"`
+	Date             string     `json:"date"` // YYYY-MM-DD
+	Kind             string     `json:"kind,omitempty"`
+	TotalValue       float64    `json:"totalValue"`
+	TotalValueCny    float64    `json:"totalValueCny"`
+	DailyProfit      float64    `json:"dailyProfit"`
+	DailyProfitRate  float64    `json:"dailyProfitRate"`
+	TotalProfit      float64    `json:"totalProfit"`
+	TotalProfitRate  float64    `json:"totalProfitRate"`
+	AssetDetail      string     `json:"-"`
+	Source           string     `json:"source,omitempty"`
+	CreatedAt        time.Time  `json:"-"`
 }
 
 // AssetDetailRow is one line inside snapshot asset_detail JSON.
@@ -160,13 +162,15 @@ type EligibleSymbol struct {
 
 // ReportSeriesPoint is one day on the report charts.
 type ReportSeriesPoint struct {
-	Date            string  `json:"date"`
-	TotalValue      float64 `json:"totalValue"`
-	TotalValueCny   float64 `json:"totalValueCny"`
-	DailyProfit     float64 `json:"dailyProfit"`
-	DailyProfitRate float64 `json:"dailyProfitRate"`
-	TotalProfit     float64 `json:"totalProfit"`
-	TotalProfitRate float64 `json:"totalProfitRate"`
+	ValuedAt         *time.Time `json:"valuedAt,omitempty"`
+	HasDailyBaseline *bool      `json:"hasDailyBaseline,omitempty"`
+	Date             string     `json:"date"`
+	TotalValue       float64    `json:"totalValue"`
+	TotalValueCny    float64    `json:"totalValueCny"`
+	DailyProfit      float64    `json:"dailyProfit"`
+	DailyProfitRate  float64    `json:"dailyProfitRate"`
+	TotalProfit      float64    `json:"totalProfit"`
+	TotalProfitRate  float64    `json:"totalProfitRate"`
 }
 
 // ReportSeriesSummary is the period strip above charts.

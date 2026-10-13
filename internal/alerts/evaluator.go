@@ -12,14 +12,23 @@ import (
 
 // Evaluator watches market data changes and triggers alert rules.
 type Evaluator struct {
-	md         marketdata.MarketDataService
-	dispatcher *Dispatcher
-	cooldown   *CooldownStore
-	windows    *WindowTracker
-	index      *ruleIndex
-	lastPrices map[string]float64
-	ch         chan uint64
-	stop       chan struct{}
+	md          marketdata.MarketDataService
+	dispatcher  alertEnqueuer
+	cooldown    cooldownClaimer
+	windows     *WindowTracker
+	index       *ruleIndex
+	lastSamples map[string]time.Time
+	ch          chan uint64
+	stop        chan struct{}
+	stopOnce    sync.Once
+}
+
+type alertEnqueuer interface {
+	Enqueue(Rule, float64, triggerMeta) bool
+}
+type cooldownClaimer interface {
+	TrySet(context.Context, Rule) (bool, error)
+	Clear(context.Context, int64) error
 }
 
 type ruleIndex struct {
@@ -98,20 +107,20 @@ func (idx *ruleIndex) Get(assetType, symbol string) []Rule {
 
 func NewEvaluator(
 	md marketdata.MarketDataService,
-	dispatcher *Dispatcher,
-	cooldown *CooldownStore,
+	dispatcher alertEnqueuer,
+	cooldown cooldownClaimer,
 	windows *WindowTracker,
 	index *ruleIndex,
 ) *Evaluator {
 	e := &Evaluator{
-		md:         md,
-		dispatcher: dispatcher,
-		cooldown:   cooldown,
-		windows:    windows,
-		index:      index,
-		lastPrices: make(map[string]float64),
-		ch:         make(chan uint64, 256),
-		stop:       make(chan struct{}),
+		md:          md,
+		dispatcher:  dispatcher,
+		cooldown:    cooldown,
+		windows:     windows,
+		index:       index,
+		lastSamples: make(map[string]time.Time),
+		ch:          make(chan uint64, 256),
+		stop:        make(chan struct{}),
 	}
 	md.AddListener(e.onStoreChange)
 	go e.run()
@@ -119,8 +128,10 @@ func NewEvaluator(
 }
 
 func (e *Evaluator) Stop() {
-	close(e.stop)
+	e.stopOnce.Do(func() { close(e.stop) })
 }
+
+func (e *Evaluator) Wake() { e.onStoreChange(0) }
 
 func (e *Evaluator) onStoreChange(version uint64) {
 	select {
@@ -130,19 +141,34 @@ func (e *Evaluator) onStoreChange(version uint64) {
 }
 
 func (e *Evaluator) run() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-e.stop:
 			return
 		case <-e.ch:
 			e.processSnapshot()
+		case <-ticker.C:
+			e.processSnapshot()
 		}
 	}
 }
 
 func (e *Evaluator) processSnapshot() {
+	e.processSnapshotAt(time.Now())
+}
+
+func (e *Evaluator) sample(key string, price float64, sampledAt, now time.Time) (float64, bool) {
+	if !sampledAt.IsZero() && sampledAt.After(e.lastSamples[key]) {
+		e.lastSamples[key] = sampledAt
+		return e.windows.Update(key, price, sampledAt)
+	}
+	return e.windows.SnapshotAt(key, now)
+}
+
+func (e *Evaluator) processSnapshotAt(now time.Time) {
 	snap := e.md.Snapshot()
-	now := time.Now()
 
 	for _, q := range snap.Quotes {
 		if q.PriceUsdt <= 0 || marketdata.IsStale(q.UpdatedAt, now, marketdata.SpotQuoteMaxAge) {
@@ -150,12 +176,7 @@ func (e *Evaluator) processSnapshot() {
 		}
 		sym := strings.ToUpper(strings.TrimSpace(q.Symbol))
 		key := indexKey(AssetSpot, sym)
-		last, ok := e.lastPrices[key]
-		if ok && last == q.PriceUsdt {
-			continue
-		}
-		e.lastPrices[key] = q.PriceUsdt
-		amp, ready := e.windows.Update(key, q.PriceUsdt, now)
+		amp, ready := e.sample(key, q.PriceUsdt, q.UpdatedAt, now)
 		e.evaluateAsset(AssetSpot, sym, q.PriceUsdt, amp, ready)
 	}
 
@@ -165,12 +186,11 @@ func (e *Evaluator) processSnapshot() {
 		}
 		id := strings.ToLower(strings.TrimSpace(idx.ID))
 		key := indexKey(AssetIndex, id)
-		last, ok := e.lastPrices[key]
-		if ok && last == idx.Price {
-			continue
+		at := idx.FetchedAt
+		if at.IsZero() {
+			at = idx.UpdatedAt
 		}
-		e.lastPrices[key] = idx.Price
-		amp, ready := e.windows.Update(key, idx.Price, now)
+		amp, ready := e.sample(key, idx.Price, at, now)
 		e.evaluateAsset(AssetIndex, id, idx.Price, amp, ready)
 	}
 
@@ -184,12 +204,7 @@ func (e *Evaluator) processSnapshot() {
 			continue
 		}
 		key := indexKey(AssetAlpha, id)
-		last, ok := e.lastPrices[key]
-		if ok && last == row.Price {
-			continue
-		}
-		e.lastPrices[key] = row.Price
-		amp, ready := e.windows.Update(key, row.Price, now)
+		amp, ready := e.sample(key, row.Price, row.UpdatedAt, now)
 		e.evaluateAsset(AssetAlpha, id, row.Price, amp, ready)
 	}
 }

@@ -23,6 +23,10 @@ func (w *Window5m) Update(price float64, now time.Time) (ampPct float64, ready b
 		w = &Window5m{}
 	}
 	w.points = append(w.points, pricePoint{ts: now, price: price})
+	return w.snapshot(now)
+}
+
+func (w *Window5m) snapshot(now time.Time) (ampPct float64, ready bool) {
 	cutoff := now.Add(-windowDuration)
 	kept := w.points[:0]
 	for _, p := range w.points {
@@ -71,12 +75,15 @@ func (t *WindowTracker) Update(key string, price float64, now time.Time) (ampPct
 }
 
 func (t *WindowTracker) Snapshot(key string) (ampPct float64, ready bool) {
+	return t.SnapshotAt(key, time.Now())
+}
+
+func (t *WindowTracker) SnapshotAt(key string, now time.Time) (ampPct float64, ready bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	w, ok := t.m[key]
 	if !ok || len(w.points) < 2 {
 		return 0, false
 	}
-	now := time.Now()
-	return w.Update(w.points[len(w.points)-1].price, now)
+	return w.snapshot(now)
 }

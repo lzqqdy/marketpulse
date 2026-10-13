@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	alertsmigrate "github.com/lzqqdy/marketpulse/internal/alerts/migrate"
 	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
 	"github.com/lzqqdy/marketpulse/internal/users"
-	alertsmigrate "github.com/lzqqdy/marketpulse/internal/alerts/migrate"
 )
 
 // Service is the alerts module facade.
@@ -114,6 +114,8 @@ func Bootstrap(ctx context.Context, args BootstrapArgs) (Service, error) {
 		return nil, err
 	}
 	index.Rebuild(active)
+	svc.evaluator.Wake()
+	go func() { <-ctx.Done(); svc.evaluator.Stop() }()
 	slog.Info("alerts module enabled", "active_rules", len(active))
 	return svc, nil
 }
@@ -177,6 +179,7 @@ func (s *service) CreateRule(ctx context.Context, userID int64, in CreateRuleInp
 	}
 	if created.Status == StatusActive {
 		s.index.Upsert(created)
+		s.evaluator.Wake()
 	}
 	return created, nil
 }
@@ -254,6 +257,7 @@ func (s *service) UpdateRule(ctx context.Context, userID, id int64, in UpdateRul
 	s.index.Remove(old)
 	if updated.Status == StatusActive {
 		s.index.Upsert(updated)
+		s.evaluator.Wake()
 	}
 	return updated, nil
 }

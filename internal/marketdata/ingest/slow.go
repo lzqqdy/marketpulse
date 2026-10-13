@@ -53,11 +53,7 @@ func (s *Service) pollOTC(ctx context.Context) error {
 		s.providerHealth.ReportFailure("okx_c2c", err)
 		return err
 	}
-	rates := s.currentRates()
-	rates.USDTCNY = price
-	rates.UpdatedAt = time.Now().UTC()
-	rates.USDTCNYUpdatedAt = rates.UpdatedAt
-	s.store.UpdateRates(rates)
+	s.store.UpdateUSDTCNY(price, time.Now().UTC())
 	s.ingestStatus.set("otc", "ok")
 	s.providerHealth.ReportSuccess("okx_c2c", time.Since(start))
 	s.providerHealth.ReportUsed("okx_c2c", true)
@@ -75,11 +71,7 @@ func (s *Service) pollForex(ctx context.Context) error {
 		s.providerHealth.ReportFailure("frankfurter_fx", err)
 		return err
 	}
-	rates := s.currentRates()
-	rates.USDCNY = price
-	rates.UpdatedAt = time.Now().UTC()
-	rates.USDCNYUpdatedAt = rates.UpdatedAt
-	s.store.UpdateRates(rates)
+	s.store.UpdateUSDCNY(price, time.Now().UTC())
 	s.ingestStatus.set("forex", "ok")
 	s.providerHealth.ReportSuccess("frankfurter_fx", time.Since(start))
 	s.providerHealth.ReportUsed("frankfurter_fx", true)
