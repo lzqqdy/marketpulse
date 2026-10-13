@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lucide/vue": "^1.56.0",
     "js-yaml": "^5.2.2",
     "lightweight-charts": "^4.2.3",
     "pinia": "^2.3.0",

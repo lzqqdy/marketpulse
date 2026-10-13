@@ -55,8 +55,18 @@ interface UsEquityRow {
 const store = useMarketStore()
 const chartStore = useChartStore()
 const { priceClass, badgeClass } = useTrendClass()
-const expanded = ref(false)
-const gridColumns = ref(2)
+const mobileExpanded = ref(true)
+const desktopExpanded = ref(false)
+const gridColumns = ref(
+  typeof window !== 'undefined' && window.matchMedia('(min-width: 720px)').matches ? 3 : 2,
+)
+const expanded = computed({
+  get: () => gridColumns.value === 3 ? desktopExpanded.value : mobileExpanded.value,
+  set: (value: boolean) => {
+    if (gridColumns.value === 3) desktopExpanded.value = value
+    else mobileExpanded.value = value
+  },
+})
 const COLLAPSED_ROWS = 3
 let mediaQueryWide: MediaQueryList | null = null
 
@@ -87,7 +97,7 @@ function resolveAlpha(meta: UsEquityMeta): AlphaQuote | null {
 }
 
 const allRows = computed<UsEquityRow[]>(() =>
-  US_EQUITY_ORDER.map((id) => {
+  US_EQUITY_ORDER.map((id): UsEquityRow | null => {
     const meta = US_EQUITY_META[id]
     const spot = spotById.value.get(id) ?? null
     const alpha = resolveAlpha(meta)
@@ -223,6 +233,7 @@ function formatAlphaPrice(value: number) {
       type="button"
       class="us-toggle"
       :aria-label="expanded ? '收起美股列表' : '展开美股列表'"
+      :aria-expanded="expanded"
       @click="expanded = !expanded"
     >
       <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ expanded }">
@@ -403,5 +414,16 @@ function formatAlphaPrice(value: number) {
 
 .us-toggle svg.expanded {
   transform: rotate(180deg);
+}
+
+@media (max-width: 359px) {
+  .quote-row {
+    font-size: 10px;
+    grid-template-columns: 2em minmax(0, 1fr) auto;
+  }
+
+  .quote-row strong {
+    font-size: 12px;
+  }
 }
 </style>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ArrowDownUp, ArrowDownWideNarrow, ArrowUpNarrowWide } from '@lucide/vue'
 import { fetchMarketCenter, fetchMarketCenterHeatmap } from '@/features/market/api/marketCenter'
 import { useTrendClass } from '@/features/market/composables/useTrendClass'
 import { formatPct } from '@/utils/format'
@@ -13,6 +14,7 @@ import type {
   OverviewTab,
 } from '@/features/market/types/marketCenter'
 import { HEATMAP_SORT_OPTIONS, MARKET_TABS } from '@/features/market/types/marketCenter'
+import { sortHeatmapByChange, type HeatmapChangeOrder } from '@/features/market/utils/heatmap'
 
 const { priceClass } = useTrendClass()
 
@@ -29,6 +31,7 @@ const error = ref('')
 const refreshError = ref('')
 const data = ref<MarketCenterResponse | null>(null)
 const heatmapSortKey = ref<HeatmapSortKey>('amount')
+const heatmapChangeOrder = ref<HeatmapChangeOrder>('default')
 const fundflowType = ref('')
 const overviewTab = ref('')
 
@@ -143,7 +146,24 @@ function fundBarHeight(amount: number, side: 'in' | 'out') {
   return Math.max(4, Math.round((abs / max) * FUND_TRACK_HEIGHT))
 }
 
-const heatmapItems = computed(() => heatmap.value?.items ?? [])
+const heatmapItems = computed(() =>
+  sortHeatmapByChange(heatmap.value?.items ?? [], heatmapChangeOrder.value),
+)
+
+const heatmapOrderLabel = computed(() => {
+  if (heatmapChangeOrder.value === 'desc') return '涨幅降序，点击切换升序'
+  if (heatmapChangeOrder.value === 'asc') return '涨幅升序，点击恢复默认'
+  return '默认排序，点击按涨幅降序'
+})
+
+function cycleHeatmapOrder() {
+  const next: Record<HeatmapChangeOrder, HeatmapChangeOrder> = {
+    default: 'desc',
+    desc: 'asc',
+    asc: 'default',
+  }
+  heatmapChangeOrder.value = next[heatmapChangeOrder.value]
+}
 
 const visibleHeatmapItems = computed(() =>
   heatmapExpanded.value
@@ -337,16 +357,32 @@ onUnmounted(() => {
       <div class="mc-block">
         <div class="mc-block-head">
           <h3>热力图</h3>
-          <select
-            class="mc-select"
-            :value="heatmapSortKey"
-            :disabled="heatmapLoading"
-            @change="reloadHeatmap(($event.target as HTMLSelectElement).value as HeatmapSortKey)"
-          >
-            <option v-for="opt in HEATMAP_SORT_OPTIONS" :key="opt.value" :value="opt.value">
-              {{ opt.label }}
-            </option>
-          </select>
+          <div class="heatmap-controls">
+            <button
+              type="button"
+              class="heatmap-order"
+              :class="{ active: heatmapChangeOrder !== 'default' }"
+              :aria-label="heatmapOrderLabel"
+              :title="heatmapOrderLabel"
+              :disabled="heatmapLoading"
+              @click="cycleHeatmapOrder"
+            >
+              <ArrowDownWideNarrow v-if="heatmapChangeOrder === 'desc'" aria-hidden="true" />
+              <ArrowUpNarrowWide v-else-if="heatmapChangeOrder === 'asc'" aria-hidden="true" />
+              <ArrowDownUp v-else aria-hidden="true" />
+            </button>
+            <select
+              class="mc-select"
+              aria-label="热力图指标"
+              :value="heatmapSortKey"
+              :disabled="heatmapLoading"
+              @change="reloadHeatmap(($event.target as HTMLSelectElement).value as HeatmapSortKey)"
+            >
+              <option v-for="opt in HEATMAP_SORT_OPTIONS" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+          </div>
         </div>
         <div v-if="heatmapLoading" class="mc-inline-loading">刷新中…</div>
         <div v-else class="heatmap-grid">
@@ -644,6 +680,47 @@ onUnmounted(() => {
   background: var(--card-soft);
   color: var(--text);
   max-width: 100%;
+}
+
+.heatmap-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.heatmap-order {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--card-soft);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.heatmap-order svg {
+  width: 16px;
+  height: 16px;
+}
+
+.heatmap-order:hover,
+.heatmap-order.active {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.heatmap-order:focus-visible {
+  outline: 2px solid var(--warning);
+  outline-offset: 2px;
+}
+
+.heatmap-order:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .chg-bars-wrap {
