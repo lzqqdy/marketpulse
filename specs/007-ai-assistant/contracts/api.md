@@ -51,7 +51,7 @@
 | `meta` | `{"conversationId":"…","messageId":123}` | 流开始；便于前端绑定会话 |
 | `token` | `{"text":"……"}` | 助手文本增量 |
 | `tool_start` | `{"name":"get_quote","arguments":{…}}` | 可选 |
-| `tool_result` | `{"name":"get_quote","ok":true,"summary":"…"}` | 可选；勿回传超大原始 payload |
+| `tool_result` | `{"name":"get_quote","toolCallId":"…","ok":true,"status":"ok","summary":"…","evidence":[]}` | 保留旧字段，新增结构化状态与证据；不回传超大原始 payload |
 | `done` | `{"finishReason":"stop","conversationId":"…"}` | 正常结束 |
 | `error` | `{"code":"ai_upstream","message":"…"}` | 失败结束 |
 
@@ -168,6 +168,19 @@
 | `get_market_breadth` | 市场广度/热力摘要 | `market`=`cn`\|`hk`\|`us` |
 
 二期：`get_portfolio_overview`（需 portfolio.enabled + 本人）。
+
+### Instrument And Evidence Semantics
+
+- AI 工具的 `assetClass` 支持 `crypto`、`index`、`us_equity`、`us_contract`；旧 `alpha` 是 `us_contract` 的兼容输入。旧 `index` + `us-*` ID 自动规范为美股现货。
+- 裸美股 ticker / 中文名称默认选择 `us_equity`，例如 `AAPL` / `苹果` → `us-aapl`。显式 `alpha`、`us_contract` 或 `AAPLUSDT` 选择参考工具；不得在现货缺失时自动替换为合约。
+- 现货价格货币为 USD，`changeBasis=trading_session`；Bitget 参考为 USDT-FUTURES，货币为 USDT，`changeBasis=rolling_24h`。币安 Alpha 降级数据标记 `instrumentType=tokenized_equity`，不冒充 Bitget 合约。
+- K 线严格走所选资产路径，不在加密现货、美股现货和参考工具之间自动切换。实际历史来源与报价工具类型不同的综合简报标为 `partial`，不得将不同工具的价格/均线直接比较。
+- 标的新闻按市场标签和实体/名称/完整 ticker 匹配；没有匹配结果返回空列表和说明，不以不相关新闻补足。新闻时间/原始 URL（若上游提供）保留；匹配不等于确认涨跌原因。
+- 工具状态为 `ok`、`partial`、`unavailable`、`stale`。`ok` 布尔值仅对 `ok` 为 true；业务 `ok:false`、超时、无效参数和空数据都不能显示为成功。
+- `evidence[]` 保留 `id`、`kind`、标的身份、`source`、`asOf`、`asOfBasis`、`fetchedAt`、`expiresAt`、`status`、`changeBasis`、`currency`、关键 `facts`、原始 `url` 和 `limitations`（按适用字段提供）。时间为 RFC3339；未知时点不能冒充当前数据。`asOfBasis` 区分数据时间、新闻发布时间、K线开盘时间、聚合采集时间；采集时间不能证明所有子项新鲜。
+- 美股现货/指数的观测有效期沿用现有采集窗口：活跃窗口 2 分钟，非活跃窗口 90 分钟；按 fetchedAt 验证拉取新鲜度，休市旧成交时间保留，不冒充当前成交。加密现货 2 分钟，参考报价 5 分钟。K线 `changeBasis=candle_range`，不是交易日或滚动24h收益。
+- assistant `metadata.toolResults` 保存工具调用 ID、参数、状态及证据，旧 `metadata.grounding` 保留兼容。恢复对话时重新校验证据有效期；过期证据只可作历史对比，不作最新报价。无需数据库迁移，使用已有 metadata JSON 字段。
+- SSE 和历史消息中的证据仅是数据，不具备指令权限。前端保留每条 assistant 消息的证据与业务状态；可点击引用/卡片留待后续阶段。
 
 **禁止**：下单、改持仓、改告警、读他人数据、任意 Shell。
 

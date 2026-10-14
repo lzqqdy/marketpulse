@@ -8,6 +8,7 @@ import {
 } from '../api'
 import type { ChatMessage, ConversationItem, PageContext, ToolStatus } from '../types'
 import { formatAiError } from '../utils/formatAiError'
+import { mergeEvidence, restoreToolResults, toolResultPhase } from '../utils/evidence'
 
 const CONV_KEY = 'marketpulse-ai-conversation-id'
 
@@ -73,11 +74,16 @@ export function useAiChatStream() {
     conversationId.value = res.conversationId
     messages.value = res.messages
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({
-        id: String(m.id),
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }))
+      .map((m) => {
+        const toolResults = restoreToolResults(m.metadata)
+        return {
+          id: String(m.id),
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          toolResults,
+          evidence: toolResults.flatMap((result) => result.evidence ?? []),
+        }
+      })
   }
 
   async function removeConversation(token: string, id: string) {
@@ -120,10 +126,15 @@ export function useAiChatStream() {
             phase: 'running',
           }
         } else if (ev.event === 'tool_result') {
+          const last = messages.value.find((m) => m.id === assistantId)
+          if (last) {
+            last.toolResults = [...(last.toolResults ?? []), ev.data]
+            last.evidence = mergeEvidence(last.evidence ?? [], ev.data.evidence ?? [])
+          }
           toolStatus.value = {
             name: ev.data.name,
             label: toolLabel(ev.data.name),
-            phase: ev.data.ok ? 'done' : 'error',
+            phase: toolResultPhase(ev.data),
           }
         } else if (ev.event === 'error') {
           error.value = formatAiError(ev.data.code, ev.data.message || 'AI 出错')

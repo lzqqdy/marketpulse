@@ -12,6 +12,7 @@ import {
 import { useAiChatStream } from '../composables/useAiChatStream'
 import { useDraggableFab } from '../composables/useDraggableFab'
 import { renderAssistantHtml } from '../utils/renderMarkdown'
+import { chatAssetClass } from '../utils/evidence'
 
 const {
   fabStyle,
@@ -207,7 +208,7 @@ function buildContext() {
   const fg = market.macro?.fearGreed
   return {
     focusSymbol: focus || undefined,
-    assetClass: chart.visible ? chart.kind : 'crypto',
+    assetClass: chatAssetClass(chart.visible ? chart.kind : 'crypto', focus || ''),
     page: 'dashboard',
     visibleSymbols: market.quotes.slice(0, 8).map((q) => q.symbol),
     fearGreedValue: fg?.value || undefined,
@@ -607,6 +608,8 @@ watch(
           >
             <template v-if="toolStatus.phase === 'running'">查询中：{{ toolStatus.label }}</template>
             <template v-else-if="toolStatus.phase === 'done'">已引用：{{ toolStatus.label }}</template>
+            <template v-else-if="toolStatus.phase === 'partial'">部分可用：{{ toolStatus.label }}</template>
+            <template v-else-if="toolStatus.phase === 'stale'">历史数据：{{ toolStatus.label }}</template>
             <template v-else>查询失败：{{ toolStatus.label }}</template>
           </div>
         </div>
@@ -976,6 +979,11 @@ watch(
 
 .tool-status.error {
   color: var(--up, #e74c3c);
+}
+
+.tool-status.partial,
+.tool-status.stale {
+  color: var(--warning, #f0b90b);
 }
 
 .bubble {

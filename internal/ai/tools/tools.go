@@ -15,11 +15,12 @@ import (
 
 // Registry exposes OpenAI-compatible tool definitions and executors.
 type Registry struct {
-	md marketdata.MarketDataService
+	md  marketdata.MarketDataService
+	now func() time.Time
 }
 
 func NewRegistry(md marketdata.MarketDataService) *Registry {
-	return &Registry{md: md}
+	return &Registry{md: md, now: time.Now}
 }
 
 // Definition is one tool schema for the LLM.
@@ -46,7 +47,7 @@ func (r *Registry) Definitions() []Definition {
 					"type": "object",
 					"properties": map[string]any{
 						"symbol":     map[string]any{"type": "string", "description": "如 BTC、ETH、aapl、sh000001"},
-						"assetClass": map[string]any{"type": "string", "enum": []string{"crypto", "index", "alpha"}, "description": "可省略，按符号猜测"},
+						"assetClass": map[string]any{"type": "string", "enum": []string{"crypto", "index", "us_equity", "us_contract", "alpha"}, "description": "裸美股 ticker 默认现货 us_equity；合约参考显式 us_contract；alpha 为兼容输入"},
 					},
 					"required": []string{"symbol"},
 				},
@@ -56,12 +57,12 @@ func (r *Registry) Definitions() []Definition {
 			Type: "function",
 			Function: FunctionSchema{
 				Name:        "get_quote",
-				Description: "仅取单标最新报价（加密现货/指数/美股参考）。只要价格涨跌、不要走势时用。",
+				Description: "单标报价。美股默认现货 USD / 交易日涨跌；合约参考必须指定 us_contract，返回 USDT / 滚动24h及实际工具类型。不可相互替代。",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"symbol":     map[string]any{"type": "string", "description": "e.g. BTC, BTCUSDT, aapl, sh000001"},
-						"assetClass": map[string]any{"type": "string", "enum": []string{"crypto", "index", "alpha"}},
+						"assetClass": map[string]any{"type": "string", "enum": []string{"crypto", "index", "us_equity", "us_contract", "alpha"}},
 					},
 					"required": []string{"symbol"},
 				},
@@ -100,7 +101,7 @@ func (r *Registry) Definitions() []Definition {
 			Type: "function",
 			Function: FunctionSchema{
 				Name:        "get_alpha_board",
-				Description: "美股参考/代币化股票看板（与首页 Alpha 区对齐）：指数与个股参考价、涨跌。问「美股参考/aapl/特斯拉参考价」时用。",
+				Description: "仅美股合约/代币化参考工具看板，非股票现货；保留旧工具名兼容。现货单标请用 get_quote + us_equity。",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -117,9 +118,10 @@ func (r *Registry) Definitions() []Definition {
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"symbol":   map[string]any{"type": "string"},
-						"interval": map[string]any{"type": "string", "description": "如 15m,1h,4h,1d，默认1d"},
-						"limit":    map[string]any{"type": "integer", "description": "根数，默认30，最大100"},
+						"symbol":     map[string]any{"type": "string"},
+						"assetClass": map[string]any{"type": "string", "enum": []string{"crypto", "index", "us_equity", "us_contract", "alpha"}},
+						"interval":   map[string]any{"type": "string", "description": "如 15m,1h,4h,1d，默认1d"},
+						"limit":      map[string]any{"type": "integer", "description": "根数，默认30，最大100"},
 					},
 					"required": []string{"symbol"},
 				},
@@ -133,6 +135,7 @@ func (r *Registry) Definitions() []Definition {
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
+						"assetClass": map[string]any{"type": "string", "enum": []string{"crypto", "index", "us_equity", "us_contract", "alpha"}, "description": "所有对比标的使用同一口径；不传则各自按标的推断"},
 						"symbols": map[string]any{
 							"type":        "array",
 							"items":       map[string]any{"type": "string"},
@@ -153,8 +156,10 @@ func (r *Registry) Definitions() []Definition {
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"tag":   map[string]any{"type": "string", "description": "如 币圈、A股"},
-						"limit": map[string]any{"type": "integer", "description": "默认8，最大20"},
+						"tag":        map[string]any{"type": "string", "description": "如 币圈、A股"},
+						"symbol":     map[string]any{"type": "string", "description": "可选，按标的实体/名称/ticker匹配新闻，不足不以其他标的新闻补齐"},
+						"assetClass": map[string]any{"type": "string", "enum": []string{"crypto", "index", "us_equity", "us_contract", "alpha"}},
+						"limit":      map[string]any{"type": "integer", "description": "默认8，最大20"},
 					},
 				},
 			},
@@ -181,6 +186,12 @@ func (r *Registry) Definitions() []Definition {
 
 // Execute runs a named tool and returns compact JSON text.
 func (r *Registry) Execute(ctx context.Context, name, argumentsJSON string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if r == nil || r.md == nil {
+		return "", fmt.Errorf("market data unavailable")
+	}
 	var args map[string]any
 	if strings.TrimSpace(argumentsJSON) != "" {
 		if err := json.Unmarshal([]byte(argumentsJSON), &args); err != nil {
@@ -190,6 +201,17 @@ func (r *Registry) Execute(ctx context.Context, name, argumentsJSON string) (str
 	if args == nil {
 		args = map[string]any{}
 	}
+	raw, err := r.execute(ctx, name, args)
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	if err != nil {
+		return "", err
+	}
+	return decorateResult(name, raw, r.now())
+}
+
+func (r *Registry) execute(ctx context.Context, name string, args map[string]any) (string, error) {
 	switch name {
 	case "get_symbol_brief":
 		return r.getSymbolBrief(ctx, args)
@@ -242,104 +264,6 @@ func normalizeCryptoSymbol(sym string) string {
 	return sym
 }
 
-func (r *Registry) getQuote(args map[string]any) (string, error) {
-	symbol := asString(args["symbol"])
-	if symbol == "" {
-		return marshal(map[string]any{"ok": false, "error": "symbol required"})
-	}
-	asset := strings.ToLower(asString(args["assetClass"]))
-	if asset == "" {
-		asset = r.guessAssetClass(symbol)
-	}
-	switch asset {
-	case "index":
-		q, ok := r.md.IndexQuote(strings.ToLower(symbol))
-		if !ok {
-			return marshal(map[string]any{"ok": false, "error": "index quote not found", "symbol": symbol})
-		}
-		return marshal(map[string]any{
-			"ok": true, "assetClass": "index", "id": q.ID, "name": q.Name,
-			"price": q.Price, "changePct": q.ChangePct, "source": q.Source,
-			"stale": q.Stale, "updatedAt": q.UpdatedAt,
-		})
-	case "alpha":
-		id := strings.ToLower(symbol)
-		id = strings.TrimSuffix(id, "usdt")
-		q, ok := r.md.AlphaQuote(id)
-		if !ok {
-			return marshal(map[string]any{"ok": false, "error": "alpha quote not found", "symbol": symbol})
-		}
-		out := map[string]any{
-			"ok": true, "assetClass": "alpha", "id": q.ID, "name": q.Name, "symbol": q.Symbol,
-			"price": q.Price, "changeDayPct": q.ChangeDayPct, "change24hPct": q.Change24hPct,
-			"volume": q.Volume, "category": q.Category, "source": q.Source, "updatedAt": q.UpdatedAt,
-		}
-		if q.MarkPrice > 0 {
-			out["markPrice"] = q.MarkPrice
-		}
-		if q.IndexPrice > 0 {
-			out["indexPrice"] = q.IndexPrice
-		}
-		if q.FundingRate != 0 {
-			out["fundingRate"] = q.FundingRate
-		}
-		return marshal(out)
-	default:
-		base := normalizeCryptoSymbol(symbol)
-		q, ok := r.md.Quote(base)
-		if !ok {
-			return marshal(map[string]any{"ok": false, "error": "crypto quote not found", "symbol": base})
-		}
-		out := map[string]any{
-			"ok": true, "assetClass": "crypto", "symbol": q.Symbol,
-			"priceUsdt": q.PriceUsdt, "priceCny": q.PriceCny,
-			"change24hPct": q.Change24hPct, "changeDayPct": q.ChangeDayPct, "updatedAt": q.UpdatedAt,
-		}
-		if q.Rank > 0 {
-			out["rank"] = q.Rank
-		}
-		if q.MarketCapUsd > 0 {
-			out["marketCapUsd"] = q.MarketCapUsd
-		}
-		if q.Volume24hUsd > 0 {
-			out["volume24hUsd"] = q.Volume24hUsd
-		}
-		return marshal(out)
-	}
-}
-
-func (r *Registry) guessAssetClass(symbol string) string {
-	s := strings.ToLower(strings.TrimSpace(symbol))
-	if s == "" {
-		return "crypto"
-	}
-	if strings.HasPrefix(s, "sh") || strings.HasPrefix(s, "sz") {
-		return "index"
-	}
-	switch s {
-	case "hsi", "nikkei", "dji", "ixic", "spx", "ftse", "gdaui", "ndx", "sh000001", "sz399001", "sz399006":
-		return "index"
-	}
-	if r != nil && r.md != nil {
-		if _, ok := r.md.IndexQuote(s); ok {
-			return "index"
-		}
-		alphaID := strings.TrimSuffix(s, "usdt")
-		if _, ok := r.md.AlphaQuote(alphaID); ok {
-			return "alpha"
-		}
-		base := normalizeCryptoSymbol(symbol)
-		if _, ok := r.md.Quote(base); ok {
-			return "crypto"
-		}
-		// common US tickers configured as alpha even if not yet loaded
-		if _, ok := r.md.AlphaQuote(s); ok {
-			return "alpha"
-		}
-	}
-	return "crypto"
-}
-
 func (r *Registry) getSnapshotSummary(args map[string]any) (string, error) {
 	limit := asInt(args["limit"], 5)
 	if limit <= 0 {
@@ -367,6 +291,7 @@ func (r *Registry) getSnapshotSummary(args map[string]any) (string, error) {
 	}
 	return marshal(map[string]any{
 		"ok":      true,
+		"source":  "marketdata.snapshot",
 		"ts":      snap.Ts,
 		"version": snap.Version,
 		"rates": map[string]any{
@@ -387,12 +312,17 @@ func (r *Registry) getSnapshotSummary(args map[string]any) (string, error) {
 
 func (r *Registry) getKlinesSummary(ctx context.Context, args map[string]any) (string, error) {
 	symbol := asString(args["symbol"])
-	if symbol == "" {
-		return marshal(map[string]any{"ok": false, "error": "symbol required"})
+	inst, resolveErr := r.resolveInstrument(symbol, asString(args["assetClass"]))
+	if resolveErr != nil {
+		return marshal(map[string]any{"ok": false, "error": resolveErr.Error()})
 	}
 	interval := asString(args["interval"])
 	if interval == "" {
 		interval = "1d"
+	}
+	interval, intervalErr := binance.NormalizeInterval(interval)
+	if intervalErr != nil {
+		return marshal(map[string]any{"ok": false, "error": intervalErr.Error()})
 	}
 	limit := asInt(args["limit"], 30)
 	if limit <= 0 {
@@ -401,18 +331,32 @@ func (r *Registry) getKlinesSummary(ctx context.Context, args map[string]any) (s
 	if limit > 100 {
 		limit = 100
 	}
-	base := normalizeCryptoSymbol(symbol)
-	resp, err := r.md.KlinesContext(ctx, base, interval, limit)
+	var resp marketdata.KlineResponse
+	var err error
+	if inst.Asset == "index" || inst.Asset == "us_equity" {
+		resp, err = r.md.IndexKlinesContext(ctx, inst.ID, interval, limit)
+	} else {
+		base := inst.Symbol
+		if inst.Asset == "us_contract" {
+			if q, ok := r.md.AlphaQuote(inst.ID); ok && q.Symbol != "" {
+				base = normalizeCryptoSymbol(q.Symbol)
+			}
+		}
+		resp, err = r.md.KlinesContext(ctx, base, interval, limit)
+	}
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
 	if err != nil {
-		// try index
-		idxResp, idxErr := r.md.IndexKlinesContext(ctx, strings.ToLower(symbol), interval, limit)
-		if idxErr != nil {
-			return marshal(map[string]any{"ok": false, "error": err.Error(), "symbol": symbol})
-		}
-		resp = idxResp
+		return marshal(map[string]any{"ok": false, "error": err.Error(), "symbol": symbol, "assetClass": inst.Asset})
+	}
+	resolvedResponse, responseErr := r.resolveInstrument(resp.Symbol, inst.Asset)
+	if responseErr != nil || resolvedResponse.ID != inst.ID || !strings.EqualFold(resp.Interval, interval) {
+		return marshal(map[string]any{"ok": false, "error": "kline response does not match the requested instrument", "symbol": symbol})
+	}
+	refSource := resp.Source == "bitget" || resp.Source == "binance-alpha"
+	if inst.Asset != "us_contract" && refSource || inst.Asset == "us_contract" && resp.Source == "binance" {
+		return marshal(map[string]any{"ok": false, "error": "kline source belongs to a different instrument type", "symbol": symbol})
 	}
 	if len(resp.Candles) == 0 {
 		return marshal(map[string]any{"ok": false, "error": "no candles", "symbol": resp.Symbol})
@@ -421,6 +365,11 @@ func (r *Registry) getKlinesSummary(ctx context.Context, args map[string]any) (s
 	last := resp.Candles[len(resp.Candles)-1]
 	high, low := last.High, last.Low
 	for _, c := range resp.Candles {
+		for _, price := range []float64{c.Open, c.High, c.Low, c.Close} {
+			if price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
+				return marshal(map[string]any{"ok": false, "error": "invalid candle OHLC values", "symbol": symbol})
+			}
+		}
 		if c.High > high {
 			high = c.High
 		}
@@ -482,8 +431,11 @@ func (r *Registry) getKlinesSummary(ctx context.Context, args map[string]any) (s
 		}
 	}
 
-	out := map[string]any{
-		"ok": true, "symbol": resp.Symbol, "interval": resp.Interval, "source": resp.Source,
+	out := inst.fields(resp.Source)
+	out["changeBasis"] = "candle_range"
+	for key, value := range map[string]any{
+		"ok": true, "interval": resp.Interval, "source": resp.Source, "pair": resp.Pair,
+		"fetchedAt": r.now(), "lastCandleClosed": last.Closed,
 		"candleCount":      len(resp.Candles),
 		"open":             first.Open,
 		"close":            last.Close,
@@ -496,6 +448,14 @@ func (r *Registry) getKlinesSummary(ctx context.Context, args map[string]any) (s
 		"rangePosition":    round2(rangePos),
 		"firstOpenTime":    first.Time,
 		"lastOpenTime":     last.Time,
+	} {
+		out[key] = value
+	}
+	if inst.Asset == "us_contract" {
+		out["limitations"] = []string{"历史参考工具须按实际 source / instrumentType 解读；不可当作股票现货"}
+	}
+	if !last.Closed {
+		out["limitations"] = append(asStringSlice(out["limitations"]), "最新K线未确认收盘，价格和量能仍可能变化")
 	}
 	if sma7 > 0 {
 		out["sma7"] = round2(sma7)
@@ -544,114 +504,80 @@ func avgVolume(candles []binance.Candle, endExclusive int) float64 {
 }
 
 func (r *Registry) getSymbolBrief(ctx context.Context, args map[string]any) (string, error) {
-	symbol := asString(args["symbol"])
-	if symbol == "" {
-		return marshal(map[string]any{"ok": false, "error": "symbol required"})
-	}
-	asset := strings.ToLower(asString(args["assetClass"]))
-	if asset == "" {
-		asset = r.guessAssetClass(symbol)
-	}
-
-	quoteRaw, err := r.getQuote(args)
+	inst, err := r.resolveInstrument(asString(args["symbol"]), asString(args["assetClass"]))
 	if err != nil {
-		return "", err
+		return marshal(map[string]any{"ok": false, "error": err.Error()})
 	}
-	var quoteObj map[string]any
-	_ = json.Unmarshal([]byte(quoteRaw), &quoteObj)
-
-	klineArgs := map[string]any{"symbol": symbol, "interval": "1d", "limit": 30}
-	if asset != "" {
-		klineArgs["assetClass"] = asset
-	}
-	klineRaw, err := r.getKlinesSummary(ctx, klineArgs)
-	if err != nil {
-		klineRaw = `{"ok":false,"error":"klines unavailable"}`
-	}
-	var klineObj map[string]any
-	_ = json.Unmarshal([]byte(klineRaw), &klineObj)
-
-	newsTag := "币圈"
-	if asset == "index" {
-		newsTag = "A股"
-	}
-	newsRaw, err := r.getExpressNews(ctx, map[string]any{"tag": newsTag, "limit": 3})
-	if err != nil {
-		newsRaw = `{"ok":false,"error":"news unavailable"}`
-	}
-	var newsObj map[string]any
-	_ = json.Unmarshal([]byte(newsRaw), &newsObj)
-	if items, ok := newsObj["items"].([]any); ok && len(items) > 3 {
-		newsObj["items"] = items[:3]
-	}
-
-	return marshal(map[string]any{
-		"ok":         true,
-		"symbol":     symbol,
-		"assetClass": asset,
-		"quote":      quoteObj,
-		"kline1d":    klineObj,
-		"news":       newsObj,
+	out := r.symbolData(ctx, args, inst)
+	newsRaw, newsErr := r.getExpressNews(ctx, map[string]any{
+		"symbol": asString(args["symbol"]), "assetClass": inst.Asset, "limit": 3,
 	})
+	out["news"] = resultObject(newsRaw, newsErr)
+	return marshal(out)
+}
+
+func resultObject(raw string, err error) map[string]any {
+	if err != nil {
+		return map[string]any{"ok": false, "error": err.Error()}
+	}
+	var out map[string]any
+	if json.Unmarshal([]byte(raw), &out) != nil || out == nil {
+		return map[string]any{"ok": false, "error": "invalid tool result"}
+	}
+	return out
+}
+
+func (r *Registry) symbolData(ctx context.Context, args map[string]any, inst instrument) map[string]any {
+	quoteRaw, quoteErr := r.getQuote(args)
+	quote := resultObject(quoteRaw, quoteErr)
+	klineRaw, klineErr := r.getKlinesSummary(ctx, map[string]any{
+		"symbol": asString(args["symbol"]), "assetClass": inst.Asset, "interval": "1d", "limit": 30,
+	})
+	kline := resultObject(klineRaw, klineErr)
+	out := map[string]any{"ok": true, "symbol": inst.Symbol, "assetClass": inst.Asset, "quote": quote, "kline1d": kline}
+	if quote["instrumentType"] != nil && kline["instrumentType"] != nil && quote["instrumentType"] != kline["instrumentType"] {
+		out["partial"] = true
+		out["limitations"] = []string{"报价与历史K线属于不同参考工具，不得直接比较价格、均线或合并涨跌幅"}
+	}
+	return out
 }
 
 func (r *Registry) compareSymbols(ctx context.Context, args map[string]any) (string, error) {
-	_ = ctx
 	syms := asStringSlice(args["symbols"])
-	if len(syms) < 2 {
-		return marshal(map[string]any{"ok": false, "error": "symbols requires 2–5 items"})
-	}
-	if len(syms) > 5 {
-		syms = syms[:5]
+	if len(syms) < 2 || len(syms) > 5 {
+		return marshal(map[string]any{"ok": false, "error": "symbols requires 2-5 items"})
 	}
 	items := make([]map[string]any, 0, len(syms))
+	bases, currencies := map[string]bool{}, map[string]bool{}
 	for _, sym := range syms {
-		sym = strings.TrimSpace(sym)
-		if sym == "" {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		inst, err := r.resolveInstrument(sym, asString(args["assetClass"]))
+		if err != nil {
+			items = append(items, map[string]any{"ok": false, "symbol": sym, "error": err.Error()})
 			continue
 		}
-		asset := r.guessAssetClass(sym)
-		quoteRaw, _ := r.getQuote(map[string]any{"symbol": sym, "assetClass": asset})
-		var quoteObj map[string]any
-		_ = json.Unmarshal([]byte(quoteRaw), &quoteObj)
-
-		klineRaw, _ := r.getKlinesSummary(ctx, map[string]any{"symbol": sym, "interval": "1d", "limit": 30})
-		var klineObj map[string]any
-		_ = json.Unmarshal([]byte(klineRaw), &klineObj)
-
-		row := map[string]any{
-			"symbol":     sym,
-			"assetClass": asset,
-			"quote":      quoteObj,
-			"kline1d":    klineObj,
-		}
-		if quoteObj["ok"] == true {
-			switch asset {
-			case "crypto":
-				row["change24hPct"] = quoteObj["change24hPct"]
-				row["price"] = quoteObj["priceUsdt"]
-			case "index":
-				row["changePct"] = quoteObj["changePct"]
-				row["price"] = quoteObj["price"]
-			case "alpha":
-				row["changeDayPct"] = quoteObj["changeDayPct"]
-				row["price"] = quoteObj["price"]
+		row := r.symbolData(ctx, map[string]any{"symbol": sym, "assetClass": inst.Asset}, inst)
+		quote := row["quote"].(map[string]any)
+		if quote["ok"] == true {
+			bases[asString(quote["changeBasis"])], currencies[asString(quote["currency"])] = true, true
+			row["price"] = quote["price"]
+			if inst.Asset == "crypto" {
+				row["price"] = quote["priceUsdt"]
 			}
-		}
-		if klineObj["ok"] == true {
-			row["rangeChangePct"] = klineObj["rangeChangePct"]
-			row["closeVsSma7"] = klineObj["closeVsSma7"]
-			row["closeVsSma30"] = klineObj["closeVsSma30"]
-			row["volumeNote"] = klineObj["volumeNote"]
-			row["nearRangeHigh"] = klineObj["nearRangeHigh"]
-			row["nearRangeLow"] = klineObj["nearRangeLow"]
+			row["changeBasis"] = quote["changeBasis"]
+			row["currency"] = quote["currency"]
+			row["changePct"], row["change24hPct"] = quote["changePct"], quote["change24hPct"]
 		}
 		items = append(items, row)
 	}
-	if len(items) < 2 {
-		return marshal(map[string]any{"ok": false, "error": "need at least 2 valid symbols"})
+	out := map[string]any{"ok": true, "count": len(items), "items": items}
+	if len(bases) > 1 || len(currencies) > 1 {
+		out["partial"] = true
+		out["limitations"] = []string{"报价货币或涨跌周期不同，仅逐项展示；不得直接按这些涨跌幅排名，也不得假设 USD 与 USDT 等值"}
 	}
-	return marshal(map[string]any{"ok": true, "count": len(items), "items": items})
+	return marshal(out)
 }
 
 // CompactBoardBriefing builds a short live board text for page_context (server-side).
@@ -725,48 +651,6 @@ func asStringSlice(v any) []string {
 	default:
 		return nil
 	}
-}
-
-func (r *Registry) getExpressNews(ctx context.Context, args map[string]any) (string, error) {
-	_ = ctx
-	tag := asString(args["tag"])
-	limit := asInt(args["limit"], 8)
-	if limit <= 0 {
-		limit = 8
-	}
-	if limit > 20 {
-		limit = 20
-	}
-	resp, err := r.md.ExpressNews(tag, 1, limit, 0)
-	if err != nil {
-		return marshal(map[string]any{"ok": false, "error": err.Error()})
-	}
-	items := make([]map[string]any, 0, len(resp.Items))
-	for _, it := range resp.Items {
-		body := it.Body
-		if len([]rune(body)) > 120 {
-			body = string([]rune(body)[:120]) + "…"
-		}
-		items = append(items, map[string]any{
-			"title": it.Title, "body": body, "publishTime": it.PublishTime,
-			"tag": it.Tag, "important": it.Important,
-		})
-		if len(it.Entities) > 0 {
-			ents := make([]map[string]any, 0, len(it.Entities))
-			for _, e := range it.Entities {
-				if len(ents) >= 3 {
-					break
-				}
-				ents = append(ents, map[string]any{
-					"code": e.Code, "name": e.Name, "changePct": e.ChangePct, "price": e.Price,
-				})
-			}
-			items[len(items)-1]["entities"] = ents
-		}
-	}
-	return marshal(map[string]any{
-		"ok": true, "tag": resp.Tag, "source": resp.Source, "fetchedAt": resp.FetchedAt, "items": items,
-	})
 }
 
 func (r *Registry) getMarketBreadth(ctx context.Context, args map[string]any) (string, error) {
@@ -875,8 +759,9 @@ func (r *Registry) getMacroMetrics(args map[string]any) (string, error) {
 	snap := r.md.Snapshot()
 	m := snap.Macro
 	return marshal(map[string]any{
-		"ok": true,
-		"ts": snap.Ts,
+		"ok":     true,
+		"source": "marketdata.snapshot",
+		"ts":     snap.Ts,
 		"rates": map[string]any{
 			"usdtCny":   snap.Rates.USDTCNY,
 			"usdCny":    snap.Rates.USDCNY,
@@ -930,13 +815,11 @@ func (r *Registry) getIndexBoard(args map[string]any) (string, error) {
 	snap := r.md.Snapshot()
 	items := make([]map[string]any, 0, len(snap.Indices))
 	for _, q := range snap.Indices {
-		items = append(items, map[string]any{
-			"id": q.ID, "name": q.Name, "price": q.Price, "changePct": q.ChangePct,
-			"source": q.Source, "stale": q.Stale, "updatedAt": q.UpdatedAt,
-		})
+		raw, err := r.getQuote(map[string]any{"symbol": q.ID, "assetClass": "index"})
+		items = append(items, resultObject(raw, err))
 	}
 	return marshal(map[string]any{
-		"ok": true, "count": len(items), "items": items, "ts": snap.Ts,
+		"ok": len(items) > 0, "count": len(items), "items": items, "ts": snap.Ts,
 	})
 }
 
@@ -949,11 +832,8 @@ func (r *Registry) getAlphaBoard(args map[string]any) (string, error) {
 	pack := func(list []marketdata.AlphaQuote) []map[string]any {
 		out := make([]map[string]any, 0, len(list))
 		for _, q := range list {
-			out = append(out, map[string]any{
-				"id": q.ID, "name": q.Name, "symbol": q.Symbol, "price": q.Price,
-				"changeDayPct": q.ChangeDayPct, "change24hPct": q.Change24hPct,
-				"volume": q.Volume, "category": q.Category, "updatedAt": q.UpdatedAt,
-			})
+			raw, err := r.getQuote(map[string]any{"symbol": q.ID, "assetClass": "us_contract"})
+			out = append(out, resultObject(raw, err))
 		}
 		return out
 	}
@@ -971,6 +851,10 @@ func (r *Registry) getAlphaBoard(args map[string]any) (string, error) {
 		out["indices"] = pack(snap.Alpha.Indices)
 		out["stocks"] = pack(snap.Alpha.Stocks)
 		out["count"] = len(snap.Alpha.Indices) + len(snap.Alpha.Stocks)
+	}
+	if out["count"] == 0 {
+		out["ok"] = false
+		out["error"] = "US reference board unavailable"
 	}
 	return marshal(out)
 }

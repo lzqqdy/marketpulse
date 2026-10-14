@@ -3,8 +3,10 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
@@ -15,18 +17,25 @@ import (
 )
 
 type stubMD struct {
-	quote     marketdata.Quote
-	ok        bool
-	newsRN    int
-	klines    marketdata.KlineResponse
-	center    marketcenter.CenterResponse
-	indices   []marketdata.IndexQuote
-	alphaIdx  []marketdata.AlphaQuote
-	alphaStk  []marketdata.AlphaQuote
-	macro     store.MacroSnapshot
-	rates     store.Rates
-	indexByID map[string]marketdata.IndexQuote
-	alphaByID map[string]marketdata.AlphaQuote
+	quote         marketdata.Quote
+	ok            bool
+	newsRN        int
+	klines        marketdata.KlineResponse
+	center        marketcenter.CenterResponse
+	indices       []marketdata.IndexQuote
+	alphaIdx      []marketdata.AlphaQuote
+	alphaStk      []marketdata.AlphaQuote
+	macro         store.MacroSnapshot
+	rates         store.Rates
+	indexByID     map[string]marketdata.IndexQuote
+	alphaByID     map[string]marketdata.AlphaQuote
+	quoteBySymbol map[string]marketdata.Quote
+	indexKlines   marketdata.KlineResponse
+	klineErr      error
+	indexKlineErr error
+	klineCalls    []string
+	newsResponse  *expressnews.Response
+	newsTag       string
 }
 
 func (s *stubMD) Start(ctx context.Context) {}
@@ -37,6 +46,7 @@ func (s *stubMD) Snapshot() marketdata.Snapshot {
 		macro.FearGreed = store.FearGreed{Value: 40, Label: "Fear"}
 	}
 	return marketdata.Snapshot{
+		Ts:      time.Now().UnixMilli(),
 		Quotes:  quotes,
 		Rates:   s.rates,
 		Indices: s.indices,
@@ -45,6 +55,10 @@ func (s *stubMD) Snapshot() marketdata.Snapshot {
 	}
 }
 func (s *stubMD) Quote(symbol string) (marketdata.Quote, bool) {
+	if s.quoteBySymbol != nil {
+		q, ok := s.quoteBySymbol[symbol]
+		return q, ok
+	}
 	return s.quote, s.ok && s.quote.Symbol == symbol
 }
 func (s *stubMD) IndexQuote(id string) (marketdata.IndexQuote, bool) {
@@ -88,7 +102,8 @@ func (s *stubMD) ServeStreamWS(conn *websocket.Conn, channels string) {}
 func (s *stubMD) ServeKlineWS(conn *websocket.Conn, symbol, interval string) {
 }
 func (s *stubMD) Klines(symbol, interval string, limit int) (marketdata.KlineResponse, error) {
-	return s.klines, nil
+	s.klineCalls = append(s.klineCalls, "reference:"+symbol)
+	return s.klines, s.klineErr
 }
 func (s *stubMD) KlinesContext(ctx context.Context, symbol, interval string, limit int) (marketdata.KlineResponse, error) {
 	if ctx.Err() != nil {
@@ -103,7 +118,8 @@ func (s *stubMD) IndexKlinesContext(ctx context.Context, id, interval string, li
 	return s.IndexKlines(id, interval, limit)
 }
 func (s *stubMD) IndexKlines(id, interval string, limit int) (marketdata.KlineResponse, error) {
-	return marketdata.KlineResponse{}, nil
+	s.klineCalls = append(s.klineCalls, "index:"+id)
+	return s.indexKlines, s.indexKlineErr
 }
 func (s *stubMD) MarketCenter(market string) (marketcenter.CenterResponse, error) {
 	s.center.Market = market
@@ -114,11 +130,15 @@ func (s *stubMD) MarketCenterHeatmap(market, sortKey string) (marketcenter.Heatm
 }
 func (s *stubMD) ExpressNews(tag string, pn, rn, filterByUserStocks int) (expressnews.Response, error) {
 	s.newsRN = rn
+	s.newsTag = tag
+	if s.newsResponse != nil {
+		return *s.newsResponse, nil
+	}
 	items := make([]expressnews.NewsItem, 0, rn)
 	for i := 0; i < rn; i++ {
-		items = append(items, expressnews.NewsItem{Title: "t", Body: "b"})
+		items = append(items, expressnews.NewsItem{ID: fmt.Sprint(i), Title: fmt.Sprintf("BTC 新闻 %d", i), Body: "b", PublishTime: time.Now().Unix()})
 	}
-	return expressnews.Response{Tag: tag, Items: items, Source: "stub"}, nil
+	return expressnews.Response{Tag: tag, Items: items, Source: "stub", FetchedAt: time.Now().Unix()}, nil
 }
 
 func TestGetQuoteCrypto(t *testing.T) {
@@ -128,6 +148,7 @@ func TestGetQuoteCrypto(t *testing.T) {
 			Symbol:       "BTC",
 			PriceUsdt:    100000,
 			Change24hPct: 1.5,
+			UpdatedAt:    time.Now(),
 		},
 	})
 	out, err := reg.Execute(context.Background(), "get_quote", `{"symbol":"BTCUSDT"}`)
@@ -220,6 +241,7 @@ func TestCompareSymbols(t *testing.T) {
 			Symbol:       "BTC",
 			PriceUsdt:    100000,
 			Change24hPct: 1.5,
+			UpdatedAt:    time.Now(),
 		},
 		klines: marketdata.KlineResponse{
 			Symbol:   "BTC",
@@ -236,7 +258,7 @@ func TestCompareSymbols(t *testing.T) {
 	}
 	var m map[string]any
 	_ = json.Unmarshal([]byte(out), &m)
-	if m["ok"] != true {
+	if m["ok"] != false || m["status"] != "partial" {
 		t.Fatalf("%s", out)
 	}
 	items, _ := m["items"].([]any)
@@ -285,6 +307,7 @@ func TestSymbolBrief(t *testing.T) {
 			Symbol:       "BTC",
 			PriceUsdt:    100000,
 			Change24hPct: 1.5,
+			UpdatedAt:    time.Now(),
 		},
 		klines: marketdata.KlineResponse{
 			Symbol:   "BTC",
@@ -389,13 +412,13 @@ func TestIndexAndAlphaBoard(t *testing.T) {
 		t.Fatalf("stocks=%d", len(stocks))
 	}
 
-	out, err = reg.Execute(context.Background(), "get_quote", `{"symbol":"aapl"}`)
+	out, err = reg.Execute(context.Background(), "get_quote", `{"symbol":"aapl","assetClass":"alpha"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = json.Unmarshal([]byte(out), &m)
-	if m["assetClass"] != "alpha" {
-		t.Fatalf("expected alpha, got %v (%s)", m["assetClass"], out)
+	if m["assetClass"] != "us_contract" {
+		t.Fatalf("expected canonical us_contract, got %v (%s)", m["assetClass"], out)
 	}
 }
 

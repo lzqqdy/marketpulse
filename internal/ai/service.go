@@ -122,8 +122,8 @@ func (h streamHandler) OnToolStart(name, arguments string) error {
 	return h.emit(StreamEvent{Event: "tool_start", Data: map[string]string{"name": name, "arguments": arguments}})
 }
 
-func (h streamHandler) OnToolResult(name string, ok bool, summary string) error {
-	return h.emit(StreamEvent{Event: "tool_result", Data: map[string]any{"name": name, "ok": ok, "summary": summary}})
+func (h streamHandler) OnToolResult(result agent.ToolGrounding) error {
+	return h.emit(StreamEvent{Event: "tool_result", Data: result})
 }
 
 func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit func(StreamEvent) error) error {
@@ -173,16 +173,7 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 	}
 	hist := make([]agent.HistoryMessage, 0, len(history))
 	for _, m := range history {
-		hm := agent.HistoryMessage{Role: m.Role, Content: m.Content}
-		if m.Role == "assistant" && len(m.Metadata) > 0 {
-			var meta struct {
-				Grounding string `json:"grounding"`
-			}
-			if json.Unmarshal(m.Metadata, &meta) == nil {
-				hm.Grounding = meta.Grounding
-			}
-		}
-		hist = append(hist, hm)
+		hist = append(hist, historyMessage(m))
 	}
 
 	var meta json.RawMessage
@@ -239,12 +230,8 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 			"message": runErr.Error(),
 		}})
 		text = ensureDisclaimer(text)
-		if strings.TrimSpace(text) != "" {
-			assistMeta, _ := json.Marshal(map[string]any{
-				"incomplete": true,
-				"model":      s.cfg.Model,
-				"grounding":  compactGrounding(result.Groundings),
-			})
+		if strings.TrimSpace(text) != "" || len(result.Groundings) > 0 {
+			assistMeta, _ := assistantMetadata(result, s.cfg.Model, true)
 			_, _ = s.repo.AppendMessage(ctx, conv.ID, "assistant", text, assistMeta)
 		}
 		return fmt.Errorf("%w: %v", ErrUpstream, runErr)
@@ -255,11 +242,10 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 		text += extra
 	}
 
-	assistMeta, _ := json.Marshal(map[string]any{
-		"finishReason": "stop",
-		"model":        s.cfg.Model,
-		"grounding":    compactGrounding(result.Groundings),
-	})
+	assistMeta, metaErr := assistantMetadata(result, s.cfg.Model, false)
+	if metaErr != nil {
+		return metaErr
+	}
 	_, err = s.repo.AppendMessage(ctx, conv.ID, "assistant", text, assistMeta)
 	if err != nil {
 		return err
