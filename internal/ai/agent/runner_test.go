@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,9 +40,10 @@ func (m *runnerMarket) IndexKlinesContext(ctx context.Context, id, interval stri
 type collectedEvents struct {
 	records  []ToolGrounding
 	startErr error
+	tokens   []string
 }
 
-func (h *collectedEvents) OnToken(text string) error                { return nil }
+func (h *collectedEvents) OnToken(text string) error                { h.tokens = append(h.tokens, text); return nil }
 func (h *collectedEvents) OnToolStart(name, arguments string) error { return h.startErr }
 func (h *collectedEvents) OnToolResult(record ToolGrounding) error {
 	h.records = append(h.records, record)
@@ -118,6 +120,7 @@ func TestRunnerPropagatesToolBusinessStatus(t *testing.T) {
 
 func TestRunnerStopsWhenClientCannotReceiveToolStart(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": llm.Message{Role: "assistant", ToolCalls: []llm.ToolCall{{ID: "call", Function: llm.ToolFunction{Name: "get_quote", Arguments: `{"symbol":"AAPL"}`}}}}, "finish_reason": "tool_calls"}}})
 	}))
 	defer server.Close()
@@ -171,5 +174,60 @@ func TestHistoryEvidenceHasAGlobalBudgetAndPrefersRecentMessages(t *testing.T) {
 	}
 	if len(selected[2]) > budget {
 		t.Fatal("global budget exceeded")
+	}
+}
+
+func TestRunnerStreamsToolLoopAndDisablesToolsAtRoundLimit(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Stream   bool                 `json:"stream"`
+			Tools    []llm.ToolDefinition `json:"tools"`
+			Messages []llm.Message        `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !body.Stream {
+			t.Error("every tool round must stream")
+		}
+		calls++
+		w.Header().Set("Content-Type", "text/event-stream")
+		if calls == 1 {
+			if len(body.Tools) == 0 {
+				t.Error("first round missing tools")
+			}
+			fmt.Fprint(w, `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","function":{"name":"get_quote","arguments":"{\"symbol\":\"AAPL\"}"}}]},"finish_reason":"tool_calls"}]}`+"\n\ndata: [DONE]\n\n")
+		} else {
+			if len(body.Tools) != 0 {
+				t.Error("tool limit not enforced")
+			}
+			found := false
+			for _, message := range body.Messages {
+				found = found || message.Role == "tool" && strings.Contains(message.Content, "unavailable")
+			}
+			if !found {
+				t.Error("missing tool evidence/status")
+			}
+			fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"暂无"}}]}`+"\n\n"+`data: {"choices":[{"delta":{"content":"报价"},"finish_reason":"stop"}]}`+"\n\ndata: [DONE]\n\n")
+		}
+	}))
+	defer server.Close()
+	runner := Runner{LLM: llm.New(server.URL, "test", "test", time.Second), Tools: tools.NewRegistry(&runnerMarket{}), MaxToolRounds: 1}
+	h := &collectedEvents{}
+	result, err := runner.RunChat(context.Background(), nil, "苹果", nil, h)
+	if err != nil || calls != 2 || result.Text != "暂无报价" || len(h.tokens) != 2 || len(result.Groundings) != 1 {
+		t.Fatalf("%+v %v %v", result, h.tokens, err)
+	}
+}
+
+func TestRunnerKeepsPartialTextOnStreamInterruption(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"部分回答"}}]}`+"\n\n")
+	}))
+	defer server.Close()
+	runner := Runner{LLM: llm.New(server.URL, "test", "test", time.Second), Tools: tools.NewRegistry(&runnerMarket{})}
+	h := &collectedEvents{}
+	result, err := runner.RunChat(context.Background(), nil, "苹果", nil, h)
+	if err == nil || result.Text != "部分回答" || strings.Join(h.tokens, "") != result.Text {
+		t.Fatalf("%+v %v", result, err)
 	}
 }

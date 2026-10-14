@@ -19,6 +19,7 @@ type ChatRequest struct {
 	ConversationID string       `json:"conversationId"`
 	Message        string       `json:"message"`
 	Context        *PageContext `json:"context,omitempty"`
+	TemplateID     string       `json:"templateId,omitempty"`
 }
 
 // Conversation is a chat thread owned by a user.

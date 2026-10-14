@@ -8,6 +8,7 @@ import type {
   PageContext,
 } from './types'
 import { formatAiError } from './utils/formatAiError'
+import { readChatEvents } from './utils/stream'
 
 async function parseError(res: Response): Promise<string> {
   const body = await res.json().catch(() => ({}))
@@ -42,37 +43,7 @@ export async function* streamChat(
     throw new Error('浏览器不支持流式响应')
   }
 
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let eventName = 'message'
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const parts = buffer.split('\n')
-    buffer = parts.pop() ?? ''
-    for (const rawLine of parts) {
-      const line = rawLine.replace(/\r$/, '')
-      if (line.startsWith('event:')) {
-        eventName = line.slice(6).trim()
-        continue
-      }
-      if (line.startsWith('data:')) {
-        const dataStr = line.slice(5).trim()
-        try {
-          const data = JSON.parse(dataStr)
-          yield { event: eventName, data } as AiStreamEvent
-        } catch {
-          /* ignore */
-        }
-        eventName = 'message'
-        continue
-      }
-      if (line === '') eventName = 'message'
-    }
-  }
+  yield* readChatEvents(res.body, signal)
 }
 
 export async function listConversations(

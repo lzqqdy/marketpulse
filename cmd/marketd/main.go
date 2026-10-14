@@ -10,17 +10,17 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/lzqqdy/marketpulse/internal/config"
-	"github.com/lzqqdy/marketpulse/internal/logging"
 	"github.com/lzqqdy/marketpulse/internal/admin"
-	"github.com/lzqqdy/marketpulse/internal/alerts"
 	"github.com/lzqqdy/marketpulse/internal/ai"
+	"github.com/lzqqdy/marketpulse/internal/alerts"
+	"github.com/lzqqdy/marketpulse/internal/config"
 	"github.com/lzqqdy/marketpulse/internal/event"
-	"github.com/lzqqdy/marketpulse/internal/portfolio"
+	"github.com/lzqqdy/marketpulse/internal/logging"
 	"github.com/lzqqdy/marketpulse/internal/marketdata"
 	platformmysql "github.com/lzqqdy/marketpulse/internal/platform/mysql"
 	platformredis "github.com/lzqqdy/marketpulse/internal/platform/redis"
 	"github.com/lzqqdy/marketpulse/internal/platform/upload"
+	"github.com/lzqqdy/marketpulse/internal/portfolio"
 	"github.com/lzqqdy/marketpulse/internal/server"
 	"github.com/lzqqdy/marketpulse/internal/users"
 )
@@ -142,24 +142,6 @@ func main() {
 		}
 	}
 
-	var aiSvc ai.Service
-	if cfg.AI.Enabled {
-		aiSvc, err = ai.Bootstrap(ctx, ai.BootstrapArgs{
-			AI:         cfg.AI,
-			DB:         db,
-			Redis:      rdb,
-			MarketData: marketData,
-			Users:      userSvc,
-		})
-		if err != nil {
-			slog.Error("bootstrap ai", "err", err)
-			os.Exit(1)
-		}
-		if aiSvc != nil && aiSvc.Enabled() {
-			slog.Info("ai module enabled", "model", cfg.AI.Model)
-		}
-	}
-
 	var eventSvc event.Service
 	if cfg.Event.Enabled {
 		eventSvc, err = event.Bootstrap(ctx, event.BootstrapArgs{
@@ -174,6 +156,21 @@ func main() {
 		if eventSvc != nil && eventSvc.Enabled() {
 			eventSvc.Start(ctx)
 			slog.Info("event module enabled", "symbols", cfg.Event.Symbols)
+		}
+	}
+
+	var aiSvc ai.Service
+	if cfg.AI.Enabled {
+		aiSvc, err = ai.Bootstrap(ctx, ai.BootstrapArgs{
+			AI: cfg.AI, DB: db, Redis: rdb, MarketData: marketData, Users: userSvc,
+			Portfolio: portfolioSvc, Events: eventSvc,
+		})
+		if err != nil {
+			slog.Error("bootstrap ai", "err", err)
+			os.Exit(1)
+		}
+		if aiSvc != nil && aiSvc.Enabled() {
+			slog.Info("ai module enabled", "model", cfg.AI.Model)
 		}
 	}
 

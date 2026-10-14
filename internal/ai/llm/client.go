@@ -1,7 +1,6 @@
 package llm
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -81,16 +80,6 @@ type chatResponse struct {
 	} `json:"error,omitempty"`
 }
 
-type streamChunk struct {
-	Choices []struct {
-		Delta struct {
-			Content   string     `json:"content"`
-			ToolCalls []ToolCall `json:"tool_calls"`
-		} `json:"delta"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-}
-
 // Chat completes one non-streaming turn (used for tool loops).
 func (c *Client) Chat(ctx context.Context, messages []Message, tools []ToolDefinition) (Message, string, error) {
 	reqBody := chatRequest{
@@ -117,64 +106,10 @@ func (c *Client) Chat(ctx context.Context, messages []Message, tools []ToolDefin
 	return resp.Choices[0].Message, resp.Choices[0].FinishReason, nil
 }
 
-// ChatStream streams assistant text tokens (no tools).
+// ChatStream streams an assistant answer without tools.
 func (c *Client) ChatStream(ctx context.Context, messages []Message, onToken func(string) error) (string, error) {
-	reqBody := chatRequest{
-		Model:    c.model,
-		Messages: messages,
-		Stream:   true,
-		Thinking: &thinkingCfg{Type: "disabled"},
-	}
-	httpReq, err := c.newRequest(ctx, reqBody)
-	if err != nil {
-		return "", err
-	}
-	res, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return "", fmt.Errorf("llm stream: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode >= 300 {
-		b, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return "", fmt.Errorf("llm stream http %d: %s", res.StatusCode, string(b))
-	}
-	reader := bufio.NewReader(res.Body)
-	var full strings.Builder
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return full.String(), err
-		}
-		line = strings.TrimSpace(line)
-		if line == "" || !strings.HasPrefix(line, "data:") {
-			continue
-		}
-		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-		if data == "[DONE]" {
-			break
-		}
-		var chunk streamChunk
-		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue
-		}
-		if len(chunk.Choices) == 0 {
-			continue
-		}
-		tok := chunk.Choices[0].Delta.Content
-		if tok == "" {
-			continue
-		}
-		full.WriteString(tok)
-		if onToken != nil {
-			if err := onToken(tok); err != nil {
-				return full.String(), err
-			}
-		}
-	}
-	return full.String(), nil
+	msg, _, err := c.StreamTurn(ctx, messages, nil, onToken)
+	return msg.Content, err
 }
 
 func (c *Client) doJSON(ctx context.Context, body chatRequest) ([]byte, error) {

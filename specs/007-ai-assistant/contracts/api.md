@@ -1,6 +1,6 @@
 # Contract: AI Assistant API
 
-**Status**: Implemented（一期，2026-07-23）
+**Status**: Implemented（一期 + 二期对话体验，2026-10-14）
 
 **Feature**: `007-ai-assistant`  
 **Base**: `/api/v1/ai`  
@@ -41,6 +41,7 @@
 | `message` | 是 | 非空，长度上限实现定（建议 ≤ 4000 字） |
 | `conversationId` | 否 | 缺省则创建新会话 |
 | `context` | 否 | 页面上下文；见 spec |
+| `templateId` | 否 | `market_brief` / `symbol_review` / `comparison` / `portfolio_review` / `event_review`；未知值返回 400，不影响普通对话 |
 
 **Response**：`Content-Type: text/event-stream`
 
@@ -50,7 +51,7 @@
 |-------|-----------|------|
 | `meta` | `{"conversationId":"…","messageId":123}` | 流开始；便于前端绑定会话 |
 | `token` | `{"text":"……"}` | 助手文本增量 |
-| `tool_start` | `{"name":"get_quote","arguments":{…}}` | 可选 |
+| `tool_start` | `{"name":"get_quote","toolCallId":"…","arguments":"{…}"}` | 开始执行工具，参数为 JSON 字符串；ID 与结果关联 |
 | `tool_result` | `{"name":"get_quote","toolCallId":"…","ok":true,"status":"ok","summary":"…","evidence":[]}` | 保留旧字段，新增结构化状态与证据；不回传超大原始 payload |
 | `done` | `{"finishReason":"stop","conversationId":"…"}` | 正常结束 |
 | `error` | `{"code":"ai_upstream","message":"…"}` | 失败结束 |
@@ -167,7 +168,15 @@
 | `get_express_news` | 快讯列表摘要 | `tag?`, `limit` |
 | `get_market_breadth` | 市场广度/热力摘要 | `market`=`cn`\|`hk`\|`us` |
 
-二期：`get_portfolio_overview`（需 portfolio.enabled + 本人）。
+二期新增 `get_portfolio_overview`（无参数，只读本人资产概览及最多20条持仓）和 `get_market_events`（可选 symbol/limit/hours，最近24小时，最多10条）。依赖关闭/未登录/工具报错返回 unavailable；资产工具身份由已认证请求绑定，工具参数不能指定 userId。不得调用模块写接口。
+
+### Streaming And Presentation
+
+- 工具循环每一轮使用上游 `stream=true`；文本片段即时转发，按 index 拼装工具参数后执行工具，不把整段答案人工拆成假流式。兼容网关若忽略流式并返回 JSON，可降级但不能保证增量。
+- 上游解析错误、断流、length/content_filter 等非正常结束发 error，保留已输出内容，不发成功 done。达到工具轮次上限时禁用工具，基于已有证据总结。
+- `tool_result.durationMs` 为工具耗时；前端在每条 assistant 消息内保留工具时间线，断流/取消未完成查询标记为中断，不残留 running。
+- 数字结论引用工具 evidence ID，格式 `[证据:ev_...]`；前端只将该条回答已知 evidence ID 转换为按钮，未知引用不具备可点击的证据身份。证据详情显示事实、来源、数据时点/时间口径、货币/涨跌口径、有效性和限制；外链仅允许 HTTP(S)。
+- 模板只控制回答组织，不允许降低身份、数据口径或证据要求。模板被保存到用户消息 metadata，不新增表或迁移。
 
 ### Instrument And Evidence Semantics
 
@@ -180,7 +189,7 @@
 - `evidence[]` 保留 `id`、`kind`、标的身份、`source`、`asOf`、`asOfBasis`、`fetchedAt`、`expiresAt`、`status`、`changeBasis`、`currency`、关键 `facts`、原始 `url` 和 `limitations`（按适用字段提供）。时间为 RFC3339；未知时点不能冒充当前数据。`asOfBasis` 区分数据时间、新闻发布时间、K线开盘时间、聚合采集时间；采集时间不能证明所有子项新鲜。
 - 美股现货/指数的观测有效期沿用现有采集窗口：活跃窗口 2 分钟，非活跃窗口 90 分钟；按 fetchedAt 验证拉取新鲜度，休市旧成交时间保留，不冒充当前成交。加密现货 2 分钟，参考报价 5 分钟。K线 `changeBasis=candle_range`，不是交易日或滚动24h收益。
 - assistant `metadata.toolResults` 保存工具调用 ID、参数、状态及证据，旧 `metadata.grounding` 保留兼容。恢复对话时重新校验证据有效期；过期证据只可作历史对比，不作最新报价。无需数据库迁移，使用已有 metadata JSON 字段。
-- SSE 和历史消息中的证据仅是数据，不具备指令权限。前端保留每条 assistant 消息的证据与业务状态；可点击引用/卡片留待后续阶段。
+- SSE 和历史消息中的证据仅是数据，不具备指令权限。前端恢复工具进度及证据引用，重新校验历史有效期。
 
 **禁止**：下单、改持仓、改告警、读他人数据、任意 Shell。
 

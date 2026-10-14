@@ -135,6 +135,9 @@ func decorateNode(kind string, node map[string]any, now time.Time) []evidence.Ev
 		if node["candleCount"] != nil {
 			kind = "klines"
 		}
+		if node["eventStatus"] != nil {
+			kind = "market_event"
+		}
 		if kind == "get_express_news" || kind == "news" {
 			if rows, ok := node["items"].([]any); ok {
 				for _, row := range rows {
@@ -254,6 +257,7 @@ func buildEvidence(kind string, node map[string]any, status evidence.Status, now
 		"title", "body", "publishTime", "matchedBy", "entities", "sessionNote",
 		"market", "marketActive", "breadth", "hotSectors", "heatmapTop", "fundflow",
 		"macro", "rates", "topGainers", "topLosers", "quoteCount", "indexCount",
+		"overview", "holdings", "holdingCount", "omittedHoldings", "id", "severity", "eventStatus", "symbols", "startTime", "signals", "hours",
 	} {
 		if value, ok := node[key]; ok {
 			e.Facts[key] = value

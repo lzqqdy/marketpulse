@@ -13,6 +13,9 @@ import { useAiChatStream } from '../composables/useAiChatStream'
 import { useDraggableFab } from '../composables/useDraggableFab'
 import { renderAssistantHtml } from '../utils/renderMarkdown'
 import { chatAssetClass } from '../utils/evidence'
+import AssistantTrace from './AssistantTrace.vue'
+import type { AnalysisTemplateId, ChatMessage } from '../types'
+import { ANALYSIS_TEMPLATES, templatePrompt } from '../utils/templates'
 
 const {
   fabStyle,
@@ -41,6 +44,9 @@ const renameDraft = ref('')
 /** 手机 sheet 贴合 visualViewport（键盘） */
 const sheetStyle = ref<Record<string, string>>({})
 const isCompact = ref(false)
+const templateId = ref<AnalysisTemplateId | ''>('')
+const selectedEvidence = ref<{ messageId: string; id: string } | null>(null)
+const followBottom = ref(true)
 
 let lockedScrollY = 0
 let bodyLocked = false
@@ -159,6 +165,12 @@ const {
   renameConversation,
 } = useAiChatStream()
 
+watch(() => auth.token, () => {
+  reset(true)
+  input.value = ''
+  selectedEvidence.value = null
+})
+
 const canUse = computed(() => auth.isLoggedIn)
 
 const focusLabel = computed(() => {
@@ -218,9 +230,20 @@ function buildContext() {
   }
 }
 
-function renderBody(content: string, role: string) {
-  if (role !== 'assistant' || !content) return ''
-  return renderAssistantHtml(content, knownSymbols.value)
+function renderBody(message: ChatMessage) {
+  if (message.role !== 'assistant' || !message.content) return ''
+  return renderAssistantHtml(message.content, knownSymbols.value, (message.evidence ?? []).map((item) => item.id))
+}
+
+function selectTemplate() {
+  if (templateId.value) input.value = templatePrompt(templateId.value, buildContext())
+  autosize()
+  void focusComposer()
+}
+
+function onMessagesScroll() {
+  const el = messagesEl.value
+  if (el) followBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
 }
 
 async function scrollToBottom() {
@@ -233,7 +256,7 @@ async function scrollToBottom() {
 watch(
   [messages, toolStatus, streaming],
   () => {
-    void scrollToBottom()
+    if (followBottom.value) void scrollToBottom()
   },
   { deep: true },
 )
@@ -273,17 +296,21 @@ async function onSend(text?: string) {
     return
   }
   if (streaming.value) return
+  if (text) templateId.value = ''
   const content = (text ?? input.value).trim()
   if (!content) return
   input.value = ''
+  followBottom.value = true
   autosize()
   historyOpen.value = false
-  await send(auth.token, content, buildContext())
+  await send(auth.token, content, buildContext(), templateId.value || undefined)
   await focusComposer()
 }
 
 function onNewChat() {
   reset()
+  selectedEvidence.value = null
+  followBottom.value = true
   historyOpen.value = false
   renaming.value = false
   void focusComposer()
@@ -292,6 +319,8 @@ function onNewChat() {
 async function onSelect(id: string) {
   if (!auth.token || streaming.value) return
   await loadConversation(auth.token, id)
+  selectedEvidence.value = null
+  followBottom.value = true
   historyOpen.value = false
   renaming.value = false
   await scrollToBottom()
@@ -309,21 +338,34 @@ function onStop() {
 }
 
 function onComposerKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault()
     void onSend()
   }
 }
 
 function autosize() {
-  const el = composerEl.value
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  void nextTick(() => {
+    const el = composerEl.value
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(Math.max(el.scrollHeight + 2, 38), 120)}px`
+    el.style.overflowY = el.scrollHeight > 120 ? 'auto' : 'hidden'
+  })
 }
 
 function onBodyClick(e: MouseEvent) {
   const t = e.target as HTMLElement | null
+  const citation = t?.closest<HTMLElement>('[data-evidence-id]')
+  if (citation) {
+    const messageId = citation.closest<HTMLElement>('[data-message-id]')?.dataset.messageId
+    const id = citation.dataset.evidenceId
+    if (id && messageId && messages.value.find((m) => m.id === messageId)?.evidence?.some((record) => record.id === id)) {
+      followBottom.value = false
+      selectedEvidence.value = { messageId, id }
+    }
+    return
+  }
   if (!t?.classList?.contains('sym-link')) return
   const sym = t.getAttribute('data-symbol')
   if (!sym) return
@@ -559,7 +601,7 @@ watch(
       </div>
 
       <div class="ai-main">
-        <div ref="messagesEl" class="ai-messages" @click="onBodyClick">
+        <div ref="messagesEl" class="ai-messages" @click="onBodyClick" @scroll="onMessagesScroll">
           <div v-if="!messages.length" class="empty-state">
             <p class="empty-title">试试这样问</p>
             <div class="chips">
@@ -576,7 +618,7 @@ watch(
             </div>
           </div>
 
-          <div v-for="m in messages" :key="m.id" class="bubble" :class="m.role">
+          <div v-for="m in messages" :key="m.id" class="bubble" :class="m.role" :data-message-id="m.id">
             <div class="bubble-meta">
               <span class="role">{{ m.role === 'user' ? '我' : '助手' }}</span>
               <button
@@ -592,29 +634,25 @@ watch(
               v-if="m.role === 'assistant'"
               class="body md"
               v-html="
-                renderBody(m.content, m.role) ||
+                renderBody(m) ||
                 (m.pending && !toolStatus ? '…' : '')
               "
             />
             <div v-else class="body">
               {{ m.content || (m.pending && !toolStatus ? '…' : '') }}
             </div>
-          </div>
-
-          <div
-            v-if="toolStatus"
-            class="tool-status"
-            :class="toolStatus.phase"
-          >
-            <template v-if="toolStatus.phase === 'running'">查询中：{{ toolStatus.label }}</template>
-            <template v-else-if="toolStatus.phase === 'done'">已引用：{{ toolStatus.label }}</template>
-            <template v-else-if="toolStatus.phase === 'partial'">部分可用：{{ toolStatus.label }}</template>
-            <template v-else-if="toolStatus.phase === 'stale'">历史数据：{{ toolStatus.label }}</template>
-            <template v-else>查询失败：{{ toolStatus.label }}</template>
+            <AssistantTrace v-if="m.role === 'assistant'" :message="m" :selected-id="selectedEvidence?.messageId === m.id ? selectedEvidence.id : undefined" />
           </div>
         </div>
 
         <p v-if="error" class="ai-error">{{ error }}</p>
+
+        <div class="analysis-toolbar">
+          <select v-model="templateId" aria-label="分析模板" :disabled="streaming" @change="selectTemplate">
+            <option value="">自由对话</option>
+            <option v-for="template in ANALYSIS_TEMPLATES" :key="template.id" :value="template.id">{{ template.label }}</option>
+          </select>
+        </div>
 
         <form class="ai-composer" @submit.prevent="onSend()">
           <textarea
@@ -645,6 +683,11 @@ watch(
 </template>
 
 <style scoped>
+.analysis-toolbar { padding: 6px 14px 0; }
+.analysis-toolbar select { max-width: 100%; border: 1px solid var(--border, #333); border-radius: 6px; background: var(--panel, #1a1a1a); color: inherit; padding: 5px 8px; font-size: 12px; }
+.body :deep(.evidence-citation) { display: inline; border: 0; background: transparent; color: var(--coin, #d7ab3f); font: inherit; padding: 0 3px; cursor: pointer; }
+.body :deep(.unverified-citation) { color: var(--muted, #999); font-size: 11px; }
+.bubble.assistant { min-width: 0; width: 100%; }
 .ai-fab {
   position: fixed;
   right: 18px;

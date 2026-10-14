@@ -15,8 +15,11 @@ import (
 
 // Registry exposes OpenAI-compatible tool definitions and executors.
 type Registry struct {
-	md  marketdata.MarketDataService
-	now func() time.Time
+	md        marketdata.MarketDataService
+	now       func() time.Time
+	portfolio PortfolioReader
+	events    EventReader
+	userID    int64
 }
 
 func NewRegistry(md marketdata.MarketDataService) *Registry {
@@ -37,7 +40,7 @@ type FunctionSchema struct {
 
 // Definitions returns all Phase-1 tools.
 func (r *Registry) Definitions() []Definition {
-	return []Definition{
+	defs := []Definition{
 		{
 			Type: "function",
 			Function: FunctionSchema{
@@ -182,6 +185,7 @@ func (r *Registry) Definitions() []Definition {
 			},
 		},
 	}
+	return append(defs, readOnlyDefinitions()...)
 }
 
 // Execute runs a named tool and returns compact JSON text.
@@ -213,6 +217,10 @@ func (r *Registry) Execute(ctx context.Context, name, argumentsJSON string) (str
 
 func (r *Registry) execute(ctx context.Context, name string, args map[string]any) (string, error) {
 	switch name {
+	case "get_portfolio_overview":
+		return r.getPortfolioOverview(ctx, args)
+	case "get_market_events":
+		return r.getMarketEvents(ctx, args)
 	case "get_symbol_brief":
 		return r.getSymbolBrief(ctx, args)
 	case "get_quote":

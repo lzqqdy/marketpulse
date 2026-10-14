@@ -29,6 +29,7 @@ export interface AiToolResult {
   status?: ToolResultStatus
   summary?: string
   evidence?: AiEvidence[]
+  durationMs?: number
 }
 
 export interface PageContext {
@@ -46,12 +47,15 @@ export interface ChatRequest {
   conversationId?: string
   message: string
   context?: PageContext
+  templateId?: AnalysisTemplateId
 }
+
+export type AnalysisTemplateId = 'market_brief' | 'symbol_review' | 'comparison' | 'portfolio_review' | 'event_review'
 
 export type AiStreamEvent =
   | { event: 'meta'; data: { conversationId: string; messageId?: number } }
   | { event: 'token'; data: { text: string } }
-  | { event: 'tool_start'; data: { name: string; arguments?: string } }
+  | { event: 'tool_start'; data: { name: string; arguments?: string; toolCallId?: string } }
   | { event: 'tool_result'; data: AiToolResult }
   | { event: 'done'; data: { finishReason?: string; conversationId?: string } }
   | { event: 'error'; data: { code?: string; message?: string } }
@@ -63,6 +67,14 @@ export interface ChatMessage {
   pending?: boolean
   evidence?: AiEvidence[]
   toolResults?: AiToolResult[]
+  toolSteps?: ToolStep[]
+  interrupted?: boolean
+}
+
+export interface ToolStep extends ToolStatus {
+  id: string
+  durationMs?: number
+  note?: string
 }
 
 export interface ConversationItem {
@@ -96,5 +108,5 @@ export interface MessagesResult {
 export interface ToolStatus {
   name: string
   label: string
-  phase: 'running' | 'done' | 'error' | 'partial' | 'stale'
+  phase: 'running' | 'done' | 'error' | 'partial' | 'stale' | 'interrupted'
 }

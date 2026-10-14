@@ -92,7 +92,8 @@ Owns analysis workflows（规格：`specs/007-ai-assistant/`，OpenBB Rita 对�
 
 - Reads market data, portfolio summaries, and user context through public module APIs.
 - Stores conversations, messages, and (future) analysis jobs / generated insights.
-- Streams chat via SSE；tool calling 只读 `MarketDataService`（二期可读 portfolio）。
+- Streams upstream chat/tool-call deltas via SSE; binds read-only portfolio tools to the authenticated user and reads public market events through narrow module interfaces.
+- Owns analysis templates, per-answer tool progress and time-bounded evidence references; never exposes portfolio write methods to the model.
 - Does not embed provider-specific market fetching logic; does not place trades.
 
 ### event

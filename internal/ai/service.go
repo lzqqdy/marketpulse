@@ -62,6 +62,8 @@ type BootstrapArgs struct {
 	Redis      *platformredis.Client // optional; quota falls back to MySQL
 	MarketData marketdata.MarketDataService
 	Users      users.Service
+	Portfolio  tools.PortfolioReader
+	Events     tools.EventReader
 }
 
 // Bootstrap opens migrations and builds the AI service when enabled.
@@ -90,7 +92,7 @@ func Bootstrap(ctx context.Context, args BootstrapArgs) (Service, error) {
 	}
 	repo := newRepository(args.DB)
 	llmClient := llm.New(cfg.BaseURL, cfg.APIKey, cfg.Model, cfg.Timeout)
-	toolReg := tools.NewRegistry(args.MarketData)
+	toolReg := tools.NewRegistry(args.MarketData).WithReaders(args.Portfolio, args.Events)
 	return &service{
 		cfg:   cfg,
 		repo:  repo,
@@ -126,9 +128,20 @@ func (h streamHandler) OnToolResult(result agent.ToolGrounding) error {
 	return h.emit(StreamEvent{Event: "tool_result", Data: result})
 }
 
+func (h streamHandler) OnToolCallStart(id, name, arguments string) error {
+	return h.emit(StreamEvent{Event: "tool_start", Data: map[string]string{"toolCallId": id, "name": name, "arguments": arguments}})
+}
+
 func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit func(StreamEvent) error) error {
 	if !s.Enabled() {
 		return ErrDisabled
+	}
+	if userID <= 0 {
+		return fmt.Errorf("%w: authenticated user required", ErrInvalidInput)
+	}
+	template, err := templateInstruction(req.TemplateID)
+	if err != nil {
+		return err
 	}
 	msg := strings.TrimSpace(req.Message)
 	if msg == "" {
@@ -145,7 +158,6 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 	}
 
 	var conv *Conversation
-	var err error
 	if strings.TrimSpace(req.ConversationID) == "" {
 		title := msg
 		if utf8.RuneCountInString(title) > 40 {
@@ -177,8 +189,8 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 	}
 
 	var meta json.RawMessage
-	if req.Context != nil {
-		meta, _ = json.Marshal(map[string]any{"context": req.Context})
+	if req.Context != nil || req.TemplateID != "" {
+		meta, _ = json.Marshal(map[string]any{"context": req.Context, "templateId": req.TemplateID})
 	}
 	userMsgID, err := s.repo.AppendMessage(ctx, conv.ID, "user", msg, meta)
 	if err != nil {
@@ -222,7 +234,9 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 		defer cancel()
 	}
 
-	result, runErr := s.runner.RunChat(runCtx, hist, msg, page, streamHandler{emit: emit})
+	runner := *s.runner
+	runner.Tools = s.runner.Tools.ForUser(userID)
+	result, runErr := runner.RunChat(runCtx, hist, msg+template, page, streamHandler{emit: emit})
 	text := result.Text
 	if runErr != nil {
 		_ = emit(StreamEvent{Event: "error", Data: map[string]string{
@@ -230,15 +244,15 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 			"message": runErr.Error(),
 		}})
 		text = ensureDisclaimer(text)
-		if strings.TrimSpace(text) != "" || len(result.Groundings) > 0 {
-			assistMeta, _ := assistantMetadata(result, s.cfg.Model, true)
-			_, _ = s.repo.AppendMessage(ctx, conv.ID, "assistant", text, assistMeta)
-		}
+		s.persistIncomplete(ctx, conv.ID, text, result)
 		return fmt.Errorf("%w: %v", ErrUpstream, runErr)
 	}
 
 	if extra := disclaimerDelta(text); extra != "" {
-		_ = emit(StreamEvent{Event: "token", Data: map[string]string{"text": extra}})
+		if err := emit(StreamEvent{Event: "token", Data: map[string]string{"text": extra}}); err != nil {
+			s.persistIncomplete(ctx, conv.ID, text, result)
+			return err
+		}
 		text += extra
 	}
 
@@ -246,15 +260,33 @@ func (s *service) Chat(ctx context.Context, userID int64, req ChatRequest, emit 
 	if metaErr != nil {
 		return metaErr
 	}
-	_, err = s.repo.AppendMessage(ctx, conv.ID, "assistant", text, assistMeta)
+	// A disconnect after generation must not discard an otherwise valid answer.
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	_, err = s.repo.AppendMessage(persistCtx, conv.ID, "assistant", text, assistMeta)
 	if err != nil {
 		return err
 	}
-	_ = s.repo.TouchConversation(ctx, conv.ID)
+	_ = s.repo.TouchConversation(persistCtx, conv.ID)
 	return emit(StreamEvent{Event: "done", Data: map[string]any{
 		"finishReason":   "stop",
 		"conversationId": conv.PublicID,
 	}})
+}
+
+func (s *service) persistIncomplete(ctx context.Context, conversationID int64, text string, result agent.RunResult) {
+	if strings.TrimSpace(text) == "" && len(result.Groundings) == 0 {
+		return
+	}
+	metadata, err := assistantMetadata(result, s.cfg.Model, true)
+	if err != nil {
+		return
+	}
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	if _, err := s.repo.AppendMessage(persistCtx, conversationID, "assistant", text, metadata); err != nil {
+		slog.Warn("persist incomplete AI answer", "conversation_id", conversationID, "err", err)
+	}
 }
 
 func compactGrounding(items []agent.ToolGrounding) string {

@@ -20,10 +20,10 @@ function linkSymbols(html: string, symbols: string[]): string {
   if (!uniq.length) return html
   const alt = uniq.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
   const re = new RegExp(`(?<![\\w/])(${alt})(?![\\w])`, 'gi')
-  return html.replace(re, (m) => {
+  return html.split(/(<[^>]*>)/g).map((part) => part.startsWith('<') ? part : part.replace(re, (m) => {
     const canon = uniq.find((s) => s.toLowerCase() === m.toLowerCase()) || m
     return `<button type="button" class="sym-link" data-symbol="${escapeHtml(canon)}">${escapeHtml(m)}</button>`
-  })
+  })).join('')
 }
 
 function isTableSep(line: string): boolean {
@@ -60,7 +60,7 @@ function renderTable(rows: string[][]): string {
 }
 
 /** 轻量 Markdown：标题/表格/引用/加粗/斜体/代码/列表/换行 + 可点击标的。 */
-export function renderAssistantHtml(text: string, symbols: string[] = []): string {
+export function renderAssistantHtml(text: string, symbols: string[] = [], evidenceIds: string[] = []): string {
   if (!text) return ''
   const lines = text.replace(/\r\n/g, '\n').split('\n')
   const blocks: string[] = []
@@ -151,5 +151,9 @@ export function renderAssistantHtml(text: string, symbols: string[] = []): strin
   }
   flushInlineBlocks()
 
-  return linkSymbols(blocks.join(''), symbols)
+  return linkSymbols(blocks.join(''), symbols).replace(/\[证据:(ev_[A-Za-z0-9_-]+)\]/g, (original, id: string) => {
+    const index = evidenceIds.indexOf(id)
+    if (index < 0) return '<span class="unverified-citation" title="该条回答没有对应证据">[来源未验证]</span>'
+    return `<button type="button" class="evidence-citation" data-evidence-id="${escapeHtml(id)}" title="查看证据 ${index + 1}" aria-label="查看证据 ${index + 1}">[${index + 1}]</button>`
+  })
 }
